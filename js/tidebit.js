@@ -17,7 +17,7 @@ module.exports = class tidebit extends Exchange {
             'version': 'v2',
             'has': {
                 'fetchDepositAddress': true,
-                'CORS': true,
+                'CORS': false,
                 'fetchTickers': true,
                 'fetchOHLCV': true,
                 'withdraw': true,
@@ -482,12 +482,9 @@ module.exports = class tidebit extends Exchange {
             if (response === undefined) {
                 throw new ExchangeError (feedback);
             }
-            const error = this.safeValue (response, 'error');
+            const error = this.safeValue (response, 'error', {});
             const errorCode = this.safeString (error, 'code');
-            const exceptions = this.exceptions;
-            if (errorCode in exceptions) {
-                throw new exceptions[errorCode] (feedback);
-            }
+            this.throwExactlyMatchedException (this.exceptions, errorCode, feedback);
             // fallback to default error handler
         }
     }

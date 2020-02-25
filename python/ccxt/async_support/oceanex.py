@@ -102,6 +102,9 @@ class oceanex(Exchange):
                     'taker': 0.1 / 100,
                 },
             },
+            'commonCurrencies': {
+                'PLA': 'Plair',
+            },
             'exceptions': {
                 'codes': {
                     '-1': BadRequest,
@@ -629,10 +632,6 @@ class oceanex(Exchange):
         message = self.safe_string(response, 'message')
         if (errorCode is not None) and (errorCode != '0'):
             feedback = self.id + ' ' + body
-            codes = self.exceptions['codes']
-            exact = self.exceptions['exact']
-            if errorCode in codes:
-                raise codes[errorCode](feedback)
-            if message in exact:
-                raise exact[message](feedback)
+            self.throw_exactly_matched_exception(self.exceptions['codes'], errorCode, feedback)
+            self.throw_exactly_matched_exception(self.exceptions['exact'], message, feedback)
             raise ExchangeError(response)
