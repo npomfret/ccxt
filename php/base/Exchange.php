@@ -35,7 +35,7 @@ use kornrunner\Solidity;
 use Elliptic\EC;
 use BN\BN;
 
-$version = '1.27.26';
+$version = '1.27.31';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -54,12 +54,11 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.27.26';
+    const VERSION = '1.27.31';
 
     public static $exchanges = array(
         '_1btcxe',
         'acx',
-        'adara',
         'anxpro',
         'aofex',
         'bcex',

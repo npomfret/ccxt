@@ -53,13 +53,12 @@ Full public and private HTTP REST APIs for all exchanges are implemented. WebSoc
 
 # Exchanges
 
-The CCXT library currently supports the following 119 cryptocurrency exchange markets and trading APIs:
+The CCXT library currently supports the following 118 cryptocurrency exchange markets and trading APIs:
 
 |&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;logo&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                                                                                                     | id                 | name                                                                                 | ver | doc                                                                                          | certified                                                                                                                   | pro                                                                         |
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------|--------------------------------------------------------------------------------------|:---:|:--------------------------------------------------------------------------------------------:|-----------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------|
 |[![_1btcxe](https://user-images.githubusercontent.com/1294454/27766049-2b294408-5ecc-11e7-85cc-adaff013dc1a.jpg)](https://1btcxe.com)                                                        | _1btcxe            | [1BTCXE](https://1btcxe.com)                                                         | *   | [API](https://1btcxe.com/api-docs.php)                                                       |                                                                                                                             |                                                                             |
 |[![acx](https://user-images.githubusercontent.com/1294454/30247614-1fe61c74-9621-11e7-9e8c-f1a627afa279.jpg)](https://acx.io)                                                                | acx                | [ACX](https://acx.io)                                                                | 2   | [API](https://acx.io/documents/api_v2)                                                       |                                                                                                                             |                                                                             |
-|[![adara](https://user-images.githubusercontent.com/1294454/49189583-0466a780-f380-11e8-9248-57a631aad2d6.jpg)](https://adara.io)                                                            | adara              | [Adara](https://adara.io)                                                            | 1   | [API](https://api.adara.io/v1)                                                               |                                                                                                                             |                                                                             |
 |[![anxpro](https://user-images.githubusercontent.com/1294454/27765983-fd8595da-5ec9-11e7-82e3-adb3ab8c2612.jpg)](https://anxpro.com)                                                         | anxpro             | [ANXPro](https://anxpro.com)                                                         | *   | [API](https://anxv2.docs.apiary.io)                                                          |                                                                                                                             |                                                                             |
 |[![aofex](https://user-images.githubusercontent.com/51840849/77670271-056d1080-6f97-11ea-9ac2-4268e9ed0c1f.jpg)](https://aofex.com/#/register?key=9763840)                                   | aofex              | [AOFEX](https://aofex.com/#/register?key=9763840)                                    | *   | [API](https://aofex.zendesk.com/hc/en-us/sections/360005576574-API)                          |                                                                                                                             |                                                                             |
 |[![bcex](https://user-images.githubusercontent.com/51840849/77231516-851c6900-6bac-11ea-8fd6-ee5c23eddbd4.jpg)](https://www.bcex.top/register?invite_code=758978&lang=en)                    | bcex               | [BCEX](https://www.bcex.top/register?invite_code=758978&lang=en)                     | 1   | [API](https://github.com/BCEX-TECHNOLOGY-LIMITED/API_Docs/wiki/Interface)                    |                                                                                                                             |                                                                             |
@@ -2019,6 +2018,8 @@ The authentication is already handled for you, so you don't need to perform any 
 
 ## API Keys Setup
 
+### Required Credentials
+
 The API credentials usually include the following:
 
 - `apiKey`. This is your public API Key and/or Token. This part is *non-secret*, it is included in your request header or body and sent over HTTPS in open text to identify your request. It is often a string in Hex or Base64 encoding or an UUID identifier.
@@ -2029,6 +2030,36 @@ The API credentials usually include the following:
 In order to create API keys find the API tab or button in your user settings on the exchange website. Then create your keys and copy-paste them to your config file. Your config file permissions should be set appropriately, unreadable to anyone except the owner.
 
 **Remember to keep your apiKey and secret key safe from unauthorized use, do not send or tell it to anybody. A leak of the secret key or a breach in security can cost you a fund loss.**
+
+### Credential Validation
+
+For checking if the user has supplied all the required credentials the `Exchange` base class has a method called `exchange.checkRequiredCredentials()` or `exchange.check_required_credentials()`. Calling that method will throw an `AuthenticationError`, if some of the credentials are missing or empty. The `Exchange` base class also has  property `exchange.requiredCredentials` that allows a user to see which credentials are required for this or that exchange, as shown below:
+
+```JavaScript
+// JavaScript
+const ccxt = require ('ccxt')
+const exchange = new ccxt.binance()
+console.log (exchange.requiredCredentials) // prints required credentials
+exchange.checkRequiredCredentials() // throw AuthenticationError
+```
+
+```Python
+# Python
+import ccxt
+exchange = ccxt.coinbasepro()
+print(exchange.requiredCredentials)  # prints required credentials
+exchange.checkRequiredCredentials()  # raises AuthenticationError
+```
+
+```PHP
+// PHP
+include 'ccxt.php';
+$exchange = new \ccxt\bittrex ();
+var_dump($exchange->requiredCredentials); // prints required credentials
+$exchange->check_required_credentials(); // throws AuthenticationError
+```
+
+### Configuring API Keys
 
 To set up an exchange for trading just assign the API credentials to an existing exchange instance or pass them to exchange constructor upon instantiation, like so:
 

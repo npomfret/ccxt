@@ -55,7 +55,7 @@ Full public and private HTTP REST APIs for all exchanges are implemented. WebSoc
 Exchanges
 =========
 
-The CCXT library currently supports the following 119 cryptocurrency exchange markets and trading APIs:
+The CCXT library currently supports the following 118 cryptocurrency exchange markets and trading APIs:
 
 +-----------------------------------------------------------------------------------------+--------------------+-----------------------------------------------------------------------------------------+-----+-------------------------------------------------------------------------------------------------+----------------------------------------------------------------------+---------------------------------+
 |        logo                                                                             | id                 | name                                                                                    | ver | doc                                                                                             | certified                                                            | pro                             |
@@ -63,8 +63,6 @@ The CCXT library currently supports the following 119 cryptocurrency exchange ma
 | `_1btcxe  <https://1btcxe.com>`__                                                       | _1btcxe            | `1BTCXE <https://1btcxe.com>`__                                                         | \*  | `API <https://1btcxe.com/api-docs.php>`__                                                       |                                                                      |                                 |
 +-----------------------------------------------------------------------------------------+--------------------+-----------------------------------------------------------------------------------------+-----+-------------------------------------------------------------------------------------------------+----------------------------------------------------------------------+---------------------------------+
 | `acx <https://acx.io>`__                                                                | acx                | `ACX <https://acx.io>`__                                                                | 2   | `API <https://acx.io/documents/api_v2>`__                                                       |                                                                      |                                 |
-+-----------------------------------------------------------------------------------------+--------------------+-----------------------------------------------------------------------------------------+-----+-------------------------------------------------------------------------------------------------+----------------------------------------------------------------------+---------------------------------+
-| `adara <https://adara.io>`__                                                            | adara              | `Adara <https://adara.io>`__                                                            | 1   | `API <https://api.adara.io/v1>`__                                                               |                                                                      |                                 |
 +-----------------------------------------------------------------------------------------+--------------------+-----------------------------------------------------------------------------------------+-----+-------------------------------------------------------------------------------------------------+----------------------------------------------------------------------+---------------------------------+
 | `anxpro <https://anxpro.com>`__                                                         | anxpro             | `ANXPro <https://anxpro.com>`__                                                         | \*  | `API <https://anxv2.docs.apiary.io>`__                                                          |                                                                      |                                 |
 +-----------------------------------------------------------------------------------------+--------------------+-----------------------------------------------------------------------------------------+-----+-------------------------------------------------------------------------------------------------+----------------------------------------------------------------------+---------------------------------+
@@ -2224,6 +2222,9 @@ The authentication is already handled for you, so you don’t need to perform an
 API Keys Setup
 --------------
 
+Required Credentials
+~~~~~~~~~~~~~~~~~~~~
+
 The API credentials usually include the following:
 
 -  ``apiKey``. This is your public API Key and/or Token. This part is *non-secret*, it is included in your request header or body and sent over HTTPS in open text to identify your request. It is often a string in Hex or Base64 encoding or an UUID identifier.
@@ -2234,6 +2235,38 @@ The API credentials usually include the following:
 In order to create API keys find the API tab or button in your user settings on the exchange website. Then create your keys and copy-paste them to your config file. Your config file permissions should be set appropriately, unreadable to anyone except the owner.
 
 **Remember to keep your apiKey and secret key safe from unauthorized use, do not send or tell it to anybody. A leak of the secret key or a breach in security can cost you a fund loss.**
+
+Credential Validation
+~~~~~~~~~~~~~~~~~~~~~
+
+For checking if the user has supplied all the required credentials the ``Exchange`` base class has a method called ``exchange.checkRequiredCredentials()`` or ``exchange.check_required_credentials()``. Calling that method will throw an ``AuthenticationError``, if some of the credentials are missing or empty. The ``Exchange`` base class also has property ``exchange.requiredCredentials`` that allows a user to see which credentials are required for this or that exchange, as shown below:
+
+.. code:: javascript
+
+   // JavaScript
+   const ccxt = require ('ccxt')
+   const exchange = new ccxt.binance()
+   console.log (exchange.requiredCredentials) // prints required credentials
+   exchange.checkRequiredCredentials() // throw AuthenticationError
+
+.. code:: python
+
+   # Python
+   import ccxt
+   exchange = ccxt.coinbasepro()
+   print(exchange.requiredCredentials)  # prints required credentials
+   exchange.checkRequiredCredentials()  # raises AuthenticationError
+
+.. code:: php
+
+   // PHP
+   include 'ccxt.php';
+   $exchange = new \ccxt\bittrex ();
+   var_dump($exchange->requiredCredentials); // prints required credentials
+   $exchange->check_required_credentials(); // throws AuthenticationError
+
+Configuring API Keys
+~~~~~~~~~~~~~~~~~~~~
 
 To set up an exchange for trading just assign the API credentials to an existing exchange instance or pass them to exchange constructor upon instantiation, like so:
 
