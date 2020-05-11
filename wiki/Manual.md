@@ -53,7 +53,7 @@ Full public and private HTTP REST APIs for all exchanges are implemented. WebSoc
 
 # Exchanges
 
-The CCXT library currently supports the following 118 cryptocurrency exchange markets and trading APIs:
+The CCXT library currently supports the following 119 cryptocurrency exchange markets and trading APIs:
 
 |&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;logo&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                                                                                                     | id                 | name                                                                                 | ver | doc                                                                                          | certified                                                                                                                   | pro                                                                         |
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------|--------------------------------------------------------------------------------------|:---:|:--------------------------------------------------------------------------------------------:|-----------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------|
@@ -129,6 +129,7 @@ The CCXT library currently supports the following 118 cryptocurrency exchange ma
 |[![fybse](https://user-images.githubusercontent.com/1294454/27766512-31019772-5edb-11e7-8241-2e675e6797f1.jpg)](https://www.fybse.se)                                                        | fybse              | [FYB-SE](https://www.fybse.se)                                                       | *   | [API](https://fyb.docs.apiary.io)                                                            |                                                                                                                             |                                                                             |
 |[![gateio](https://user-images.githubusercontent.com/1294454/31784029-0313c702-b509-11e7-9ccc-bc0da6a0e435.jpg)](https://www.gate.io/signup/2436035)                                         | gateio             | [Gate.io](https://www.gate.io/signup/2436035)                                        | 2   | [API](https://gate.io/api2)                                                                  |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro)|
 |[![gemini](https://user-images.githubusercontent.com/1294454/27816857-ce7be644-6096-11e7-82d6-3c257263229c.jpg)](https://gemini.com/)                                                        | gemini             | [Gemini](https://gemini.com/)                                                        | 1   | [API](https://docs.gemini.com/rest-api)                                                      |                                                                                                                             |                                                                             |
+|[![hbtc](https://user-images.githubusercontent.com/51840849/80134449-70663300-85a7-11ea-8942-e204cdeaab5d.jpg)](https://www.hbtc.com/register/O2S8NS)                                        | hbtc               | [HBTC](https://www.hbtc.com/register/O2S8NS)                                         | 1   | [API](https://github.com/bhexopen/BHEX-OpenApi/tree/master/doc)                              |                                                                                                                             |                                                                             |
 |[![hitbtc](https://user-images.githubusercontent.com/1294454/27766555-8eaec20e-5edc-11e7-9c5b-6dc69fc42f5e.jpg)](https://hitbtc.com/?ref_id=5a5d39a65d466)                                   | hitbtc             | [HitBTC](https://hitbtc.com/?ref_id=5a5d39a65d466)                                   | 2   | [API](https://api.hitbtc.com)                                                                |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro)|
 |[![hollaex](https://user-images.githubusercontent.com/1294454/75841031-ca375180-5ddd-11ea-8417-b975674c23cb.jpg)](https://pro.hollaex.com/signup?affiliation_code=QSWA6G)                    | hollaex            | [HollaEx](https://pro.hollaex.com/signup?affiliation_code=QSWA6G)                    | 1   | [API](https://apidocs.hollaex.com)                                                           |                                                                                                                             |                                                                             |
 |[![huobipro](https://user-images.githubusercontent.com/1294454/76137448-22748a80-604e-11ea-8069-6e389271911d.jpg)](https://www.huobi.co/en-us/topic/invited/?invite_code=rwrd3)              | huobipro           | [Huobi Pro](https://www.huobi.co/en-us/topic/invited/?invite_code=rwrd3)             | 1   | [API](https://huobiapi.github.io/docs/spot/v1/cn/)                                           |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro)|
@@ -154,7 +155,7 @@ The CCXT library currently supports the following 118 cryptocurrency exchange ma
 |[![oceanex](https://user-images.githubusercontent.com/1294454/58385970-794e2d80-8001-11e9-889c-0567cd79b78e.jpg)](https://oceanex.pro/signup?referral=VE24QX)                                | oceanex            | [OceanEx](https://oceanex.pro/signup?referral=VE24QX)                                | 1   | [API](https://api.oceanex.pro/doc/v1)                                                        |                                                                                                                             |                                                                             |
 |[![okcoin](https://user-images.githubusercontent.com/1294454/27766791-89ffb502-5ee5-11e7-8a5b-c5950b68ac65.jpg)](https://www.okcoin.com/account/register?flag=activity&channelId=600001513)  | okcoin             | [OKCoin](https://www.okcoin.com/account/register?flag=activity&channelId=600001513)  | 3   | [API](https://www.okcoin.com/docs/en/)                                                       |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro)|
 |[![okex](https://user-images.githubusercontent.com/1294454/32552768-0d6dd3c6-c4a6-11e7-90f8-c043b64756a7.jpg)](https://www.okex.com/join/1888677)                                            | okex               | [OKEX](https://www.okex.com/join/1888677)                                            | 3   | [API](https://www.okex.com/docs/en/)                                                         |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro)|
-|[![paymium](https://user-images.githubusercontent.com/1294454/27790564-a945a9d4-5ff9-11e7-9d2d-b635763f2f24.jpg)](https://www.paymium.com)                                                   | paymium            | [Paymium](https://www.paymium.com)                                                   | 1   | [API](https://github.com/Paymium/api-documentation)                                          |                                                                                                                             |                                                                             |
+|[![paymium](https://user-images.githubusercontent.com/1294454/27790564-a945a9d4-5ff9-11e7-9d2d-b635763f2f24.jpg)](https://www.paymium.com/page/sign-up?referral=eDAzPoRQFMvaAB8sf-qj)        | paymium            | [Paymium](https://www.paymium.com/page/sign-up?referral=eDAzPoRQFMvaAB8sf-qj)        | 1   | [API](https://github.com/Paymium/api-documentation)                                          |                                                                                                                             |                                                                             |
 |[![poloniex](https://user-images.githubusercontent.com/1294454/27766817-e9456312-5ee6-11e7-9b3c-b628ca5626a5.jpg)](https://www.poloniex.com/?utm_source=ccxt&utm_medium=web)                 | poloniex           | [Poloniex](https://www.poloniex.com/?utm_source=ccxt&utm_medium=web)                 | *   | [API](https://docs.poloniex.com)                                                             | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro)|
 |[![rightbtc](https://user-images.githubusercontent.com/1294454/42633917-7d20757e-85ea-11e8-9f53-fffe9fbb7695.jpg)](https://www.rightbtc.com)                                                 | rightbtc           | [RightBTC](https://www.rightbtc.com)                                                 | *   | [API](https://docs.rightbtc.com/api/)                                                        |                                                                                                                             |                                                                             |
 |[![southxchange](https://user-images.githubusercontent.com/1294454/27838912-4f94ec8a-60f6-11e7-9e5d-bbf9bd50a559.jpg)](https://www.southxchange.com)                                         | southxchange       | [SouthXchange](https://www.southxchange.com)                                         | *   | [API](https://www.southxchange.com/Home/Api)                                                 |                                                                                                                             |                                                                             |
@@ -638,16 +639,16 @@ Each market is an associative array (aka dictionary) with the following keys:
 
 ```JavaScript
 {
-    'id':       'btc',     // string literal for referencing within an exchange
-    'code':     'BTC',     // uppercase unified string literal code the currency
-    'name':     'Bitcoin', // string, human-readable name, if specified
-    'active':    true,     // boolean, currency status (tradeable and withdrawable)
-    'fee':       0.123
-    'precision': 8,       // number of decimal digits "after the dot" (depends on exchange.precisionMode)
-    'limits': {           // value limits when placing orders on this market
+    'id':       'btc',       // string literal for referencing within an exchange
+    'code':     'BTC',       // uppercase unified string literal code the currency
+    'name':     'Bitcoin',   // string, human-readable name, if specified
+    'active':    true,       // boolean, currency status (tradeable and withdrawable)
+    'fee':       0.123,      // withdrawal fee, flat
+    'precision': 8,          // number of decimal digits "after the dot" (depends on exchange.precisionMode)
+    'limits': {              // value limits when placing orders on this market
         'amount': {
-            'min': 0.01,  // order amount should be > min
-            'max': 1000,  // order amount should be < max
+            'min': 0.01,     // order amount should be > min
+            'max': 1000,     // order amount should be < max
         },
         'price':    { ... }, // same min/max limits for the price of the order
         'cost':     { ... }, // same limits for order cost = price * amount
@@ -662,6 +663,7 @@ Each currency is an associative array (aka dictionary) with the following keys:
 - `id`. The string or numeric ID of the currency within the exchange. Currency ids are used inside exchanges internally to identify coins during the request/response process.
 - `code`. An uppercase string code representation of a particular currency. Currency codes are used to reference currencies within the ccxt library (explained below).
 - `name`. Self-explaining.
+- `fee`. The withdrawal fee value as specified by the exchange. In most cases it means a flat fixed amount paid in the same currency. If the exchnange does not specify it via public endpoints, the `fee` can be `undefined/None/null` or missing.
 - `active`. A boolean indicating whether or not trading and funding (depositing and withdrawing) this currency is currently possible. Often, when a currency is inactive, all corresponding tickers, orderbooks and other related endpoints return empty responses, all zeroes, no data or outdated data for that currency. The user should check if the currency is active and [reload markets periodically, as explained below](#market-cache-force-reload).
 - `info`. An associative array of non-common market properties, including fees, rates, limits and other general market information. The internal info array is different for each particular market, its contents depend on the exchange.
 - `precision`. Precision accepted in values by exchanges upon referencing this currency. The value inside this property depend on the `exchange.precisionMode`.
@@ -1647,14 +1649,33 @@ var_dump ($exchange->id, 'market price', $result);
 
 ## Price Tickers
 
-A price ticker contains statistics for a particular market/symbol for some period of time in recent past, usually last 24 hours. The methods for fetching tickers are:
+A price ticker contains statistics for a particular market/symbol for some period of time in recent past, usually last 24 hours. The methods for fetching tickers are described below.
+
+### A Single Ticker For One Symbol
 
 ```JavaScript
-fetchTicker (symbol, params = {})   // for one ticker
-fetchTickers (symbol, params = {})  // for all tickers at once
+// one ticker
+fetchTicker (symbol, params = {})
+
+// example
+fetchTicker ('ETH/BTC')
+fetchTicker ('BTC/USDT')
+```
+
+### Multiple Tickers For All Or Many Symmbols
+
+```JavaScript
+// multiple tickers
+fetchTickers (symbols = undefined, params = {})  // for all tickers at once
+
+// for example
+fetchTickers () // all symbols
+fetchTickers ([ 'ETH/BTC', 'BTC/USDT' ]) // an array of specific symbols
 ```
 
 Check the `exchange.has['fetchTicker']` and `exchange.has['fetchTickers']` properties of the exchange instance to determine if the exchange in question does support these methods.
+
+**Please, note, that calling `fetchTickers ()` without a symbol is usually strictly rate-limited, an exchange may ban you if you poll that endpoint too frequently.**
 
 ### Ticker structure
 
