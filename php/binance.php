@@ -68,9 +68,12 @@ class binance extends Exchange {
                 'test' => array(
                     'fapiPublic' => 'https://testnet.binancefuture.com/fapi/v1',
                     'fapiPrivate' => 'https://testnet.binancefuture.com/fapi/v1',
+                    'public' => 'https://testnet.binance.vision/api/v3',
+                    'private' => 'https://testnet.binance.vision/api/v3',
+                    'v3' => 'https://testnet.binance.vision/api/v3',
+                    'v1' => 'https://testnet.binance.vision/api/v1',
                 ),
                 'api' => array(
-                    'web' => 'https://www.binance.com',
                     'wapi' => 'https://api.binance.com/wapi/v3',
                     'sapi' => 'https://api.binance.com/sapi/v1',
                     'fapiPublic' => 'https://fapi.binance.com/fapi/v1',
@@ -89,12 +92,6 @@ class binance extends Exchange {
                 'fees' => 'https://www.binance.com/en/fee/schedule',
             ),
             'api' => array(
-                'web' => array(
-                    'get' => array(
-                        'exchange/public/product',
-                        'assetWithdraw/getAllAsset.html',
-                    ),
-                ),
                 // the API structure below will need 3-layer apidefs
                 'sapi' => array(
                     'get' => array(
@@ -144,6 +141,14 @@ class binance extends Exchange {
                         'lending/union/interestHistory',
                         'lending/project/list',
                         'lending/project/position/list',
+                        // mining endpoints
+                        'mining/pub/algoList',
+                        'mining/pub/coinList',
+                        'mining/worker/detail',
+                        'mining/worker/list',
+                        'mining/payment/list',
+                        'mining/statistics/user/status',
+                        'mining/statistics/user/list',
                     ),
                     'post' => array(
                         'asset/dust',
@@ -233,6 +238,7 @@ class binance extends Exchange {
                         'order',
                         'leverage',
                         'listenKey',
+                        'countdownCancelAll',
                     ),
                     'put' => array(
                         'listenKey',
@@ -342,32 +348,6 @@ class binance extends Exchange {
                 '-2015' => '\\ccxt\\AuthenticationError', // "Invalid API-key, IP, or permissions for action."
             ),
         ));
-    }
-
-    public function set_sandbox_mode($enabled) {
-        if ($enabled) { // eslint-disable-line no-extra-boolean-cast
-            if (is_array($this->urls) && array_key_exists('test', $this->urls)) {
-                $type = $this->safe_string($this->options, 'defaultType', 'spot');
-                if ($type !== 'future') {
-                    throw new NotSupported($this->id . ' does not have a sandbox URL for ' . $type . " markets, set exchange.options['defaultType'] = 'future' or don't use the sandbox for " . $this->id);
-                }
-                if (gettype($this->urls['api']) === 'string') {
-                    $this->urls['api_backup'] = $this->urls['api'];
-                    $this->urls['api'] = $this->urls['test'];
-                } else {
-                    $this->urls['api_backup'] = array_merge(array(), $this->urls['api']);
-                    $this->urls['api'] = array_merge(array(), $this->urls['test']);
-                }
-            } else {
-                throw new NotSupported($this->id . ' does not have a sandbox URL');
-            }
-        } else if (is_array($this->urls) && array_key_exists('api_backup', $this->urls)) {
-            if (gettype($this->urls['api']) === 'string') {
-                $this->urls['api'] = $this->urls['api_backup'];
-            } else {
-                $this->urls['api'] = array_merge(array(), $this->urls['api_backup']);
-            }
-        }
     }
 
     public function nonce() {
@@ -593,7 +573,12 @@ class binance extends Exchange {
         $this->load_markets();
         $defaultType = $this->safe_string_2($this->options, 'fetchBalance', 'defaultType', 'spot');
         $type = $this->safe_string($params, 'type', $defaultType);
-        $method = ($type === 'spot') ? 'privateGetAccount' : 'fapiPrivateGetAccount';
+        $method = 'privateGetAccount';
+        if ($type === 'future') {
+            $method = 'fapiPrivateGetAccount';
+        } else if ($type === 'margin') {
+            $method = 'sapiGetMarginAccount';
+        }
         $query = $this->omit($params, 'type');
         $response = $this->$method ($query);
         //
@@ -1897,6 +1882,9 @@ class binance extends Exchange {
     }
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
+        if (!(is_array($this->urls['api']) && array_key_exists($api, $this->urls['api']))) {
+            throw new NotSupported($this->id . ' does not have a testnet/sandbox URL for ' . $api . ' endpoints');
+        }
         $url = $this->urls['api'][$api];
         $url .= '/' . $path;
         if ($api === 'wapi') {

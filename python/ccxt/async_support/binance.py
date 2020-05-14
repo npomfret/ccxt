@@ -4,13 +4,6 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
-
-# -----------------------------------------------------------------------------
-
-try:
-    basestring  # Python 3
-except NameError:
-    basestring = str  # Python 2
 import math
 import json
 from ccxt.base.errors import ExchangeError
@@ -84,9 +77,12 @@ class binance(Exchange):
                 'test': {
                     'fapiPublic': 'https://testnet.binancefuture.com/fapi/v1',
                     'fapiPrivate': 'https://testnet.binancefuture.com/fapi/v1',
+                    'public': 'https://testnet.binance.vision/api/v3',
+                    'private': 'https://testnet.binance.vision/api/v3',
+                    'v3': 'https://testnet.binance.vision/api/v3',
+                    'v1': 'https://testnet.binance.vision/api/v1',
                 },
                 'api': {
-                    'web': 'https://www.binance.com',
                     'wapi': 'https://api.binance.com/wapi/v3',
                     'sapi': 'https://api.binance.com/sapi/v1',
                     'fapiPublic': 'https://fapi.binance.com/fapi/v1',
@@ -105,12 +101,6 @@ class binance(Exchange):
                 'fees': 'https://www.binance.com/en/fee/schedule',
             },
             'api': {
-                'web': {
-                    'get': [
-                        'exchange/public/product',
-                        'assetWithdraw/getAllAsset.html',
-                    ],
-                },
                 # the API structure below will need 3-layer apidefs
                 'sapi': {
                     'get': [
@@ -160,6 +150,14 @@ class binance(Exchange):
                         'lending/union/interestHistory',
                         'lending/project/list',
                         'lending/project/position/list',
+                        # mining endpoints
+                        'mining/pub/algoList',
+                        'mining/pub/coinList',
+                        'mining/worker/detail',
+                        'mining/worker/list',
+                        'mining/payment/list',
+                        'mining/statistics/user/status',
+                        'mining/statistics/user/list',
                     ],
                     'post': [
                         'asset/dust',
@@ -249,6 +247,7 @@ class binance(Exchange):
                         'order',
                         'leverage',
                         'listenKey',
+                        'countdownCancelAll',
                     ],
                     'put': [
                         'listenKey',
@@ -358,26 +357,6 @@ class binance(Exchange):
                 '-2015': AuthenticationError,  # "Invalid API-key, IP, or permissions for action."
             },
         })
-
-    def set_sandbox_mode(self, enabled):
-        if enabled:  # eslint-disable-line no-extra-boolean-cast
-            if 'test' in self.urls:
-                type = self.safe_string(self.options, 'defaultType', 'spot')
-                if type != 'future':
-                    raise NotSupported(self.id + ' does not have a sandbox URL for ' + type + " markets, set exchange.options['defaultType'] = 'future' or don't use the sandbox for " + self.id)
-                if isinstance(self.urls['api'], basestring):
-                    self.urls['api_backup'] = self.urls['api']
-                    self.urls['api'] = self.urls['test']
-                else:
-                    self.urls['api_backup'] = self.extend({}, self.urls['api'])
-                    self.urls['api'] = self.extend({}, self.urls['test'])
-            else:
-                raise NotSupported(self.id + ' does not have a sandbox URL')
-        elif 'api_backup' in self.urls:
-            if isinstance(self.urls['api'], basestring):
-                self.urls['api'] = self.urls['api_backup']
-            else:
-                self.urls['api'] = self.extend({}, self.urls['api_backup'])
 
     def nonce(self):
         return self.milliseconds() - self.options['timeDifference']
@@ -588,7 +567,11 @@ class binance(Exchange):
         await self.load_markets()
         defaultType = self.safe_string_2(self.options, 'fetchBalance', 'defaultType', 'spot')
         type = self.safe_string(params, 'type', defaultType)
-        method = 'privateGetAccount' if (type == 'spot') else 'fapiPrivateGetAccount'
+        method = 'privateGetAccount'
+        if type == 'future':
+            method = 'fapiPrivateGetAccount'
+        elif type == 'margin':
+            method = 'sapiGetMarginAccount'
         query = self.omit(params, 'type')
         response = await getattr(self, method)(query)
         #
@@ -1770,6 +1753,8 @@ class binance(Exchange):
         return result
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
+        if not (api in self.urls['api']):
+            raise NotSupported(self.id + ' does not have a testnet/sandbox URL for ' + api + ' endpoints')
         url = self.urls['api'][api]
         url += '/' + path
         if api == 'wapi':
