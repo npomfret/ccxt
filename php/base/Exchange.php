@@ -35,7 +35,7 @@ use kornrunner\Solidity;
 use Elliptic\EC;
 use BN\BN;
 
-$version = '1.27.66';
+$version = '1.27.81';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -54,7 +54,7 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.27.66';
+    const VERSION = '1.27.81';
 
     public static $exchanges = array(
         '_1btcxe',
@@ -119,6 +119,7 @@ class Exchange {
         'deribit',
         'digifinex',
         'dsx',
+        'eterbase',
         'exmo',
         'exx',
         'fcoin',
@@ -675,6 +676,13 @@ class Exchange {
             $time += (int) str_pad($match['milliseconds'], 3, '0', STR_PAD_RIGHT);
         }
         return $time;
+    }
+    
+    public static function rfc2616($timestamp) {	
+        if (!$timestamp) {	
+            $timestamp = $this->milliseconds();	
+        }	
+        return gmdate('D, d M Y H:i:s T', (int) round($timestamp / 1000));	
     }
 
     public static function dmy($timestamp, $infix = '-') {
