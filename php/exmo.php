@@ -502,6 +502,9 @@ class exmo extends Exchange {
         if (($input === null) || ($input === '-')) {
             return null;
         }
+        if ($input === '') {
+            return 0;
+        }
         $isPercentage = (mb_strpos($input, '%') !== false);
         $parts = explode(' ', $input);
         $value = str_replace('%', '', $parts[0]);
@@ -531,14 +534,10 @@ class exmo extends Exchange {
             $withdrawalFee = $this->safe_string($item, 'wd');
             $depositFee = $this->safe_string($item, 'dep');
             if ($withdrawalFee !== null) {
-                if (strlen($withdrawalFee) > 0) {
-                    $withdraw[$code] = $this->parse_fixed_float_value($withdrawalFee);
-                }
+                $withdraw[$code] = $this->parse_fixed_float_value($withdrawalFee);
             }
             if ($depositFee !== null) {
-                if (strlen($depositFee) > 0) {
-                    $deposit[$code] = $this->parse_fixed_float_value($depositFee);
-                }
+                $deposit[$code] = $this->parse_fixed_float_value($depositFee);
             }
         }
         // sets fiat fees to null
@@ -626,15 +625,16 @@ class exmo extends Exchange {
         $response = $this->publicGetPairSettings ($params);
         //
         //     {
-        //         "EXM_ETH" => array(
-        //         "min_quantity" => "1",
-        //         "max_quantity" => "1000",
-        //         "min_price" => "1",
-        //         "max_price" => "1000",
-        //         "max_amount" => "1000",
-        //         "min_amount" => "1",
-        //         "commission_taker_percent" => "0.2",
-        //         "commission_maker_percent" => "0.2"
+        //         "BTC_USD":array(
+        //             "min_quantity":"0.0001",
+        //             "max_quantity":"1000",
+        //             "min_price":"1",
+        //             "max_price":"30000",
+        //             "max_amount":"500000",
+        //             "min_amount":"1",
+        //             "price_precision":8,
+        //             "commission_taker_percent":"0.4",
+        //             "commission_maker_percent":"0.4"
         //         ),
         //     }
         //
@@ -675,7 +675,7 @@ class exmo extends Exchange {
                 ),
                 'precision' => array(
                     'amount' => 8,
-                    'price' => 8,
+                    'price' => $this->safe_integer($market, 'price_precision'),
                 ),
                 'info' => $market,
             );

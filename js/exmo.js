@@ -496,6 +496,9 @@ module.exports = class exmo extends Exchange {
         if ((input === undefined) || (input === '-')) {
             return undefined;
         }
+        if (input === '') {
+            return 0;
+        }
         const isPercentage = (input.indexOf ('%') >= 0);
         const parts = input.split (' ');
         const value = parts[0].replace ('%', '');
@@ -525,14 +528,10 @@ module.exports = class exmo extends Exchange {
             const withdrawalFee = this.safeString (item, 'wd');
             const depositFee = this.safeString (item, 'dep');
             if (withdrawalFee !== undefined) {
-                if (withdrawalFee.length > 0) {
-                    withdraw[code] = this.parseFixedFloatValue (withdrawalFee);
-                }
+                withdraw[code] = this.parseFixedFloatValue (withdrawalFee);
             }
             if (depositFee !== undefined) {
-                if (depositFee.length > 0) {
-                    deposit[code] = this.parseFixedFloatValue (depositFee);
-                }
+                deposit[code] = this.parseFixedFloatValue (depositFee);
             }
         }
         // sets fiat fees to undefined
@@ -620,15 +619,16 @@ module.exports = class exmo extends Exchange {
         const response = await this.publicGetPairSettings (params);
         //
         //     {
-        //         "EXM_ETH": {
-        //         "min_quantity": "1",
-        //         "max_quantity": "1000",
-        //         "min_price": "1",
-        //         "max_price": "1000",
-        //         "max_amount": "1000",
-        //         "min_amount": "1",
-        //         "commission_taker_percent": "0.2",
-        //         "commission_maker_percent": "0.2"
+        //         "BTC_USD":{
+        //             "min_quantity":"0.0001",
+        //             "max_quantity":"1000",
+        //             "min_price":"1",
+        //             "max_price":"30000",
+        //             "max_amount":"500000",
+        //             "min_amount":"1",
+        //             "price_precision":8,
+        //             "commission_taker_percent":"0.4",
+        //             "commission_maker_percent":"0.4"
         //         },
         //     }
         //
@@ -669,7 +669,7 @@ module.exports = class exmo extends Exchange {
                 },
                 'precision': {
                     'amount': 8,
-                    'price': 8,
+                    'price': this.safeInteger (market, 'price_precision'),
                 },
                 'info': market,
             });
