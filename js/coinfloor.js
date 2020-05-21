@@ -399,7 +399,19 @@ module.exports = class coinfloor extends Exchange {
             request['price'] = price;
             request['amount'] = amount;
         }
-        return await this[method] (this.extend (request, params));
+        // {"id":31950584,"datetime":"2020-05-21 08:38:18","type":1,"price":"9100","amount":"0.0026"}
+        const res = await this[method] (this.extend (request, params));
+        const timestamp = this.parse8601 (this.safeString (res, 'datetime'));
+        return {
+            'id': this.safeString (res, 'id'),
+            'clientOrderId': undefined,
+            'datetime': this.iso8601 (timestamp),
+            'timestamp': timestamp,
+            'type': type,
+            'price': this.safeFloat (res, 'price'),
+            'amount': this.safeFloat (res, 'amount'),
+            'info': res
+        }
     }
 
     async cancelOrder (id, symbol = undefined, params = {}) {
