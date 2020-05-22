@@ -19,6 +19,7 @@ module.exports = class gateio extends Exchange {
             'has': {
                 'CORS': false,
                 'createMarketOrder': false,
+                'fetchCurrencies': true,
                 'fetchTickers': true,
                 'withdraw': true,
                 'fetchDeposits': true,
@@ -173,7 +174,7 @@ module.exports = class gateio extends Exchange {
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
             const ids = Object.keys (item);
-            for(let j = 0; j < ids.length; j++) {
+            for (let j = 0; j < ids.length; j++) {
                 const id = ids[j];
                 const currency = item[id];
                 const code = this.safeCurrencyCode (id);
