@@ -373,13 +373,13 @@ class binance extends Exchange {
         $defaultType = $this->safe_string_2($this->options, 'fetchMarkets', 'defaultType', 'spot');
         $type = $this->safe_string($params, 'type', $defaultType);
         $query = $this->omit($params, 'type');
-        if (($type !== 'spot') && ($type !== 'future')) {
-            throw new ExchangeError($this->id . " does not support '" . $type . "' $type, set exchange.options['defaultType'] to 'spot' or 'future'"); // eslint-disable-line quotes
+        if (($type !== 'spot') && ($type !== 'future') && ($type !== 'margin')) {
+            throw new ExchangeError($this->id . " does not support '" . $type . "' $type, set exchange.options['defaultType'] to 'spot', 'margin' or 'future'"); // eslint-disable-line quotes
         }
-        $method = ($type === 'spot') ? 'publicGetExchangeInfo' : 'fapiPublicGetExchangeInfo';
+        $method = ($type === 'future') ? 'fapiPublicGetExchangeInfo' : 'publicGetExchangeInfo';
         $response = $this->$method ($query);
         //
-        // $spot
+        // $spot / $margin
         //
         //     {
         //         "timezone":"UTC",
@@ -480,6 +480,7 @@ class binance extends Exchange {
             );
             $status = $this->safe_string($market, 'status');
             $active = ($status === 'TRADING');
+            $margin = $this->safe_value($market, 'isMarginTradingAllowed', $future);
             $entry = array(
                 'id' => $id,
                 'lowercaseId' => $lowercaseId,
@@ -491,6 +492,7 @@ class binance extends Exchange {
                 'info' => $market,
                 'type' => $marketType,
                 'spot' => $spot,
+                'margin' => $margin,
                 'future' => $future,
                 'active' => $active,
                 'precision' => $precision,
@@ -600,6 +602,23 @@ class binance extends Exchange {
         //         )
         //     }
         //
+        // margin
+        //
+        //     {
+        //         "borrowEnabled":true,
+        //         "marginLevel":"999.00000000",
+        //         "totalAssetOfBtc":"0.00000000",
+        //         "totalLiabilityOfBtc":"0.00000000",
+        //         "totalNetAssetOfBtc":"0.00000000",
+        //         "tradeEnabled":true,
+        //         "transferEnabled":true,
+        //         "userAssets":array(
+        //             array("asset":"MATIC","borrowed":"0.00000000","free":"0.00000000","interest":"0.00000000","locked":"0.00000000","netAsset":"0.00000000"),
+        //             array("asset":"VET","borrowed":"0.00000000","free":"0.00000000","interest":"0.00000000","locked":"0.00000000","netAsset":"0.00000000"),
+        //             array("asset":"USDT","borrowed":"0.00000000","free":"0.00000000","interest":"0.00000000","locked":"0.00000000","netAsset":"0.00000000")
+        //         ),
+        //     }
+        //
         // futures (fapi)
         //
         //     {
@@ -642,8 +661,8 @@ class binance extends Exchange {
         //     }
         //
         $result = array( 'info' => $response );
-        if ($type === 'spot') {
-            $balances = $this->safe_value($response, 'balances', array());
+        if (($type === 'spot') || ($type === 'margin')) {
+            $balances = $this->safe_value_2($response, 'balances', 'userAssets', array());
             for ($i = 0; $i < count($balances); $i++) {
                 $balance = $balances[$i];
                 $currencyId = $this->safe_string($balance, 'asset');
