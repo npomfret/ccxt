@@ -318,6 +318,7 @@ module.exports = class exmo extends Exchange {
                                     { 'prov': 'XMR', 'dep': '0%', 'wd': '0.001 XMR' },
                                     { 'prov': 'XRP', 'dep': '0%', 'wd': '0.02 XRP' },
                                     { 'prov': 'ETC', 'dep': '0%', 'wd': '0.01 ETC' },
+                                    { 'prov': 'BCH', 'dep': '0%', 'wd': '0.001 BCH' },
                                     { 'prov': 'BTG', 'dep': '0%', 'wd': '0.001 BTG' },
                                     { 'prov': 'EOS', 'dep': '0%', 'wd': '0.05 EOS' },
                                     { 'prov': 'XLM', 'dep': '0%', 'wd': '0.01 XLM' },
@@ -450,6 +451,7 @@ module.exports = class exmo extends Exchange {
                     '50054': InsufficientFunds,
                     '50304': OrderNotFound, // "Order was not found '123456789'" (fetching order trades for an order that does not have trades yet)
                     '50173': OrderNotFound, // "Order with id X was not found." (cancelling non-existent, closed and cancelled order)
+                    '50277': InvalidOrder,
                     '50319': InvalidOrder, // Price by order is less than permissible minimum for this pair
                     '50321': InvalidOrder, // Price by order is more than permissible maximum for this pair
                 },
