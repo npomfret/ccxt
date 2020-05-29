@@ -324,6 +324,7 @@ class exmo extends Exchange {
                                     array( 'prov' => 'XMR', 'dep' => '0%', 'wd' => '0.001 XMR' ),
                                     array( 'prov' => 'XRP', 'dep' => '0%', 'wd' => '0.02 XRP' ),
                                     array( 'prov' => 'ETC', 'dep' => '0%', 'wd' => '0.01 ETC' ),
+                                    array( 'prov' => 'BCH', 'dep' => '0%', 'wd' => '0.001 BCH' ),
                                     array( 'prov' => 'BTG', 'dep' => '0%', 'wd' => '0.001 BTG' ),
                                     array( 'prov' => 'EOS', 'dep' => '0%', 'wd' => '0.05 EOS' ),
                                     array( 'prov' => 'XLM', 'dep' => '0%', 'wd' => '0.01 XLM' ),
@@ -456,6 +457,7 @@ class exmo extends Exchange {
                     '50054' => '\\ccxt\\InsufficientFunds',
                     '50304' => '\\ccxt\\OrderNotFound', // "Order was not found '123456789'" (fetching order trades for an order that does not have trades yet)
                     '50173' => '\\ccxt\\OrderNotFound', // "Order with id X was not found." (cancelling non-existent, closed and cancelled order)
+                    '50277' => '\\ccxt\\InvalidOrder',
                     '50319' => '\\ccxt\\InvalidOrder', // Price by order is less than permissible minimum for this pair
                     '50321' => '\\ccxt\\InvalidOrder', // Price by order is more than permissible maximum for this pair
                 ),
