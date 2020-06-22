@@ -111,6 +111,7 @@ class bitmex(Exchange):
                         'user/checkReferralCode',
                         'user/commission',
                         'user/depositAddress',
+                        'user/executionHistory',
                         'user/margin',
                         'user/minWithdrawalFee',
                         'user/wallet',
@@ -632,10 +633,10 @@ class bitmex(Exchange):
             addressTo = address
         amount = self.safe_integer(transaction, 'amount')
         if amount is not None:
-            amount = abs(amount) * 1e-8
+            amount = abs(amount) / 10000000
         feeCost = self.safe_integer(transaction, 'fee')
         if feeCost is not None:
-            feeCost = feeCost * 1e-8
+            feeCost = feeCost / 10000000
         fee = {
             'cost': feeCost,
             'currency': 'BTC',
@@ -831,7 +832,7 @@ class bitmex(Exchange):
             'info': ticker,
         }
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     {
         #         "timestamp":"2015-09-25T13:38:00.000Z",
@@ -888,6 +889,8 @@ class bitmex(Exchange):
                 timestamp = self.sum(timestamp, duration)
             ymdhms = self.ymdhms(timestamp)
             request['startTime'] = ymdhms  # starting date filter for results
+        else:
+            request['reverse'] = True
         response = await self.publicGetTradeBucketed(self.extend(request, params))
         #
         #     [
@@ -896,7 +899,7 @@ class bitmex(Exchange):
         #         {"timestamp":"2015-09-25T13:40:00.000Z","symbol":"XBTUSD","open":237.45,"high":237.45,"low":237.45,"close":237.45,"trades":0,"volume":0,"vwap":null,"lastSize":null,"turnover":0,"homeNotional":0,"foreignNotional":0}
         #     ]
         #
-        result = self.parse_ohlcvs(response, market)
+        result = self.parse_ohlcvs(response, market, timeframe, since, limit)
         if fetchOHLCVOpenTimestamp:
             # bitmex returns the candle's close timestamp - https://github.com/ccxt/ccxt/issues/4446
             # we can emulate the open timestamp by shifting all the timestamps one place
@@ -1100,6 +1103,9 @@ class bitmex(Exchange):
         }
         if since is not None:
             request['startTime'] = self.iso8601(since)
+        else:
+            # by default reverse=false, i.e. trades are fetched since the time of market inception(year 2015 for XBTUSD)
+            request['reverse'] = True
         if limit is not None:
             request['count'] = limit
         response = await self.publicGetTrade(self.extend(request, params))
@@ -1163,6 +1169,8 @@ class bitmex(Exchange):
             if clientOrderId is not None:
                 request['clOrdID'] = clientOrderId
             params = self.omit(params, ['origClOrdID', 'clOrdID', 'clientOrderId'])
+        else:
+            request['orderID'] = id
         if amount is not None:
             request['orderQty'] = amount
         if price is not None:

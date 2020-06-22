@@ -166,6 +166,7 @@ class coinbasepro extends Exchange {
                     'price too small' => '\\ccxt\\InvalidOrder',
                     'price too precise' => '\\ccxt\\InvalidOrder',
                     'under maintenance' => '\\ccxt\\OnMaintenance',
+                    'size is too small' => '\\ccxt\\InvalidOrder',
                 ),
             ),
         ));
@@ -490,7 +491,7 @@ class coinbasepro extends Exchange {
         return $this->parse_trades($response, $market, $since, $limit);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '1m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         //
         //     array(
         //         1591514160,
@@ -535,7 +536,7 @@ class coinbasepro extends Exchange {
         //         [1591514040,0.02505,0.02507,0.02505,0.02507,0.19918178]
         //     ]
         //
-        return $this->parse_ohlcvs($response, $market);
+        return $this->parse_ohlcvs($response, $market, $timeframe, $since, $limit);
     }
 
     public function fetch_time($params = array ()) {

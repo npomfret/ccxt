@@ -223,7 +223,7 @@ class btcturk(Exchange):
         response = self.publicGetTrades(self.extend(request, params))
         return self.parse_trades(response, market, since, limit)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1d', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         return [
             self.parse8601(self.safe_string(ohlcv, 'Time')),
             self.safe_float(ohlcv, 'Open'),
@@ -240,7 +240,7 @@ class btcturk(Exchange):
         if limit is not None:
             request['last'] = limit
         response = self.publicGetOhlcdata(self.extend(request, params))
-        return self.parse_ohlcvs(response, market)
+        return self.parse_ohlcvs(response, market, timeframe, since, limit)
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         self.load_markets()

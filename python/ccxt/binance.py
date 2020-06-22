@@ -139,6 +139,7 @@ class binance(Exchange):
                         'sub-account/margin/account',
                         'sub-account/margin/accountSummary',
                         'sub-account/status',
+                        'sub-account/transfer/subUserHistory',
                         # lending endpoints
                         'lending/daily/product/list',
                         'lending/daily/userLeftQuota',
@@ -769,7 +770,7 @@ class binance(Exchange):
         response = getattr(self, method)(params)
         return self.parse_tickers(response, symbols)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     [
         #         1591478520000,
@@ -815,7 +816,7 @@ class binance(Exchange):
         #         [1591478640000,"0.02500800","0.02501100","0.02500300","0.02500800","154.14200000",1591478699999,"3.85405839",97,"5.32300000","0.13312641","0"],
         #     ]
         #
-        return self.parse_ohlcvs(response, market)
+        return self.parse_ohlcvs(response, market, timeframe, since, limit)
 
     def parse_trade(self, trade, market=None):
         if 'isDustTrade' in trade:
@@ -1159,7 +1160,7 @@ class binance(Exchange):
             test = self.safe_value(params, 'test', False)
             if test:
                 method += 'Test'
-                params = self.omit(params, 'test')
+            params = self.omit(params, 'test')
         uppercaseType = type.upper()
         validOrderTypes = self.safe_value(market['info'], 'orderTypes')
         if not self.in_array(uppercaseType, validOrderTypes):

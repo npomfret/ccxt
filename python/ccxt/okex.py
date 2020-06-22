@@ -1286,7 +1286,7 @@ class okex(Exchange):
         #
         return self.parse_trades(response, market, since, limit)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         # spot markets
         #
@@ -1401,7 +1401,7 @@ class okex(Exchange):
         #         ]
         #     ]
         #
-        return self.parse_ohlcvs(response, market)
+        return self.parse_ohlcvs(response, market, timeframe, since, limit)
 
     def parse_account_balance(self, response):
         #

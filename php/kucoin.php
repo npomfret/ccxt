@@ -609,7 +609,7 @@ class kucoin extends Exchange {
         return $this->parse_ticker($response['data'], $market);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '1m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         //
         //     array(
         //         "1545904980",             // Start time of the candle cycle
@@ -668,7 +668,7 @@ class kucoin extends Exchange {
         //     }
         //
         $data = $this->safe_value($response, 'data', array());
-        return $this->parse_ohlcvs($data, $market);
+        return $this->parse_ohlcvs($data, $market, $timeframe, $since, $limit);
     }
 
     public function create_deposit_address($code, $params = array ()) {

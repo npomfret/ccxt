@@ -132,11 +132,6 @@ module.exports = class bybit extends Exchange {
                         'stop-order/list',
                         'stop-order/search',
                         'position/list',
-                        'position/set-auto-add-margin',
-                        'position/set-leverage',
-                        'position/switch-isolated',
-                        'position/trading-stop',
-                        'position/add-margin',
                         'trade/execution/list',
                         'trade/closed-pnl/list',
                         'risk-limit',
@@ -150,6 +145,11 @@ module.exports = class bybit extends Exchange {
                         'stop-order/create',
                         'stop-order/cancel',
                         'stop-order/cancelAll',
+                        'position/switch-isolated',
+                        'position/set-auto-add-margin',
+                        'position/set-leverage',
+                        'position/trading-stop',
+                        'position/add-margin',
                     ],
                 },
                 'position': {
@@ -645,7 +645,7 @@ module.exports = class bybit extends Exchange {
         return this.filterByArray (tickers, 'symbol', symbols);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         //
         // inverse perpetual BTC/USD
         //
@@ -758,7 +758,7 @@ module.exports = class bybit extends Exchange {
         //     }
         //
         const result = this.safeValue (response, 'result', {});
-        return this.parseOHLCVs (result, market);
+        return this.parseOHLCVs (result, market, timeframe, since, limit);
     }
 
     parseTrade (trade, market = undefined) {

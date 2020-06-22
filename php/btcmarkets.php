@@ -301,7 +301,7 @@ class btcmarkets extends Exchange {
         return $this->parse_balance($result);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '1m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         //
         //     {
         //         "timestamp":1572307200000,
@@ -363,7 +363,7 @@ class btcmarkets extends Exchange {
         //     }
         //
         $ticks = $this->safe_value($response, 'ticks', array());
-        return $this->parse_ohlcvs($ticks, $market);
+        return $this->parse_ohlcvs($ticks, $market, $timeframe, $since, $limit);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {

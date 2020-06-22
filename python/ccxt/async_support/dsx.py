@@ -541,7 +541,7 @@ class dsx(Exchange):
                 return []
         return self.parse_trades(response[market['id']], market, since, limit)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     {
         #         "high" : 0.01955,
@@ -609,7 +609,7 @@ class dsx(Exchange):
         #     }
         #
         candles = self.safe_value(response, market['id'], [])
-        return self.parse_ohlcvs(candles, market)
+        return self.parse_ohlcvs(candles, market, timeframe, since, limit)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()

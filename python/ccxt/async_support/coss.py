@@ -323,7 +323,7 @@ class coss(Exchange):
             }
         return self.parse_balance(result)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     [
         #         1545138960000,
@@ -370,7 +370,7 @@ class coss(Exchange):
         #     }
         #
         series = self.safe_value(response, 'series', [])
-        return self.parse_ohlcvs(series, market)
+        return self.parse_ohlcvs(series, market, timeframe, since, limit)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()

@@ -152,7 +152,7 @@ class _1btcxe(Exchange):
             'info': ticker,
         }
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1d', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         return [
             self.parse8601(ohlcv['date'] + ' 00:00:00'),
             None,
@@ -171,7 +171,7 @@ class _1btcxe(Exchange):
         }
         response = self.publicGetHistoricalPrices(self.extend(request, params))
         ohlcvs = self.to_array(self.omit(response['historical-prices'], 'request_currency'))
-        return self.parse_ohlcvs(ohlcvs, market)
+        return self.parse_ohlcvs(ohlcvs, market, timeframe, since, limit)
 
     def parse_trade(self, trade, market=None):
         timestamp = self.safe_timestamp(trade, 'timestamp')

@@ -82,6 +82,8 @@ class bitbank extends Exchange {
                 'LTC/BTC' => array( 'id' => 'ltc_btc', 'symbol' => 'LTC/BTC', 'base' => 'LTC', 'quote' => 'BTC', 'baseId' => 'ltc', 'quoteId' => 'btc' ),
                 'XRP/JPY' => array( 'id' => 'xrp_jpy', 'symbol' => 'XRP/JPY', 'base' => 'XRP', 'quote' => 'JPY', 'baseId' => 'xrp', 'quoteId' => 'jpy' ),
                 'BTC/JPY' => array( 'id' => 'btc_jpy', 'symbol' => 'BTC/JPY', 'base' => 'BTC', 'quote' => 'JPY', 'baseId' => 'btc', 'quoteId' => 'jpy' ),
+                'ETH/JPY' => array( 'id' => 'eth_jpy', 'symbol' => 'ETH/JPY', 'base' => 'ETH', 'quote' => 'JPY', 'baseId' => 'eth', 'quoteId' => 'jpy' ),
+                'LTC/JPY' => array( 'id' => 'ltc_jpy', 'symbol' => 'LTC/JPY', 'base' => 'LTC', 'quote' => 'JPY', 'baseId' => 'ltc', 'quoteId' => 'jpy' ),
             ),
             'fees' => array(
                 'trading' => array(
@@ -232,7 +234,7 @@ class bitbank extends Exchange {
         return $this->parse_trades($response['data']['transactions'], $market, $since, $limit);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '5m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         //
         //     array(
         //         "0.02501786",
@@ -287,7 +289,7 @@ class bitbank extends Exchange {
         $candlestick = $this->safe_value($data, 'candlestick', array());
         $first = $this->safe_value($candlestick, 0, array());
         $ohlcv = $this->safe_value($first, 'ohlcv', array());
-        return $this->parse_ohlcvs($ohlcv, $market);
+        return $this->parse_ohlcvs($ohlcv, $market, $timeframe, $since, $limit);
     }
 
     public function fetch_balance($params = array ()) {

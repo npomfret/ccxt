@@ -814,7 +814,7 @@ class bitbay(Exchange):
         }
         return self.safe_string(types, type, type)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     [
         #         '1582399800000',
@@ -870,7 +870,7 @@ class bitbay(Exchange):
         #     }
         #
         items = self.safe_value(response, 'items', [])
-        return self.parse_ohlcvs(items, market)
+        return self.parse_ohlcvs(items, market, timeframe, since, limit)
 
     def parse_trade(self, trade, market=None):
         #

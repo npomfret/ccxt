@@ -395,7 +395,7 @@ class mercado(Exchange):
             'id': response['response_data']['withdrawal']['id'],
         }
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         return [
             self.safe_timestamp(ohlcv, 'timestamp'),
             self.safe_float(ohlcv, 'open'),
@@ -423,7 +423,7 @@ class mercado(Exchange):
             request['from'] = request['to'] - (limit * self.parse_timeframe(timeframe))
         response = await self.v4PublicGetCoinCandle(self.extend(request, params))
         candles = self.safe_value(response, 'candles', [])
-        return self.parse_ohlcvs(candles, market)
+        return self.parse_ohlcvs(candles, market, timeframe, since, limit)
 
     async def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
         if symbol is None:

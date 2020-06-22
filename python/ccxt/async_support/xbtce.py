@@ -246,7 +246,7 @@ class xbtce(Exchange):
         # no method for trades?
         return await self.privateGetTrade(params)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         return [
             self.safe_integer(ohlcv, 'Timestamp'),
             self.safe_float(ohlcv, 'Open'),
@@ -271,7 +271,7 @@ class xbtce(Exchange):
         #         'timestamp': since,
         #         'count': limit,
         #     }, params))
-        #     return self.parse_ohlcvs(response['Bars'], market)
+        #     return self.parse_ohlcvs(response['Bars'], market, timeframe, since, limit)
         raise NotSupported(self.id + ' fetchOHLCV is disabled by the exchange')
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):

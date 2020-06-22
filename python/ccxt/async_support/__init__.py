@@ -4,7 +4,7 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '1.29.73'
+__version__ = '1.30.32'
 
 # -----------------------------------------------------------------------------
 
@@ -135,7 +135,6 @@ from ccxt.async_support.idex import idex                                  # noqa
 from ccxt.async_support.independentreserve import independentreserve      # noqa: F401
 from ccxt.async_support.indodax import indodax                            # noqa: F401
 from ccxt.async_support.itbit import itbit                                # noqa: F401
-from ccxt.async_support.kkex import kkex                                  # noqa: F401
 from ccxt.async_support.kraken import kraken                              # noqa: F401
 from ccxt.async_support.kucoin import kucoin                              # noqa: F401
 from ccxt.async_support.kuna import kuna                                  # noqa: F401
@@ -152,6 +151,7 @@ from ccxt.async_support.oceanex import oceanex                            # noqa
 from ccxt.async_support.okcoin import okcoin                              # noqa: F401
 from ccxt.async_support.okex import okex                                  # noqa: F401
 from ccxt.async_support.paymium import paymium                            # noqa: F401
+from ccxt.async_support.phemex import phemex                              # noqa: F401
 from ccxt.async_support.poloniex import poloniex                          # noqa: F401
 from ccxt.async_support.probit import probit                              # noqa: F401
 from ccxt.async_support.qtrade import qtrade                              # noqa: F401
@@ -160,7 +160,6 @@ from ccxt.async_support.southxchange import southxchange                  # noqa
 from ccxt.async_support.stex import stex                                  # noqa: F401
 from ccxt.async_support.stronghold import stronghold                      # noqa: F401
 from ccxt.async_support.surbitcoin import surbitcoin                      # noqa: F401
-from ccxt.async_support.theocean import theocean                          # noqa: F401
 from ccxt.async_support.therock import therock                            # noqa: F401
 from ccxt.async_support.tidebit import tidebit                            # noqa: F401
 from ccxt.async_support.tidex import tidex                                # noqa: F401
@@ -169,6 +168,7 @@ from ccxt.async_support.topq import topq                                  # noqa
 from ccxt.async_support.upbit import upbit                                # noqa: F401
 from ccxt.async_support.vaultoro import vaultoro                          # noqa: F401
 from ccxt.async_support.vbtc import vbtc                                  # noqa: F401
+from ccxt.async_support.wavesexchange import wavesexchange                # noqa: F401
 from ccxt.async_support.whitebit import whitebit                          # noqa: F401
 from ccxt.async_support.xbtce import xbtce                                # noqa: F401
 from ccxt.async_support.yobit import yobit                                # noqa: F401
@@ -261,7 +261,6 @@ exchanges = [
     'independentreserve',
     'indodax',
     'itbit',
-    'kkex',
     'kraken',
     'kucoin',
     'kuna',
@@ -278,6 +277,7 @@ exchanges = [
     'okcoin',
     'okex',
     'paymium',
+    'phemex',
     'poloniex',
     'probit',
     'qtrade',
@@ -286,7 +286,6 @@ exchanges = [
     'stex',
     'stronghold',
     'surbitcoin',
-    'theocean',
     'therock',
     'tidebit',
     'tidex',
@@ -295,6 +294,7 @@ exchanges = [
     'upbit',
     'vaultoro',
     'vbtc',
+    'wavesexchange',
     'whitebit',
     'xbtce',
     'yobit',

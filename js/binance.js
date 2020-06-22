@@ -123,6 +123,7 @@ module.exports = class binance extends Exchange {
                         'sub-account/margin/account',
                         'sub-account/margin/accountSummary',
                         'sub-account/status',
+                        'sub-account/transfer/subUserHistory',
                         // lending endpoints
                         'lending/daily/product/list',
                         'lending/daily/userLeftQuota',
@@ -212,6 +213,7 @@ module.exports = class binance extends Exchange {
                 },
                 'fapiPrivate': {
                     'get': [
+                        'allForceOrders',
                         'allOrders',
                         'openOrder',
                         'openOrders',
@@ -785,7 +787,7 @@ module.exports = class binance extends Exchange {
         return this.parseTickers (response, symbols);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         //
         //     [
         //         1591478520000,
@@ -834,7 +836,7 @@ module.exports = class binance extends Exchange {
         //         [1591478640000,"0.02500800","0.02501100","0.02500300","0.02500800","154.14200000",1591478699999,"3.85405839",97,"5.32300000","0.13312641","0"],
         //     ]
         //
-        return this.parseOHLCVs (response, market);
+        return this.parseOHLCVs (response, market, timeframe, since, limit);
     }
 
     parseTrade (trade, market = undefined) {
@@ -1216,8 +1218,8 @@ module.exports = class binance extends Exchange {
             const test = this.safeValue (params, 'test', false);
             if (test) {
                 method += 'Test';
-                params = this.omit (params, 'test');
             }
+            params = this.omit (params, 'test');
         }
         const uppercaseType = type.toUpperCase ();
         const validOrderTypes = this.safeValue (market['info'], 'orderTypes');

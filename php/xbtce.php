@@ -265,7 +265,7 @@ class xbtce extends Exchange {
         return $this->privateGetTrade ($params);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '1m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         return array(
             $this->safe_integer($ohlcv, 'Timestamp'),
             $this->safe_float($ohlcv, 'Open'),
@@ -291,7 +291,7 @@ class xbtce extends Exchange {
         //         'timestamp' => $since,
         //         'count' => $limit,
         //     ), $params));
-        //     return $this->parse_ohlcvs($response['Bars'], $market);
+        //     return $this->parse_ohlcvs($response['Bars'], $market, $timeframe, $since, $limit);
         throw new NotSupported($this->id . ' fetchOHLCV is disabled by the exchange');
     }
 

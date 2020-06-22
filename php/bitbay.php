@@ -831,7 +831,7 @@ class bitbay extends Exchange {
         return $this->safe_string($types, $type, $type);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '1m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         //
         //     array(
         //         '1582399800000',
@@ -890,7 +890,7 @@ class bitbay extends Exchange {
         //     }
         //
         $items = $this->safe_value($response, 'items', array());
-        return $this->parse_ohlcvs($items, $market);
+        return $this->parse_ohlcvs($items, $market, $timeframe, $since, $limit);
     }
 
     public function parse_trade($trade, $market = null) {

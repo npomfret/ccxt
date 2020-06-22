@@ -569,7 +569,7 @@ class dsx extends Exchange {
         return $this->parse_trades($response[$market['id']], $market, $since, $limit);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '1m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         //
         //     {
         //         "high" : 0.01955,
@@ -641,7 +641,7 @@ class dsx extends Exchange {
         //     }
         //
         $candles = $this->safe_value($response, $market['id'], array());
-        return $this->parse_ohlcvs($candles, $market);
+        return $this->parse_ohlcvs($candles, $market, $timeframe, $since, $limit);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {

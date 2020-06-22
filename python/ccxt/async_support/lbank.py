@@ -306,7 +306,7 @@ class lbank(Exchange):
         response = await self.publicGetTrades(self.extend(request, params))
         return self.parse_trades(response, market, since, limit)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     [
         #         1590969600,
@@ -347,7 +347,7 @@ class lbank(Exchange):
         #         [1590969720,0.02445973,0.02452067,0.02445909,0.02446151,266.16920000],
         #     ]
         #
-        return self.parse_ohlcvs(response, market)
+        return self.parse_ohlcvs(response, market, timeframe, since, limit)
 
     async def fetch_balance(self, params={}):
         await self.load_markets()

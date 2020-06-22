@@ -106,6 +106,7 @@ class bitmex extends Exchange {
                         'user/checkReferralCode',
                         'user/commission',
                         'user/depositAddress',
+                        'user/executionHistory',
                         'user/margin',
                         'user/minWithdrawalFee',
                         'user/wallet',
@@ -669,11 +670,11 @@ class bitmex extends Exchange {
         }
         $amount = $this->safe_integer($transaction, 'amount');
         if ($amount !== null) {
-            $amount = abs($amount) * 1e-8;
+            $amount = abs($amount) / 10000000;
         }
         $feeCost = $this->safe_integer($transaction, 'fee');
         if ($feeCost !== null) {
-            $feeCost = $feeCost * 1e-8;
+            $feeCost = $feeCost / 10000000;
         }
         $fee = array(
             'cost' => $feeCost,
@@ -882,7 +883,7 @@ class bitmex extends Exchange {
         );
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '1m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         //
         //     {
         //         "timestamp":"2015-09-25T13:38:00.000Z",
@@ -942,6 +943,8 @@ class bitmex extends Exchange {
             }
             $ymdhms = $this->ymdhms($timestamp);
             $request['startTime'] = $ymdhms; // starting date $filter for results
+        } else {
+            $request['reverse'] = true;
         }
         $response = $this->publicGetTradeBucketed (array_merge($request, $params));
         //
@@ -951,7 +954,7 @@ class bitmex extends Exchange {
         //         array("$timestamp":"2015-09-25T13:40:00.000Z","$symbol":"XBTUSD","open":237.45,"high":237.45,"low":237.45,"close":237.45,"trades":0,"volume":0,"vwap":null,"lastSize":null,"turnover":0,"homeNotional":0,"foreignNotional":0)
         //     )
         //
-        $result = $this->parse_ohlcvs($response, $market);
+        $result = $this->parse_ohlcvs($response, $market, $timeframe, $since, $limit);
         if ($fetchOHLCVOpenTimestamp) {
             // bitmex returns the candle's close $timestamp - https://github.com/ccxt/ccxt/issues/4446
             // we can emulate the open $timestamp by shifting all the timestamps one place
@@ -1172,6 +1175,9 @@ class bitmex extends Exchange {
         );
         if ($since !== null) {
             $request['startTime'] = $this->iso8601($since);
+        } else {
+            // by default reverse=false, i.e. trades are fetched $since the time of $market inception (year 2015 for XBTUSD)
+            $request['reverse'] = true;
         }
         if ($limit !== null) {
             $request['count'] = $limit;
@@ -1242,6 +1248,8 @@ class bitmex extends Exchange {
                 $request['clOrdID'] = $clientOrderId;
             }
             $params = $this->omit($params, array( 'origClOrdID', 'clOrdID', 'clientOrderId' ));
+        } else {
+            $request['orderID'] = $id;
         }
         if ($amount !== null) {
             $request['orderQty'] = $amount;

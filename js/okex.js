@@ -1294,7 +1294,7 @@ module.exports = class okex extends Exchange {
         return this.parseTrades (response, market, since, limit);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         //
         // spot markets
         //
@@ -1415,7 +1415,7 @@ module.exports = class okex extends Exchange {
         //         ]
         //     ]
         //
-        return this.parseOHLCVs (response, market);
+        return this.parseOHLCVs (response, market, timeframe, since, limit);
     }
 
     parseAccountBalance (response) {

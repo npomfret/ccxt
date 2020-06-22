@@ -333,7 +333,7 @@ class coss extends Exchange {
         return $this->parse_balance($result);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '1m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         //
         //     array(
         //         1545138960000,
@@ -381,7 +381,7 @@ class coss extends Exchange {
         //     }
         //
         $series = $this->safe_value($response, 'series', array());
-        return $this->parse_ohlcvs($series, $market);
+        return $this->parse_ohlcvs($series, $market, $timeframe, $since, $limit);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {

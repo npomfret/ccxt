@@ -337,7 +337,7 @@ class rightbtc(Exchange):
         response = await self.publicGetTradesTradingPair(self.extend(request, params))
         return self.parse_trades(response['result'], market, since, limit)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='5m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         return [
             self.safe_integer(ohlcv, 0),
             float(ohlcv[2]) / 1e8,
@@ -356,7 +356,7 @@ class rightbtc(Exchange):
         }
         response = await self.publicGetCandlestickTimeSymbolTradingPair(self.extend(request, params))
         result = self.safe_value(response, 'result', [])
-        return self.parse_ohlcvs(result, market)
+        return self.parse_ohlcvs(result, market, timeframe, since, limit)
 
     async def fetch_balance(self, params={}):
         await self.load_markets()

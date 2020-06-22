@@ -298,7 +298,7 @@ module.exports = class btcmarkets extends Exchange {
         return this.parseBalance (result);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         //
         //     {
         //         "timestamp":1572307200000,
@@ -360,7 +360,7 @@ module.exports = class btcmarkets extends Exchange {
         //     }
         //
         const ticks = this.safeValue (response, 'ticks', []);
-        return this.parseOHLCVs (ticks, market);
+        return this.parseOHLCVs (ticks, market, timeframe, since, limit);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {

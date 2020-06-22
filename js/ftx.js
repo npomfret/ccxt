@@ -495,7 +495,7 @@ module.exports = class ftx extends Exchange {
         return this.parseOrderBook (result);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         //
         //     {
         //         "close":177.23,
@@ -579,7 +579,7 @@ module.exports = class ftx extends Exchange {
         //     }
         //
         const result = this.safeValue (response, 'result', []);
-        return this.parseOHLCVs (result, market);
+        return this.parseOHLCVs (result, market, timeframe, since, limit);
     }
 
     parseTrade (trade, market = undefined) {
@@ -870,9 +870,15 @@ module.exports = class ftx extends Exchange {
         const remaining = this.safeFloat (order, 'remainingSize');
         let symbol = undefined;
         const marketId = this.safeString (order, 'market');
-        if (marketId in this.markets_by_id) {
-            market = this.markets_by_id[marketId];
-            symbol = market['symbol'];
+        if (marketId !== undefined) {
+            if (marketId in this.markets_by_id) {
+                market = this.markets_by_id[marketId];
+                symbol = market['symbol'];
+            } else {
+                // support for delisted market ids
+                // https://github.com/ccxt/ccxt/issues/7113
+                symbol = marketId;
+            }
         }
         if ((symbol === undefined) && (market !== undefined)) {
             symbol = market['symbol'];

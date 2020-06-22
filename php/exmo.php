@@ -729,10 +729,10 @@ class exmo extends Exchange {
         //     }
         //
         $candles = $this->safe_value($response, 'candles', array());
-        return $this->parse_ohlcvs($candles, $market);
+        return $this->parse_ohlcvs($candles, $market, $timeframe, $since, $limit);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '5m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         //
         //     {
         //         "t":1584057600000,

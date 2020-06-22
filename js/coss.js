@@ -331,7 +331,7 @@ module.exports = class coss extends Exchange {
         return this.parseBalance (result);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         //
         //     [
         //         1545138960000,
@@ -379,7 +379,7 @@ module.exports = class coss extends Exchange {
         //     }
         //
         const series = this.safeValue (response, 'series', []);
-        return this.parseOHLCVs (series, market);
+        return this.parseOHLCVs (series, market, timeframe, since, limit);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {

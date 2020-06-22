@@ -649,7 +649,7 @@ class huobipro(Exchange):
         result = self.sort_by(result, 'timestamp')
         return self.filter_by_symbol_since_limit(result, symbol, since, limit)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     {
         #         "amount":1.2082,
@@ -694,7 +694,7 @@ class huobipro(Exchange):
         #     }
         #
         data = self.safe_value(response, 'data', [])
-        return self.parse_ohlcvs(data, market)
+        return self.parse_ohlcvs(data, market, timeframe, since, limit)
 
     def fetch_accounts(self, params={}):
         self.load_markets()

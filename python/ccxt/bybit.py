@@ -143,11 +143,6 @@ class bybit(Exchange):
                         'stop-order/list',
                         'stop-order/search',
                         'position/list',
-                        'position/set-auto-add-margin',
-                        'position/set-leverage',
-                        'position/switch-isolated',
-                        'position/trading-stop',
-                        'position/add-margin',
                         'trade/execution/list',
                         'trade/closed-pnl/list',
                         'risk-limit',
@@ -161,6 +156,11 @@ class bybit(Exchange):
                         'stop-order/create',
                         'stop-order/cancel',
                         'stop-order/cancelAll',
+                        'position/switch-isolated',
+                        'position/set-auto-add-margin',
+                        'position/set-leverage',
+                        'position/trading-stop',
+                        'position/add-margin',
                     ],
                 },
                 'position': {
@@ -637,7 +637,7 @@ class bybit(Exchange):
             tickers[symbol] = ticker
         return self.filter_by_array(tickers, 'symbol', symbols)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         # inverse perpetual BTC/USD
         #
@@ -746,7 +746,7 @@ class bybit(Exchange):
         #     }
         #
         result = self.safe_value(response, 'result', {})
-        return self.parse_ohlcvs(result, market)
+        return self.parse_ohlcvs(result, market, timeframe, since, limit)
 
     def parse_trade(self, trade, market=None):
         #

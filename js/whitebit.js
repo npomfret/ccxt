@@ -581,10 +581,10 @@ module.exports = class whitebit extends Exchange {
         //     }
         //
         const result = this.safeValue (response, 'result', []);
-        return this.parseOHLCVs (result, market);
+        return this.parseOHLCVs (result, market, timeframe, since, limit);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         //
         //     [
         //         1591488000,

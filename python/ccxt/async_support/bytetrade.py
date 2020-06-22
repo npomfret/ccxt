@@ -416,7 +416,7 @@ class bytetrade(Exchange):
         rawTickers = await self.marketGetTickers(params)
         return self.parse_tickers(rawTickers, symbols)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     [
         #         1591505760000,
@@ -455,7 +455,7 @@ class bytetrade(Exchange):
         #         [1591505880000,"242.72","242.73","242.61","242.72","0.4141"],
         #     ]
         #
-        return self.parse_ohlcvs(response, market)
+        return self.parse_ohlcvs(response, market, timeframe, since, limit)
 
     def parse_trade(self, trade, market=None):
         timestamp = self.safe_integer(trade, 'timestamp')

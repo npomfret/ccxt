@@ -337,7 +337,7 @@ class bleutrade extends Exchange {
         );
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '1d', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         return [
             $this->parse8601($ohlcv['TimeStamp'] . '+00:00'),
             $this->safe_float($ohlcv, 'Open'),
@@ -357,7 +357,8 @@ class bleutrade extends Exchange {
             'count' => $limit,
         );
         $response = $this->v3PublicGetGetcandles (array_merge($request, $params));
-        return $this->parse_ohlcvs($response['result'], $market);
+        $result = $this->safe_value($response, 'result', array());
+        return $this->parse_ohlcvs($result, $market, $timeframe, $since, $limit);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {

@@ -723,10 +723,10 @@ module.exports = class exmo extends Exchange {
         //     }
         //
         const candles = this.safeValue (response, 'candles', []);
-        return this.parseOHLCVs (candles, market);
+        return this.parseOHLCVs (candles, market, timeframe, since, limit);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '5m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         //
         //     {
         //         "t":1584057600000,

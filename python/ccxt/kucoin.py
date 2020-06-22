@@ -598,7 +598,7 @@ class kucoin(Exchange):
         #
         return self.parse_ticker(response['data'], market)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     [
         #         "1545904980",             # Start time of the candle cycle
@@ -654,7 +654,7 @@ class kucoin(Exchange):
         #     }
         #
         data = self.safe_value(response, 'data', [])
-        return self.parse_ohlcvs(data, market)
+        return self.parse_ohlcvs(data, market, timeframe, since, limit)
 
     def create_deposit_address(self, code, params={}):
         self.load_markets()

@@ -290,7 +290,7 @@ class btcmarkets(Exchange):
             result[code] = account
         return self.parse_balance(result)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     {
         #         "timestamp":1572307200000,
@@ -347,7 +347,7 @@ class btcmarkets(Exchange):
         #     }
         #
         ticks = self.safe_value(response, 'ticks', [])
-        return self.parse_ohlcvs(ticks, market)
+        return self.parse_ohlcvs(ticks, market, timeframe, since, limit)
 
     def fetch_order_book(self, symbol, limit=None, params={}):
         self.load_markets()

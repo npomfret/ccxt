@@ -239,7 +239,7 @@ class btcturk extends Exchange {
         return $this->parse_trades($response, $market, $since, $limit);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '1d', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         return array(
             $this->parse8601($this->safe_string($ohlcv, 'Time')),
             $this->safe_float($ohlcv, 'Open'),
@@ -258,7 +258,7 @@ class btcturk extends Exchange {
             $request['last'] = $limit;
         }
         $response = $this->publicGetOhlcdata (array_merge($request, $params));
-        return $this->parse_ohlcvs($response, $market);
+        return $this->parse_ohlcvs($response, $market, $timeframe, $since, $limit);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {

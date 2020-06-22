@@ -586,7 +586,7 @@ module.exports = class currencycom extends Exchange {
         return this.parseTickers (response, symbols);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         //
         //     [
         //         1590971040000,
@@ -628,7 +628,7 @@ module.exports = class currencycom extends Exchange {
         //         [1590971160000,"0.02455","0.02456","0.02453","0.02454",286],
         //     ]
         //
-        return this.parseOHLCVs (response, market);
+        return this.parseOHLCVs (response, market, timeframe, since, limit);
     }
 
     parseTrade (trade, market = undefined) {

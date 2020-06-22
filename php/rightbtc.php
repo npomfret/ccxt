@@ -356,7 +356,7 @@ class rightbtc extends Exchange {
         return $this->parse_trades($response['result'], $market, $since, $limit);
     }
 
-    public function parse_ohlcv($ohlcv, $market = null, $timeframe = '5m', $since = null, $limit = null) {
+    public function parse_ohlcv($ohlcv, $market = null) {
         return [
             $this->safe_integer($ohlcv, 0),
             floatval ($ohlcv[2]) / 1e8,
@@ -376,7 +376,7 @@ class rightbtc extends Exchange {
         );
         $response = $this->publicGetCandlestickTimeSymbolTradingPair (array_merge($request, $params));
         $result = $this->safe_value($response, 'result', array());
-        return $this->parse_ohlcvs($result, $market);
+        return $this->parse_ohlcvs($result, $market, $timeframe, $since, $limit);
     }
 
     public function fetch_balance($params = array ()) {

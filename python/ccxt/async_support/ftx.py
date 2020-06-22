@@ -485,7 +485,7 @@ class ftx(Exchange):
         result = self.safe_value(response, 'result', {})
         return self.parse_order_book(result)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         #
         #     {
         #         "close":177.23,
@@ -564,7 +564,7 @@ class ftx(Exchange):
         #     }
         #
         result = self.safe_value(response, 'result', [])
-        return self.parse_ohlcvs(result, market)
+        return self.parse_ohlcvs(result, market, timeframe, since, limit)
 
     def parse_trade(self, trade, market=None):
         #
@@ -840,9 +840,14 @@ class ftx(Exchange):
         remaining = self.safe_float(order, 'remainingSize')
         symbol = None
         marketId = self.safe_string(order, 'market')
-        if marketId in self.markets_by_id:
-            market = self.markets_by_id[marketId]
-            symbol = market['symbol']
+        if marketId is not None:
+            if marketId in self.markets_by_id:
+                market = self.markets_by_id[marketId]
+                symbol = market['symbol']
+            else:
+                # support for delisted market ids
+                # https://github.com/ccxt/ccxt/issues/7113
+                symbol = marketId
         if (symbol is None) and (market is not None):
             symbol = market['symbol']
         status = self.parse_order_status(self.safe_string(order, 'status'))

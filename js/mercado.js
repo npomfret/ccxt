@@ -424,7 +424,7 @@ module.exports = class mercado extends Exchange {
         };
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         return [
             this.safeTimestamp (ohlcv, 'timestamp'),
             this.safeFloat (ohlcv, 'open'),
@@ -454,7 +454,7 @@ module.exports = class mercado extends Exchange {
         }
         const response = await this.v4PublicGetCoinCandle (this.extend (request, params));
         const candles = this.safeValue (response, 'candles', []);
-        return this.parseOHLCVs (candles, market);
+        return this.parseOHLCVs (candles, market, timeframe, since, limit);
     }
 
     async fetchOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {

@@ -261,7 +261,7 @@ module.exports = class xbtce extends Exchange {
         return await this.privateGetTrade (params);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
         return [
             this.safeInteger (ohlcv, 'Timestamp'),
             this.safeFloat (ohlcv, 'Open'),
@@ -287,7 +287,7 @@ module.exports = class xbtce extends Exchange {
         //         'timestamp': since,
         //         'count': limit,
         //     }, params));
-        //     return this.parseOHLCVs (response['Bars'], market);
+        //     return this.parseOHLCVs (response['Bars'], market, timeframe, since, limit);
         throw new NotSupported (this.id + ' fetchOHLCV is disabled by the exchange');
     }
 

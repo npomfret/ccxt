@@ -4,7 +4,7 @@
 
 let [processPath, , exchangeId, methodName, ... params] = process.argv.filter (x => !x.startsWith ('--'))
     , verbose = process.argv.includes ('--verbose')
-    , debug = process.argv.includes ('--verbose')
+    , debug = process.argv.includes ('--debug')
     , cloudscrape = process.argv.includes ('--cloudscrape')
     , cfscrape = process.argv.includes ('--cfscrape')
     , poll = process.argv.includes ('--poll')
@@ -109,14 +109,14 @@ try {
 
     const { Agent } = require ('https')
 
-    const agent = new Agent ({
+    const httpsAgent = new Agent ({
         ecdhCurve: 'auto',
     })
 
     exchange = new (ccxt)[exchangeId] ({
         timeout,
         enableRateLimit,
-        agent,
+        httpsAgent,
         ... settings,
     })
 
