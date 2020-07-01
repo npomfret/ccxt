@@ -36,7 +36,7 @@ use Elliptic\EC;
 use Elliptic\EdDSA;
 use BN\BN;
 
-$version = '1.30.32';
+$version = '1.30.52';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -55,14 +55,13 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.30.32';
+    const VERSION = '1.30.52';
 
     private static $base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     private static $base58_encoder = null;
     private static $base58_decoder = null;
 
     public static $exchanges = array(
-        '_1btcxe',
         'acx',
         'anxpro',
         'aofex',
@@ -140,6 +139,7 @@ class Exchange {
         'hbtc',
         'hitbtc',
         'hollaex',
+        'huobijp',
         'huobipro',
         'huobiru',
         'ice3x',
@@ -176,7 +176,6 @@ class Exchange {
         'tidebit',
         'tidex',
         'timex',
-        'topq',
         'upbit',
         'vaultoro',
         'vbtc',
@@ -608,7 +607,7 @@ class Exchange {
         return urldecode($this->urlencode($array));
     }
 
-    public function encode_uri_component($string) {
+    public static function encode_uri_component($string) {
         return urlencode($string);
     }
 
@@ -621,16 +620,16 @@ class Exchange {
         return $result;
     }
 
-    public function seconds() {
+    public static function seconds() {
         return time();
     }
 
-    public function milliseconds() {
+    public static function milliseconds() {
         list($msec, $sec) = explode(' ', microtime());
         return (int) ($sec . substr($msec, 2, 3));
     }
 
-    public function microseconds() {
+    public static function microseconds() {
         list($msec, $sec) = explode(' ', microtime());
         return $sec . str_pad(substr($msec, 2, 6), 6, '0');
     }
@@ -688,7 +687,7 @@ class Exchange {
 
     public static function rfc2616($timestamp) {
         if (!$timestamp) {
-            $timestamp = $this->milliseconds();
+            $timestamp = static::milliseconds();
         }
         return gmdate('D, d M Y H:i:s T', (int) round($timestamp / 1000));
     }
@@ -989,6 +988,7 @@ class Exchange {
             'fetchWithdrawals' => false,
             'privateAPI' => true,
             'publicAPI' => true,
+            'signIn' => false,
             'withdraw' => false,
         );
 
