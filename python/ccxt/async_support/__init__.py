@@ -4,7 +4,7 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '1.30.52'
+__version__ = '1.31.43'
 
 # -----------------------------------------------------------------------------
 
@@ -72,6 +72,7 @@ from ccxt.async_support.bitkk import bitkk                                # noqa
 from ccxt.async_support.bitmart import bitmart                            # noqa: F401
 from ccxt.async_support.bitmax import bitmax                              # noqa: F401
 from ccxt.async_support.bitmex import bitmex                              # noqa: F401
+from ccxt.async_support.bitpanda import bitpanda                          # noqa: F401
 from ccxt.async_support.bitso import bitso                                # noqa: F401
 from ccxt.async_support.bitstamp import bitstamp                          # noqa: F401
 from ccxt.async_support.bitstamp1 import bitstamp1                        # noqa: F401
@@ -84,7 +85,6 @@ from ccxt.async_support.braziliex import braziliex                        # noqa
 from ccxt.async_support.btcalpha import btcalpha                          # noqa: F401
 from ccxt.async_support.btcbox import btcbox                              # noqa: F401
 from ccxt.async_support.btcmarkets import btcmarkets                      # noqa: F401
-from ccxt.async_support.btctradeim import btctradeim                      # noqa: F401
 from ccxt.async_support.btctradeua import btctradeua                      # noqa: F401
 from ccxt.async_support.btcturk import btcturk                            # noqa: F401
 from ccxt.async_support.buda import buda                                  # noqa: F401
@@ -106,7 +106,6 @@ from ccxt.async_support.coinmarketcap import coinmarketcap                # noqa
 from ccxt.async_support.coinmate import coinmate                          # noqa: F401
 from ccxt.async_support.coinone import coinone                            # noqa: F401
 from ccxt.async_support.coinspot import coinspot                          # noqa: F401
-from ccxt.async_support.coolcoin import coolcoin                          # noqa: F401
 from ccxt.async_support.coss import coss                                  # noqa: F401
 from ccxt.async_support.crex24 import crex24                              # noqa: F401
 from ccxt.async_support.currencycom import currencycom                    # noqa: F401
@@ -197,6 +196,7 @@ exchanges = [
     'bitmart',
     'bitmax',
     'bitmex',
+    'bitpanda',
     'bitso',
     'bitstamp',
     'bitstamp1',
@@ -209,7 +209,6 @@ exchanges = [
     'btcalpha',
     'btcbox',
     'btcmarkets',
-    'btctradeim',
     'btctradeua',
     'btcturk',
     'buda',
@@ -231,7 +230,6 @@ exchanges = [
     'coinmate',
     'coinone',
     'coinspot',
-    'coolcoin',
     'coss',
     'crex24',
     'currencycom',
