@@ -650,7 +650,7 @@ class bitmax extends Exchange {
         //
         $timestamp = null;
         $marketId = $this->safe_string($ticker, 'symbol');
-        $symbol = $marketId;
+        $symbol = null;
         if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
             $market = $this->markets_by_id[$marketId];
         } else if ($marketId !== null) {
@@ -1197,7 +1197,7 @@ class bitmax extends Exchange {
         //         "accountId" => "cshQtyfq8XLAA9kcf19h8bXHbAwwoqDo",
         //         "code" => 0,
         //         "$data" => array(
-        //             {
+        //             array(
         //                 "avgPx" => "0",         // Average filled price of the $order
         //                 "cumFee" => "0",       // cumulative fee paid for this $order
         //                 "cumFilledQty" => "0", // cumulative filled quantity
@@ -1214,7 +1214,7 @@ class bitmax extends Exchange {
         //                 "stopPrice" => "",       // only available for stop $market and stop $limit $orders; otherwise empty
         //                 "$symbol" => "BTC/USDT",
         //                 "execInst" => "NULL_VAL" // execution instruction
-        //             },
+        //             ),
         //         )
         //     }
         //
