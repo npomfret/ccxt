@@ -52,6 +52,14 @@ module.exports = class btcmarkets extends Exchange {
                         'v2/market/{id}/tickByTime/{timeframe}',
                         'v2/market/{id}/trades',
                         'v2/market/active',
+                        'v3/markets',
+                        'v3/markets/{marketId}/ticker',
+                        'v3/markets/{marketId}/trades',
+                        'v3/markets/{marketId}/orderbook',
+                        'v3/markets/{marketId}/candles',
+                        'v3/markets/tickers',
+                        'v3/markets/orderbooks',
+                        'v3/time',
                     ],
                 },
                 'private': {
@@ -64,6 +72,25 @@ module.exports = class btcmarkets extends Exchange {
                         'v2/order/history/{instrument}/{currency}/',
                         'v2/order/trade/history/{id}',
                         'v2/transaction/history/{currency}',
+                        'v3/orders',
+                        'v3/orders/{id}',
+                        'v3/batchorders/{ids}',
+                        'v3/trades',
+                        'v3/trades/{id}',
+                        'v3/withdrawals',
+                        'v3/withdrawals/{id}',
+                        'v3/deposits',
+                        'v3/deposits/{id}',
+                        'v3/transfers',
+                        'v3/transfers/{id}',
+                        'v3/addresses',
+                        'v3/withdrawal-fees',
+                        'v3/assets',
+                        'v3/accounts/me/trading-fees',
+                        'v3/accounts/me/withdrawal-limits',
+                        'v3/accounts/me/balances',
+                        'v3/accounts/me/transactions',
+                        'v3/reports/{id}',
                     ],
                     'post': [
                         'fundtransfer/withdrawCrypto',
@@ -75,6 +102,18 @@ module.exports = class btcmarkets extends Exchange {
                         'order/trade/history',
                         'order/createBatch', // they promise it's coming soon...
                         'order/detail',
+                        'v3/orders',
+                        'v3/batchorders',
+                        'v3/withdrawals',
+                        'v3/reports',
+                    ],
+                    'delete': [
+                        'v3/orders',
+                        'v3/orders/{id}',
+                        'v3/batchorders/{ids}',
+                    ],
+                    'put': [
+                        'v3/orders/{id}',
                     ],
                 },
                 'web': {
@@ -222,27 +261,23 @@ module.exports = class btcmarkets extends Exchange {
     }
 
     async fetchMarkets (params = {}) {
-        const response = await this.publicGetV2MarketActive (params);
+        const response = await this.publicGetV3Markets (params);
         const result = [];
-        const markets = this.safeValue (response, 'markets');
-        for (let i = 0; i < markets.length; i++) {
-            const market = markets[i];
-            const baseId = this.safeString (market, 'instrument');
-            const quoteId = this.safeString (market, 'currency');
-            const id = baseId + '/' + quoteId;
+        for (let i = 0; i < response.length; i++) {
+            const market = response[i];
+            const baseId = this.safeString (market, 'baseAssetName');
+            const quoteId = this.safeString (market, 'quoteAssetName');
+            const id = this.safeString (market, 'marketId');
             const base = this.safeCurrencyCode (baseId);
             const quote = this.safeCurrencyCode (quoteId);
             const symbol = base + '/' + quote;
             const fees = this.safeValue (this.safeValue (this.options, 'fees', {}), quote, this.fees);
-            let pricePrecision = 2;
-            let amountPrecision = 4;
-            const minAmount = 0.001; // where does it come from?
+            const pricePrecision = this.safeFloat (market, 'priceDecimals');
+            const amountPrecision = this.safeFloat (market, 'amountDecimals');
+            const minAmount = this.safeFloat (market, 'minOrderAmount');
+            const maxAmount = this.safeFloat (market, 'maxOrderAmount');
             let minPrice = undefined;
             if (quote === 'AUD') {
-                if ((base === 'XRP') || (base === 'OMG')) {
-                    pricePrecision = 4;
-                }
-                amountPrecision = -Math.log10 (minAmount);
                 minPrice = Math.pow (10, -pricePrecision);
             }
             const precision = {
@@ -252,7 +287,7 @@ module.exports = class btcmarkets extends Exchange {
             const limits = {
                 'amount': {
                     'min': minAmount,
-                    'max': undefined,
+                    'max': maxAmount,
                 },
                 'price': {
                     'min': minPrice,
