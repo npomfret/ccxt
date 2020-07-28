@@ -693,6 +693,12 @@ module.exports = class btcmarkets extends Exchange {
         const remaining = this.safeFloat (order, 'openAmount');
         const filled = amount - remaining;
         const status = this.parseOrderStatus (this.safeString (order, 'status'));
+        let cost = undefined;
+        if (price !== undefined) {
+            if (filled !== undefined) {
+                cost = price * filled;
+            }
+        }
         return {
             'info': order,
             'id': this.safeString (order, 'orderId'),
@@ -704,7 +710,7 @@ module.exports = class btcmarkets extends Exchange {
             'type': type,
             'side': side,
             'price': price,
-            'cost': price * amount,
+            'cost': cost,
             'amount': amount,
             'filled': filled,
             'remaining': remaining,
@@ -819,7 +825,7 @@ module.exports = class btcmarkets extends Exchange {
                     url += '?' + queryString;
                     queryString += "\n"; // eslint-disable-line quotes
                 }
-                auth = uri + "\n" + nonce + "\n"; // eslint-disable-line quotes
+                auth = uri + "\n" + queryString + nonce + "\n"; // eslint-disable-line quotes
             }
             const secret = this.base64ToBinary (this.secret);
             const signature = this.hmac (this.encode (auth), secret, 'sha512', 'base64');
@@ -839,7 +845,12 @@ module.exports = class btcmarkets extends Exchange {
                     url += '?' + queryString;
                 }
             }
-            const auth = method + pathWithLeadingSlash + nonce + (body ? body : '');
+            let auth = undefined;
+            if (body) {
+                auth = method + pathWithLeadingSlash + nonce + body;
+            } else {
+                auth = method + pathWithLeadingSlash + nonce;
+            }
             const signature = this.hmac (this.encode (auth), secret, 'sha512', 'base64');
             headers = {
                 'Accept': 'application/json',
