@@ -3,7 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { ExchangeError, OrderNotFound, InvalidOrder, InsufficientFunds, DDoSProtection } = require ('./base/errors');
+const { ArgumentsRequired, ExchangeError, OrderNotFound, InvalidOrder, InsufficientFunds, DDoSProtection } = require ('./base/errors');
 
 //  ---------------------------------------------------------------------------
 
@@ -29,11 +29,12 @@ module.exports = class btcmarkets extends Exchange {
                 'fetchOrderBook': true,
                 'fetchOrders': true,
                 'fetchTicker': true,
+                'fetchTime': true,
                 'fetchTrades': true,
                 'fetchTransactions': true,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/29142911-0e1acfc2-7d5c-11e7-98c4-07d9532b29d7.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/89731817-b3fb8480-da52-11ea-817f-783b08aaf32b.jpg',
                 'api': {
                     'public': 'https://api.btcmarkets.net',
                     'private': 'https://api.btcmarkets.net',
@@ -194,6 +195,7 @@ module.exports = class btcmarkets extends Exchange {
     }
 
     parseTransaction (transaction, currency = undefined) {
+        //
         //    {
         //         "id": "6500230339",
         //         "assetName": "XRP",
@@ -237,6 +239,7 @@ module.exports = class btcmarkets extends Exchange {
         //         "fee": "0",
         //         "lastUpdate": "2017-07-31T08:50:01.290000Z"
         //     }
+        //
         const timestamp = this.parse8601 (this.safeString (transaction, 'creationTime'));
         const lastUpdate = this.parse8601 (this.safeString (transaction, 'lastUpdate'));
         const transferType = this.parseTransactionType (this.safeString (transaction, 'type'));
@@ -262,9 +265,8 @@ module.exports = class btcmarkets extends Exchange {
         }
         const fee = this.safeFloat (transaction, 'fee');
         const status = this.parseTransactionStatus (this.safeString (transaction, 'status'));
-        const ccy = this.safeString (transaction, 'assetName');
-        const code = this.safeCurrencyCode (ccy);
-        // todo: this logic is duplicated below
+        const currencyId = this.safeString (transaction, 'assetName');
+        const code = this.safeCurrencyCode (currencyId);
         const amount = this.safeFloat (transaction, 'amount');
         return {
             'id': this.safeString (transaction, 'id'),
@@ -340,6 +342,16 @@ module.exports = class btcmarkets extends Exchange {
             });
         }
         return result;
+    }
+
+    async fetchTime (params = {}) {
+        const response = await this.publicGetV3Time (params);
+        //
+        //     {
+        //         "timestamp": "2019-09-01T18:34:27.045000Z"
+        //     }
+        //
+        return this.parse8601 (this.safeString (response, 'timestamp'));
     }
 
     async fetchBalance (params = {}) {
@@ -478,12 +490,65 @@ module.exports = class btcmarkets extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
-        const timestamp = this.safeTimestamp (trade, 'date');
+        //
+        // public fetchTrades
+        //
+        //     {
+        //         "id":"6191646611",
+        //         "price":"539.98",
+        //         "amount":"0.5",
+        //         "timestamp":"2020-08-09T15:21:05.016000Z",
+        //         "side":"Ask"
+        //     }
+        //
+        // private fetchMyTrades
+        //
+        //     {
+        //         "id": "36014819",
+        //         "marketId": "XRP-AUD",
+        //         "timestamp": "2019-06-25T16:01:02.977000Z",
+        //         "price": "0.67",
+        //         "amount": "1.50533262",
+        //         "side": "Ask",
+        //         "fee": "0.00857285",
+        //         "orderId": "3648306",
+        //         "liquidityType": "Taker",
+        //         "clientOrderId": "48"
+        //     }
+        //
+        const timestamp = this.parse8601 (this.safeString (trade, 'timestamp'));
+        const marketId = this.safeString (trade, 'marketId');
         let symbol = undefined;
-        if (market !== undefined) {
-            symbol = market['symbol'];
+        let base = undefined;
+        let quote = undefined;
+        if (marketId !== undefined) {
+            if (marketId in this.markets_by_id) {
+                market = this.markets_by_id[marketId];
+            } else {
+                const [ baseId, quoteId ] = marketId.split ('-');
+                base = this.safeCurrencyCode (baseId);
+                quote = this.safeCurrencyCode (quoteId);
+                symbol = base + '/' + quote;
+            }
         }
-        const id = this.safeString (trade, 'tid');
+        if ((symbol === undefined) && (market !== undefined)) {
+            symbol = market['symbol'];
+            base = market['base'];
+            quote = market['quote'];
+        }
+        let feeCurrencyCode = undefined;
+        if (quote === 'AUD') {
+            feeCurrencyCode = quote;
+        } else {
+            feeCurrencyCode = base;
+        }
+        let side = this.safeString (trade, 'side');
+        if (side === 'Bid') {
+            side = 'buy';
+        } else if (side === 'Ask') {
+            side = 'sell';
+        }
+        const id = this.safeString (trade, 'id');
         const price = this.safeFloat (trade, 'price');
         const amount = this.safeFloat (trade, 'amount');
         let cost = undefined;
@@ -492,20 +557,30 @@ module.exports = class btcmarkets extends Exchange {
                 cost = amount * price;
             }
         }
+        const orderId = this.safeString (trade, 'orderId');
+        let fee = undefined;
+        const feeCost = this.safeFloat (trade, 'fee');
+        if (feeCost !== undefined) {
+            fee = {
+                'cost': feeCost,
+                'currency': feeCurrencyCode,
+            };
+        }
+        const takerOrMaker = this.safeStringLower (trade, 'liquidityType');
         return {
             'info': trade,
             'id': id,
-            'order': undefined,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
+            'order': orderId,
             'symbol': symbol,
             'type': undefined,
-            'side': undefined,
-            'takerOrMaker': undefined,
+            'side': side,
             'price': price,
             'amount': amount,
             'cost': cost,
-            'fee': undefined,
+            'takerOrMaker': takerOrMaker,
+            'fee': fee,
         };
     }
 
@@ -514,39 +589,101 @@ module.exports = class btcmarkets extends Exchange {
         const market = this.market (symbol);
         const request = {
             // 'since': 59868345231,
-            'id': market['id'],
+            'marketId': market['id'],
         };
-        const response = await this.publicGetMarketIdTrades (this.extend (request, params));
+        const response = await this.publicGetV3MarketsMarketIdTrades (this.extend (request, params));
+        //
+        //     [
+        //         {"id":"6191646611","price":"539.98","amount":"0.5","timestamp":"2020-08-09T15:21:05.016000Z","side":"Ask"},
+        //         {"id":"6191646610","price":"539.99","amount":"0.5","timestamp":"2020-08-09T15:21:05.015000Z","side":"Ask"},
+        //         {"id":"6191646590","price":"540","amount":"0.00233785","timestamp":"2020-08-09T15:21:04.171000Z","side":"Bid"},
+        //     ]
+        //
         return this.parseTrades (response, market, since, limit);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const request = this.ordered ({
+        const request = {
             'marketId': market['id'],
-            'amount': this.priceToPrecision (symbol, amount),
+            // 'price': this.priceToPrecision (symbol, price),
+            'amount': this.amountToPrecision (symbol, amount),
+            // 'type': 'Limit', // "Limit", "Market", "Stop Limit", "Stop", "Take Profit"
             'side': (side === 'buy') ? 'Bid' : 'Ask',
-            'clientOrderId': this.safeValue (params, 'clientOrderId'),
-        });
-        if (type === 'limit') {
-            request['price'] = this.priceToPrecision (symbol, price);
-            request['type'] = 'Limit';
-        } else {
-            request['type'] = 'Market';
-        }
-        if (side === 'buy') {
-            request['side'] = 'Bid';
-        } else {
-            request['side'] = 'Ask';
-        }
-        // todo: add support for "Stop Limit" "Stop" "Take Profit" order types
-        const response = await this.privateV3PostOrders (this.extend (request, params));
-        const id = this.safeString (response, 'orderId');
-        return {
-            'info': response,
-            'id': id,
+            // 'triggerPrice': this.priceToPrecision (symbol, triggerPrice), // required for Stop, Stop Limit, Take Profit orders
+            // 'targetAmount': this.amountToPrecision (symbol, targetAmount), // target amount when a desired target outcome is required for order execution
+            // 'timeInForce': 'GTC', // GTC, FOK, IOC
+            // 'postOnly': false, // boolean if this is a post-only order
+            // 'selfTrade': 'A', // A = allow, P = prevent
+            // 'clientOrderId': this.uuid (),
         };
+        const lowercaseType = type.toLowerCase ();
+        const orderTypes = this.safeValue (this.options, 'orderTypes', {
+            'limit': 'Limit',
+            'market': 'Market',
+            'stop': 'Stop',
+            'stop limit': 'Stop Limit',
+            'take profit': 'Take Profit',
+        });
+        request['type'] = this.safeString (orderTypes, lowercaseType, type);
+        let priceIsRequired = false;
+        let triggerPriceIsRequired = false;
+        if (lowercaseType === 'limit') {
+            priceIsRequired = true;
+        // } else if (lowercaseType === 'market') {
+        //     ...
+        // }
+        } else if (lowercaseType === 'stop limit') {
+            triggerPriceIsRequired = true;
+            priceIsRequired = true;
+        } else if (lowercaseType === 'take profit') {
+            triggerPriceIsRequired = true;
+        } else if (lowercaseType === 'stop') {
+            triggerPriceIsRequired = true;
+        }
+        if (priceIsRequired) {
+            if (price === undefined) {
+                throw new ArgumentsRequired (this.id + ' createOrder() requires a price argument for a ' + type + 'order');
+            } else {
+                request['price'] = this.priceToPrecision (symbol, price);
+            }
+        }
+        if (triggerPriceIsRequired) {
+            const triggerPrice = this.safeFloat (params, 'triggerPrice');
+            params = this.omit (params, 'triggerPrice');
+            if (triggerPrice === undefined) {
+                throw new ArgumentsRequired (this.id + ' createOrder() requires a triggerPrice parameter for a ' + type + 'order');
+            } else {
+                request['triggerPrice'] = this.priceToPrecision (symbol, triggerPrice);
+            }
+        }
+        const clientOrderId = this.safeString (params, 'clientOrderId');
+        if (clientOrderId !== undefined) {
+            request['clientOrderId'] = clientOrderId;
+        }
+        params = this.omit (params, 'clientOrderId');
+        const response = await this.privateV3PostOrders (this.extend (request, params));
+        //
+        //     {
+        //         "orderId": "7524",
+        //         "marketId": "BTC-AUD",
+        //         "side": "Bid",
+        //         "type": "Limit",
+        //         "creationTime": "2019-08-30T11:08:21.956000Z",
+        //         "price": "100.12",
+        //         "amount": "1.034",
+        //         "openAmount": "1.034",
+        //         "status": "Accepted",
+        //         "clientOrderId": "1234-5678",
+        //         "timeInForce": "IOC",
+        //         "postOnly": false,
+        //         "selfTrade": "P",
+        //         "triggerAmount": "105",
+        //         "targetAmount": "1000"
+        //     }
+        //
+        return this.parseOrder (response, market);
     }
 
     async cancelOrders (ids, symbol = undefined, params = {}) {
@@ -588,80 +725,6 @@ module.exports = class btcmarkets extends Exchange {
         };
     }
 
-    parseMyTrade (trade, market) {
-        const timestamp = this.parse8601 (this.safeString (trade, 'timestamp'));
-        let side = undefined;
-        if (this.safeString (trade, 'side') === 'Bid') {
-            side = 'buy';
-        } else {
-            side = 'sell';
-        }
-        const marketId = this.safeString (trade, 'marketId');
-        const symbol = this.lookupSymbolFromMarketId (marketId);
-        market = this.market (symbol);
-        // BTCMarkets always charge in AUD for AUD-related transactions.
-        let feeCurrencyCode = undefined;
-        if (market === undefined) {
-            // happens for some markets like BCH-BTC
-            const [ baseId, quoteId ] = marketId.split ('-');
-            if (quoteId === 'AUD') {
-                feeCurrencyCode = this.safeCurrencyCode (quoteId);
-            } else {
-                feeCurrencyCode = this.safeCurrencyCode (baseId);
-            }
-        } else {
-            if (market['quote'] === 'AUD') {
-                feeCurrencyCode = market['quote'];
-            } else {
-                feeCurrencyCode = market['base'];
-            }
-        }
-        const id = this.safeString (trade, 'id');
-        const price = this.safeFloat (trade, 'price');
-        const amount = this.safeFloat (trade, 'amount');
-        const feeCost = this.safeFloat (trade, 'fee');
-        let cost = undefined;
-        if (price !== undefined) {
-            if (amount !== undefined) {
-                cost = price * amount;
-            }
-        }
-        const orderId = this.safeString (trade, 'orderId');
-        let type = undefined;
-        if (price === undefined) {
-            type = 'market';
-        } else {
-            type = 'limit';
-        }
-        return {
-            'info': trade,
-            'id': id,
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'order': orderId,
-            'symbol': symbol,
-            'type': type,
-            'side': side,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
-            'fee': {
-                'currency': feeCurrencyCode,
-                'cost': feeCost,
-            },
-            'takerOrMaker': undefined,
-        };
-    }
-
-    parseMyTrades (trades, market = undefined, since = undefined, limit = undefined) {
-        const result = [];
-        for (let i = 0; i < trades.length; i++) {
-            const trade = this.parseMyTrade (trades[i], market);
-            result.push (trade);
-        }
-        return result;
-    }
-
     parseOrderStatus (status) {
         const statuses = {
             'Accepted': 'open',
@@ -676,20 +739,57 @@ module.exports = class btcmarkets extends Exchange {
     }
 
     parseOrder (order, market = undefined) {
+        //
+        // createOrder
+        //
+        //     {
+        //         "orderId": "7524",
+        //         "marketId": "BTC-AUD",
+        //         "side": "Bid",
+        //         "type": "Limit",
+        //         "creationTime": "2019-08-30T11:08:21.956000Z",
+        //         "price": "100.12",
+        //         "amount": "1.034",
+        //         "openAmount": "1.034",
+        //         "status": "Accepted",
+        //         "clientOrderId": "1234-5678",
+        //         "timeInForce": "IOC",
+        //         "postOnly": false,
+        //         "selfTrade": "P",
+        //         "triggerAmount": "105",
+        //         "targetAmount": "1000"
+        //     }
+        //
         const timestamp = this.parse8601 (this.safeString (order, 'creationTime'));
         const marketId = this.safeString (order, 'marketId');
-        const symbol = this.lookupSymbolFromMarketId (marketId);
-        let side = undefined;
-        if (this.safeString (order, 'side') === 'Bid') {
+        let symbol = undefined;
+        if (marketId !== undefined) {
+            if (marketId in this.markets_by_id) {
+                market = this.markets_by_id[marketId];
+            } else {
+                const [ baseId, quoteId ] = marketId.split ('-');
+                const base = this.safeCurrencyCode (baseId);
+                const quote = this.safeCurrencyCode (quoteId);
+                symbol = base + '/' + quote;
+            }
+        }
+        if ((symbol === undefined) && (market !== undefined)) {
+            symbol = market['symbol'];
+        }
+        let side = this.safeString (order, 'side');
+        if (side === 'Bid') {
             side = 'buy';
-        } else {
+        } else if (side === 'Ask') {
             side = 'sell';
         }
         const type = this.safeStringLower (order, 'type');
         const price = this.safeFloat (order, 'price');
         const amount = this.safeFloat (order, 'amount');
         const remaining = this.safeFloat (order, 'openAmount');
-        const filled = amount - remaining;
+        let filled = undefined;
+        if ((amount !== undefined) && (remaining !== undefined)) {
+            filled = Math.max (0, amount - remaining);
+        }
         const status = this.parseOrderStatus (this.safeString (order, 'status'));
         let cost = undefined;
         if (price !== undefined) {
@@ -697,10 +797,12 @@ module.exports = class btcmarkets extends Exchange {
                 cost = price * filled;
             }
         }
+        const id = this.safeString (order, 'orderId');
+        const clientOrderId = this.safeString (order, 'clientOrderId');
         return {
             'info': order,
-            'id': this.safeString (order, 'orderId'),
-            'clientOrderId': undefined,
+            'id': id,
+            'clientOrderId': clientOrderId,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'lastTradeTimestamp': undefined,
@@ -730,27 +832,27 @@ module.exports = class btcmarkets extends Exchange {
 
     async fetchOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets ();
-        const request = {};
-        if (!params['status']) {
-            request['status'] = 'all';
+        const request = {
+            'status': 'all',
+        };
+        let market = undefined;
+        if (symbol !== undefined) {
+            market = this.market (symbol);
+            request['marketId'] = market['id'];
+        }
+        if (since !== undefined) {
+            request['after'] = since;
         }
         if (limit !== undefined) {
             request['limit'] = limit;
         }
-        let market = undefined;
-        if (symbol) {
-            market = this.market (symbol);
-            request['marketId'] = market['id'];
-        }
-        if (since) {
-            request['after'] = since;
-        }
         const response = await this.privateV3GetOrders (this.extend (request, params));
-        return this.parseOrders (response);
+        return this.parseOrders (response, market, since, limit);
     }
 
     async fetchOpenOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
-        return this.fetchOrders (symbol, since, limit, this.extend ({ 'status': 'open' }, params));
+        const request = { 'status': 'open' };
+        return await this.fetchOrders (symbol, since, limit, this.extend (request, params));
     }
 
     async fetchClosedOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -761,19 +863,46 @@ module.exports = class btcmarkets extends Exchange {
     async fetchMyTrades (symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets ();
         const request = {};
-        if (limit !== undefined) {
-            request['limit'] = limit;
-        }
         let market = undefined;
-        if (symbol) {
+        if (symbol !== undefined) {
             market = this.market (symbol);
             request['marketId'] = market['id'];
         }
-        if (since) {
+        if (since !== undefined) {
             request['after'] = since;
         }
+        if (limit !== undefined) {
+            request['limit'] = limit;
+        }
         const response = await this.privateV3GetTrades (this.extend (request, params));
-        return this.parseMyTrades (response);
+        //
+        //     [
+        //         {
+        //             "id": "36014819",
+        //             "marketId": "XRP-AUD",
+        //             "timestamp": "2019-06-25T16:01:02.977000Z",
+        //             "price": "0.67",
+        //             "amount": "1.50533262",
+        //             "side": "Ask",
+        //             "fee": "0.00857285",
+        //             "orderId": "3648306",
+        //             "liquidityType": "Taker",
+        //             "clientOrderId": "48"
+        //         },
+        //         {
+        //             "id": "3568960",
+        //             "marketId": "GNT-AUD",
+        //             "timestamp": "2019-06-20T08:44:04.488000Z",
+        //             "price": "0.1362",
+        //             "amount": "0.85",
+        //             "side": "Bid",
+        //             "fee": "0.00098404",
+        //             "orderId": "3543015",
+        //             "liquidityType": "Maker"
+        //         }
+        //     ]
+        //
+        return this.parseTrades (response, market, since, limit);
     }
 
     lookupSymbolFromMarketId (marketId) {
@@ -802,6 +931,7 @@ module.exports = class btcmarkets extends Exchange {
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         const uri = '/' + this.implodeParams (path, params);
         let url = this.urls['api'][api] + uri;
+        const query = this.keysort (this.omit (params, this.extractParams (path)));
         if (api === 'private') {
             this.checkRequiredCredentials ();
             const nonce = this.nonce ().toString ();
@@ -816,7 +946,6 @@ module.exports = class btcmarkets extends Exchange {
                 body = this.json (params);
                 auth += body;
             } else {
-                const query = this.keysort (this.omit (params, this.extractParams (path)));
                 let queryString = '';
                 if (Object.keys (query).length) {
                     queryString = this.urlencode (query);
@@ -833,10 +962,10 @@ module.exports = class btcmarkets extends Exchange {
             const nonce = this.nonce ().toString ();
             const secret = this.base64ToBinary (this.secret); // or stringToBase64
             const pathWithLeadingSlash = '/v3' + uri;
+            const query = this.keysort (this.omit (params, this.extractParams (path)));
             if (method !== 'GET') {
-                body = this.json (params);
+                body = this.json (query);
             } else {
-                const query = this.keysort (this.omit (params, this.extractParams (path)));
                 let queryString = '';
                 if (Object.keys (query).length) {
                     queryString = this.urlencode (query);
@@ -859,8 +988,8 @@ module.exports = class btcmarkets extends Exchange {
                 'BM-AUTH-SIGNATURE': signature,
             };
         } else {
-            if (Object.keys (params).length) {
-                url += '?' + this.urlencode (params);
+            if (Object.keys (query).length) {
+                url += '?' + this.urlencode (query);
             }
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
