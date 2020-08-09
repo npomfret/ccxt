@@ -33,24 +33,31 @@ class poloniex(Exchange):
             'certified': False,
             'pro': True,
             'has': {
+                'cancelOrder': True,
                 'CORS': False,
                 'createDepositAddress': True,
                 'createMarketOrder': False,
+                'createOrder': True,
                 'editOrder': True,
+                'fetchBalance': True,
                 'fetchClosedOrders': 'emulated',
                 'fetchCurrencies': True,
                 'fetchDepositAddress': True,
                 'fetchDeposits': True,
+                'fetchMarkets': True,
                 'fetchMyTrades': True,
                 'fetchOHLCV': True,
                 'fetchOpenOrder': True,  # True endpoint for a single open order
                 'fetchOpenOrders': True,  # True endpoint for open orders
                 'fetchOrder': 'emulated',  # no endpoint for a single open-or-closed order(just for an open order only)
+                'fetchOrderBook': True,
                 'fetchOrderBooks': True,
                 'fetchOrders': 'emulated',  # no endpoint for open-or-closed orders(just for open orders only)
                 'fetchOrderStatus': 'emulated',  # no endpoint for status of a single open-or-closed order(just for open orders only)
                 'fetchOrderTrades': True,  # True endpoint for trades of a single open or closed order
+                'fetchTicker': True,
                 'fetchTickers': True,
+                'fetchTrades': True,
                 'fetchTradingFee': True,
                 'fetchTradingFees': True,
                 'fetchTransactions': True,
@@ -280,6 +287,13 @@ class poloniex(Exchange):
         #     ]
         #
         return self.parse_ohlcvs(response, market, timeframe, since, limit)
+
+    async def load_markets(self, reload=False, params={}):
+        markets = await super(poloniex, self).load_markets(reload, params)
+        currenciesByNumericId = self.safe_value(self.options, 'currenciesByNumericId')
+        if (currenciesByNumericId is None) or reload:
+            self.options['currenciesByNumericId'] = self.index_by(self.currencies, 'numericId')
+        return markets
 
     async def fetch_markets(self, params={}):
         markets = await self.publicGetReturnTicker(params)
@@ -1116,9 +1130,16 @@ class poloniex(Exchange):
 
     async def create_deposit_address(self, code, params={}):
         await self.load_markets()
-        currency = self.currency(code)
+        # USDT, USDTETH, USDTTRON
+        currencyId = None
+        currency = None
+        if code in self.currencies:
+            currency = self.currency(code)
+            currencyId = currency['id']
+        else:
+            currencyId = code
         request = {
-            'currency': currency['id'],
+            'currency': currencyId,
         }
         response = await self.privatePostGenerateNewAddress(self.extend(request, params))
         address = None
@@ -1126,10 +1147,11 @@ class poloniex(Exchange):
         if response['success'] == 1:
             address = self.safe_string(response, 'response')
         self.check_address(address)
-        depositAddress = self.safe_string(currency['info'], 'depositAddress')
-        if depositAddress is not None:
-            tag = address
-            address = depositAddress
+        if currency is not None:
+            depositAddress = self.safe_string(currency['info'], 'depositAddress')
+            if depositAddress is not None:
+                tag = address
+                address = depositAddress
         return {
             'currency': code,
             'address': address,
@@ -1139,16 +1161,23 @@ class poloniex(Exchange):
 
     async def fetch_deposit_address(self, code, params={}):
         await self.load_markets()
-        currency = self.currency(code)
         response = await self.privatePostReturnDepositAddresses(params)
-        currencyId = currency['id']
+        # USDT, USDTETH, USDTTRON
+        currencyId = None
+        currency = None
+        if code in self.currencies:
+            currency = self.currency(code)
+            currencyId = currency['id']
+        else:
+            currencyId = code
         address = self.safe_string(response, currencyId)
         tag = None
         self.check_address(address)
-        depositAddress = self.safe_string(currency['info'], 'depositAddress')
-        if depositAddress is not None:
-            tag = address
-            address = depositAddress
+        if currency is not None:
+            depositAddress = self.safe_string(currency['info'], 'depositAddress')
+            if depositAddress is not None:
+                tag = address
+                address = depositAddress
         return {
             'currency': code,
             'address': address,

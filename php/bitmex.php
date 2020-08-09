@@ -267,7 +267,7 @@ class bitmex extends Exchange {
         return $result;
     }
 
-    public function parse_balances($balances) {
+    public function parse_balance_response($response) {
         //
         //     array(
         //         {
@@ -315,9 +315,9 @@ class bitmex extends Exchange {
         //         }
         //     )
         //
-        $result = array( 'info' => $balances );
-        for ($i = 0; $i < count($balances); $i++) {
-            $balance = $balances[$i];
+        $result = array( 'info' => $response );
+        for ($i = 0; $i < count($response); $i++) {
+            $balance = $response[$i];
             $currencyId = $this->safe_string($balance, 'currency');
             $code = $this->safe_currency_code($currencyId);
             $account = $this->account();
@@ -391,7 +391,7 @@ class bitmex extends Exchange {
         //         }
         //     )
         //
-        return $this->parse_balances($response);
+        return $this->parse_balance_response($response);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {

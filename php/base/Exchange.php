@@ -36,7 +36,7 @@ use Elliptic\EC;
 use Elliptic\EdDSA;
 use BN\BN;
 
-$version = '1.32.55';
+$version = '1.32.79';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -55,7 +55,7 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.32.55';
+    const VERSION = '1.32.79';
 
     private static $base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     private static $base58_encoder = null;
@@ -132,7 +132,6 @@ class Exchange {
         'flowbtc',
         'foxbit',
         'ftx',
-        'fybse',
         'gateio',
         'gemini',
         'hbtc',
@@ -2776,26 +2775,27 @@ class Exchange {
         }
     }
 
-    public function soliditySha3 ($array) {
+    public function soliditySha3($array) {
         return @call_user_func_array('\\kornrunner\Solidity::sha3', $array);
     }
 
-    public static function totp($key) {
-        function base32_decode($s) {
-            static $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-            $tmp = '';
-            foreach (str_split($s) as $c) {
-                if (($v = strpos($alphabet, $c)) === false) {
-                    $v = 0;
-                }
-                $tmp .= sprintf('%05b', $v);
+    public static function base32_decode($s) {
+        static $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+        $tmp = '';
+        foreach (str_split($s) as $c) {
+            if (($v = strpos($alphabet, $c)) === false) {
+                $v = 0;
             }
-            $args = array_map('bindec', str_split($tmp, 8));
-            array_unshift($args, 'C*');
-            return rtrim(call_user_func_array('pack', $args), "\0");
+            $tmp .= sprintf('%05b', $v);
         }
+        $args = array_map('bindec', str_split($tmp, 8));
+        array_unshift($args, 'C*');
+        return rtrim(call_user_func_array('pack', $args), "\0");
+    }
+
+    public static function totp($key) {
         $noSpaceKey = str_replace(' ', '', $key);
-        $encodedKey = base32_decode($noSpaceKey);
+        $encodedKey = static::base32_decode($noSpaceKey);
         $epoch = floor(time() / 30);
         $encodedEpoch = pack('J', $epoch);
         $hmacResult = static::hmac($encodedEpoch, $encodedKey, 'sha1', 'hex');

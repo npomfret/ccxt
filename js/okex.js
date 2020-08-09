@@ -18,24 +18,31 @@ module.exports = class okex extends Exchange {
             'rateLimit': 1000, // up to 3000 requests per 5 minutes ≈ 600 requests per minute ≈ 10 requests per second ≈ 100 ms
             'pro': true,
             'has': {
+                'cancelOrder': true,
                 'CORS': false,
-                'fetchOHLCV': true,
-                'fetchOrder': true,
-                'fetchOrders': false,
-                'fetchOpenOrders': true,
+                'createOrder': true,
+                'fetchBalance': true,
                 'fetchClosedOrders': true,
                 'fetchCurrencies': false, // see below
-                'fetchDeposits': true,
-                'fetchWithdrawals': true,
-                'fetchTime': true,
-                'fetchTransactions': false,
-                'fetchMyTrades': true,
                 'fetchDepositAddress': true,
-                'fetchOrderTrades': true,
-                'fetchTickers': true,
+                'fetchDeposits': true,
                 'fetchLedger': true,
-                'withdraw': true,
+                'fetchMarkets': true,
+                'fetchMyTrades': true,
+                'fetchOHLCV': true,
+                'fetchOpenOrders': true,
+                'fetchOrder': true,
+                'fetchOrderBook': true,
+                'fetchOrders': false,
+                'fetchOrderTrades': true,
+                'fetchTime': true,
+                'fetchTicker': true,
+                'fetchTickers': true,
+                'fetchTrades': true,
+                'fetchTransactions': false,
+                'fetchWithdrawals': true,
                 'futures': true,
+                'withdraw': true,
             },
             'timeframes': {
                 '1m': '60',
@@ -1593,9 +1600,29 @@ module.exports = class okex extends Exchange {
             const code = this.safeCurrencyCode (id);
             const balance = this.safeValue (info, id, {});
             const account = this.account ();
+            const totalAvailBalance = this.safeFloat (balance, 'total_avail_balance');
+            if (this.safeString (balance, 'margin_mode') === 'fixed') {
+                const contracts = this.safeValue (balance, 'contracts', []);
+                let free = totalAvailBalance;
+                for (let i = 0; i < contracts.length; i++) {
+                    const contract = contracts[i];
+                    const fixedBalance = this.safeFloat (contract, 'fixed_balance');
+                    const realizedPnl = this.safeFloat (contract, 'realized_pnl');
+                    const marginFrozen = this.safeFloat (contract, 'margin_frozen');
+                    const marginForUnfilled = this.safeFloat (contract, 'margin_for_unfilled');
+                    const margin = this.sum (fixedBalance, realizedPnl) - marginFrozen - marginForUnfilled;
+                    free = this.sum (free, margin);
+                }
+                account['free'] = free;
+            } else {
+                const realizedPnl = this.safeFloat (balance, 'realized_pnl');
+                const unrealizedPnl = this.safeFloat (balance, 'unrealized_pnl');
+                const marginFrozen = this.safeFloat (balance, 'margin_frozen');
+                const marginForUnfilled = this.safeFloat (balance, 'margin_for_unfilled');
+                account['free'] = this.sum (totalAvailBalance, realizedPnl, unrealizedPnl) - marginFrozen - marginForUnfilled;
+            }
             // it may be incorrect to use total, free and used for swap accounts
             account['total'] = this.safeFloat (balance, 'equity');
-            account['free'] = this.safeFloat (balance, 'total_avail_balance');
             result[code] = account;
         }
         return this.parseBalance (result);
@@ -1815,7 +1842,10 @@ module.exports = class okex extends Exchange {
             });
             const orderType = this.safeString (params, 'order_type');
             // order_type === '4' means a market order
-            if (orderType !== '4') {
+            const isMarketOrder = (type === 'market') || (orderType === '4');
+            if (isMarketOrder) {
+                request['match_price'] = '1';
+            } else {
                 request['price'] = this.priceToPrecision (symbol, price);
             }
             if (market['futures']) {
@@ -3033,6 +3063,10 @@ module.exports = class okex extends Exchange {
         const isArray = Array.isArray (response[0]);
         const isMargin = (type === 'margin');
         const entries = (isMargin && isArray) ? response[0] : response;
+        if (type === 'swap') {
+            const ledgerEntries = this.parseLedger (entries);
+            return this.filterBySymbolSinceLimit (ledgerEntries, code, since, limit);
+        }
         return this.parseLedger (entries, currency, since, limit);
     }
 
@@ -3142,6 +3176,12 @@ module.exports = class okex extends Exchange {
         const before = undefined;
         const after = this.safeFloat (item, 'balance');
         const status = 'ok';
+        const marketId = this.safeString (item, 'instrument_id');
+        let symbol = undefined;
+        if (marketId in this.markets_by_id) {
+            const market = this.markets_by_id[marketId];
+            symbol = market['symbol'];
+        }
         return {
             'info': item,
             'id': id,
@@ -3150,6 +3190,7 @@ module.exports = class okex extends Exchange {
             'referenceAccount': referenceAccount,
             'type': type,
             'currency': code,
+            'symbol': symbol,
             'amount': amount,
             'before': before, // balance before
             'after': after, // balance after

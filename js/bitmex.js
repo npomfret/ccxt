@@ -263,7 +263,7 @@ module.exports = class bitmex extends Exchange {
         return result;
     }
 
-    parseBalances (balances) {
+    parseBalanceResponse (response) {
         //
         //     [
         //         {
@@ -311,9 +311,9 @@ module.exports = class bitmex extends Exchange {
         //         }
         //     ]
         //
-        const result = { 'info': balances };
-        for (let i = 0; i < balances.length; i++) {
-            const balance = balances[i];
+        const result = { 'info': response };
+        for (let i = 0; i < response.length; i++) {
+            const balance = response[i];
             const currencyId = this.safeString (balance, 'currency');
             const code = this.safeCurrencyCode (currencyId);
             const account = this.account ();
@@ -387,7 +387,7 @@ module.exports = class bitmex extends Exchange {
         //         }
         //     ]
         //
-        return this.parseBalances (response);
+        return this.parseBalanceResponse (response);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {

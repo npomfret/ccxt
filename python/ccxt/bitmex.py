@@ -266,7 +266,7 @@ class bitmex(Exchange):
             })
         return result
 
-    def parse_balances(self, balances):
+    def parse_balance_response(self, response):
         #
         #     [
         #         {
@@ -314,9 +314,9 @@ class bitmex(Exchange):
         #         }
         #     ]
         #
-        result = {'info': balances}
-        for i in range(0, len(balances)):
-            balance = balances[i]
+        result = {'info': response}
+        for i in range(0, len(response)):
+            balance = response[i]
             currencyId = self.safe_string(balance, 'currency')
             code = self.safe_currency_code(currencyId)
             account = self.account()
@@ -385,7 +385,7 @@ class bitmex(Exchange):
         #         }
         #     ]
         #
-        return self.parse_balances(response)
+        return self.parse_balance_response(response)
 
     def fetch_order_book(self, symbol, limit=None, params={}):
         self.load_markets()
