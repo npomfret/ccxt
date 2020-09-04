@@ -520,10 +520,7 @@ module.exports = class bybit extends Exchange {
         }
         const baseVolume = this.safeFloat (ticker, 'turnover_24h');
         const quoteVolume = this.safeFloat (ticker, 'volume_24h');
-        let vwap = undefined;
-        if (quoteVolume !== undefined && baseVolume !== undefined) {
-            vwap = quoteVolume / baseVolume;
-        }
+        const vwap = this.vwap (baseVolume, quoteVolume);
         return {
             'symbol': symbol,
             'timestamp': timestamp,
@@ -1101,7 +1098,7 @@ module.exports = class bybit extends Exchange {
                 }
             }
         }
-        const status = this.parseOrderStatus (this.safeString (order, 'order_status'));
+        const status = this.parseOrderStatus (this.safeString2 (order, 'order_status', 'stop_order_status'));
         const side = this.safeStringLower (order, 'side');
         let feeCost = this.safeFloat (order, 'cum_exec_fee');
         let fee = undefined;
@@ -2118,10 +2115,7 @@ module.exports = class bybit extends Exchange {
                 'recv_window': this.options['recvWindow'],
                 'timestamp': timestamp,
             });
-            let auth = this.rawencode (this.keysort (query));
-            // fix https://github.com/ccxt/ccxt/issues/7377
-            // bybit encodes whole floats as integers without .0
-            auth = auth.replace ('.0&', '&');
+            const auth = this.rawencode (this.keysort (query));
             const signature = this.hmac (this.encode (auth), this.encode (this.secret));
             if (method === 'POST') {
                 body = this.json (this.extend (query, {

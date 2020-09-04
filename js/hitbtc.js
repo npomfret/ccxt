@@ -444,14 +444,7 @@ module.exports = class hitbtc extends Exchange {
                 percentage = change / open * 100;
             }
         }
-        let vwap = undefined;
-        if (quoteVolume !== undefined) {
-            if (baseVolume !== undefined) {
-                if (baseVolume > 0) {
-                    vwap = quoteVolume / baseVolume;
-                }
-            }
-        }
+        const vwap = this.vwap (baseVolume, quoteVolume);
         return {
             'symbol': symbol,
             'timestamp': timestamp,
@@ -493,7 +486,7 @@ module.exports = class hitbtc extends Exchange {
                 }
             }
         }
-        return result;
+        return this.filterByArray (result, 'symbol', symbols);
     }
 
     async fetchTicker (symbol, params = {}) {

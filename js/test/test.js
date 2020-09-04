@@ -269,6 +269,10 @@ async function testExchange (exchange) {
 
     exchange.checkRequiredCredentials ()
 
+    if (exchange['has']['signIn']) {
+        await exchange.signIn ()
+    }
+
     // move to testnet/sandbox if possible before accessing the balance
     // if (exchange.urls['test'])
     //    exchange.urls['api'] = exchange.urls['test']
@@ -335,7 +339,8 @@ async function testExchange (exchange) {
 
 async function tryAllProxies (exchange, proxies) {
 
-    let currentProxy = 0
+    const index = proxies.indexOf (exchange.proxy)
+    let currentProxy = (index >= 0) ? index : 0
     const maxRetries = proxies.length
 
     if (settings && ('proxy' in settings)) {

@@ -290,22 +290,27 @@ module.exports = class Exchange {
         }
         unCamelCaseProperties ()
 
-        // merge configs
-        const config = deepExtend (this.describe (), userConfig)
-
         // merge to this
-        const configEntries = Object.entries (config)
+        const configEntries = Object.entries (this.describe ()).concat (Object.entries (userConfig))
         for (let i = 0; i < configEntries.length; i++) {
             const [property, value] = configEntries[i]
-            this[property] = deepExtend (this[property], value)
+            if (value && Object.getPrototypeOf (value) === Object.prototype) {
+                this[property] = deepExtend (this[property], value)
+            } else {
+                this[property] = value
+            }
+        }
+
+        const agentOptions = {
+            'keepAlive': true,
         }
 
         if (!this.httpAgent && defaultFetch.http && isNode) {
-            this.httpAgent = new defaultFetch.http.Agent ({ 'keepAlive': true })
+            this.httpAgent = new defaultFetch.http.Agent (agentOptions)
         }
 
         if (!this.httpsAgent && defaultFetch.https && isNode) {
-            this.httpsAgent = new defaultFetch.https.Agent ({ 'keepAlive': true })
+            this.httpsAgent = new defaultFetch.https.Agent (agentOptions)
         }
 
         // generate old metainfo interface
@@ -391,7 +396,6 @@ module.exports = class Exchange {
             const params = { method, headers, body, timeout: this.timeout }
 
             if (this.agent) {
-                this.agent.keepAlive = true
                 params['agent'] = this.agent
             } else if (this.httpAgent && url.indexOf ('http://') === 0) {
                 params['agent'] = this.httpAgent

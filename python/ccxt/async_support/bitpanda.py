@@ -125,7 +125,7 @@ class bitpanda(Exchange):
             },
             'fees': {
                 'trading': {
-                    'tierBased': False,
+                    'tierBased': True,
                     'percentage': True,
                     'taker': 0.15 / 100,
                     'maker': 0.10 / 100,
@@ -515,9 +515,7 @@ class bitpanda(Exchange):
             average = self.sum(last, open) / 2
         baseVolume = self.safe_float(ticker, 'base_volume')
         quoteVolume = self.safe_float(ticker, 'quote_volume')
-        vwap = None
-        if (quoteVolume is not None) and (baseVolume is not None) and (baseVolume != 0):
-            vwap = quoteVolume / baseVolume
+        vwap = self.vwap(baseVolume, quoteVolume)
         return {
             'symbol': symbol,
             'timestamp': timestamp,
@@ -570,7 +568,7 @@ class bitpanda(Exchange):
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
-        tickers = await self.publicGetMarketTicker(params)
+        response = await self.publicGetMarketTicker(params)
         #
         #     [
         #         {
@@ -592,11 +590,11 @@ class bitpanda(Exchange):
         #     ]
         #
         result = {}
-        for i in range(0, len(tickers)):
-            ticker = self.parse_ticker(tickers[i])
+        for i in range(0, len(response)):
+            ticker = self.parse_ticker(response[i])
             symbol = ticker['symbol']
             result[symbol] = ticker
-        return result
+        return self.filter_by_array(result, 'symbol', symbols)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -700,8 +698,7 @@ class bitpanda(Exchange):
         durationInSeconds = self.parse_timeframe(timeframe)
         duration = durationInSeconds * 1000
         timestamp = self.parse8601(self.safe_string(ohlcv, 'time'))
-        modulo = self.integer_modulo(timestamp, duration)
-        alignedTimestamp = timestamp - modulo
+        alignedTimestamp = duration * int(timestamp / duration)
         options = self.safe_value(self.options, 'fetchOHLCV', {})
         volumeField = self.safe_string(options, 'volume', 'total_amount')
         return [

@@ -114,7 +114,7 @@ module.exports = class bitpanda extends Exchange {
             },
             'fees': {
                 'trading': {
-                    'tierBased': false,
+                    'tierBased': true,
                     'percentage': true,
                     'taker': 0.15 / 100,
                     'maker': 0.10 / 100,
@@ -522,10 +522,7 @@ module.exports = class bitpanda extends Exchange {
         }
         const baseVolume = this.safeFloat (ticker, 'base_volume');
         const quoteVolume = this.safeFloat (ticker, 'quote_volume');
-        let vwap = undefined;
-        if ((quoteVolume !== undefined) && (baseVolume !== undefined) && (baseVolume !== 0)) {
-            vwap = quoteVolume / baseVolume;
-        }
+        const vwap = this.vwap (baseVolume, quoteVolume);
         return {
             'symbol': symbol,
             'timestamp': timestamp,
@@ -580,7 +577,7 @@ module.exports = class bitpanda extends Exchange {
 
     async fetchTickers (symbols = undefined, params = {}) {
         await this.loadMarkets ();
-        const tickers = await this.publicGetMarketTicker (params);
+        const response = await this.publicGetMarketTicker (params);
         //
         //     [
         //         {
@@ -602,12 +599,12 @@ module.exports = class bitpanda extends Exchange {
         //     ]
         //
         const result = {};
-        for (let i = 0; i < tickers.length; i++) {
-            const ticker = this.parseTicker (tickers[i]);
+        for (let i = 0; i < response.length; i++) {
+            const ticker = this.parseTicker (response[i]);
             const symbol = ticker['symbol'];
             result[symbol] = ticker;
         }
-        return result;
+        return this.filterByArray (result, 'symbol', symbols);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -714,8 +711,7 @@ module.exports = class bitpanda extends Exchange {
         const durationInSeconds = this.parseTimeframe (timeframe);
         const duration = durationInSeconds * 1000;
         const timestamp = this.parse8601 (this.safeString (ohlcv, 'time'));
-        const modulo = this.integerModulo (timestamp, duration);
-        const alignedTimestamp = timestamp - modulo;
+        const alignedTimestamp = duration * parseInt (timestamp / duration);
         const options = this.safeValue (this.options, 'fetchOHLCV', {});
         const volumeField = this.safeString (options, 'volume', 'total_amount');
         return [

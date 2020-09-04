@@ -516,9 +516,7 @@ class bybit(Exchange):
             average = self.sum(open, last) / 2
         baseVolume = self.safe_float(ticker, 'turnover_24h')
         quoteVolume = self.safe_float(ticker, 'volume_24h')
-        vwap = None
-        if quoteVolume is not None and baseVolume is not None:
-            vwap = quoteVolume / baseVolume
+        vwap = self.vwap(baseVolume, quoteVolume)
         return {
             'symbol': symbol,
             'timestamp': timestamp,
@@ -1063,7 +1061,7 @@ class bybit(Exchange):
             if cost is None:
                 if price is not None:
                     cost = price * filled
-        status = self.parse_order_status(self.safe_string(order, 'order_status'))
+        status = self.parse_order_status(self.safe_string_2(order, 'order_status', 'stop_order_status'))
         side = self.safe_string_lower(order, 'side')
         feeCost = self.safe_float(order, 'cum_exec_fee')
         fee = None
@@ -2018,9 +2016,6 @@ class bybit(Exchange):
                 'timestamp': timestamp,
             })
             auth = self.rawencode(self.keysort(query))
-            # fix https://github.com/ccxt/ccxt/issues/7377
-            # bybit encodes whole floats as integers without .0
-            auth = auth.replace('.0&', '&')
             signature = self.hmac(self.encode(auth), self.encode(self.secret))
             if method == 'POST':
                 body = self.json(self.extend(query, {

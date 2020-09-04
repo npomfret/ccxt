@@ -436,11 +436,7 @@ class hitbtc(Exchange):
             average = self.sum(last, open) / 2
             if open > 0:
                 percentage = change / open * 100
-        vwap = None
-        if quoteVolume is not None:
-            if baseVolume is not None:
-                if baseVolume > 0:
-                    vwap = quoteVolume / baseVolume
+        vwap = self.vwap(baseVolume, quoteVolume)
         return {
             'symbol': symbol,
             'timestamp': timestamp,
@@ -478,7 +474,7 @@ class hitbtc(Exchange):
                     result[symbol] = self.parse_ticker(ticker, market)
                 else:
                     result[marketId] = self.parse_ticker(ticker)
-        return result
+        return self.filter_by_array(result, 'symbol', symbols)
 
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
