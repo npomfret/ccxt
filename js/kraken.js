@@ -548,8 +548,8 @@ module.exports = class kraken extends Exchange {
         await this.loadMarkets ();
         symbols = (symbols === undefined) ? this.symbols : symbols;
         const marketIds = [];
-        for (let i = 0; i < this.symbols.length; i++) {
-            const symbol = this.symbols[i];
+        for (let i = 0; i < symbols.length; i++) {
+            const symbol = symbols[i];
             const market = this.markets[symbol];
             if (market['active'] && !market['darkpool']) {
                 marketIds.push (market['id']);
@@ -567,11 +567,9 @@ module.exports = class kraken extends Exchange {
             const market = this.markets_by_id[id];
             const symbol = market['symbol'];
             const ticker = tickers[id];
-            if (this.inArray (symbol, symbols)) {
-                result[symbol] = this.parseTicker (ticker, market);
-            }
+            result[symbol] = this.parseTicker (ticker, market);
         }
-        return result;
+        return this.filterByArray (result, 'symbol', symbols);
     }
 
     async fetchTicker (symbol, params = {}) {

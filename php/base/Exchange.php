@@ -36,7 +36,7 @@ use Elliptic\EC;
 use Elliptic\EdDSA;
 use BN\BN;
 
-$version = '1.32.79';
+$version = '1.34.4';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -55,7 +55,7 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.32.79';
+    const VERSION = '1.34.4';
 
     private static $base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     private static $base58_encoder = null;
@@ -865,7 +865,7 @@ class Exchange {
         $this->tickers = array();
         $this->fees = array('trading' => array(), 'funding' => array());
         $this->precision = array();
-        $this->orders = array();
+        $this->orders = null;
         $this->myTrades = null;
         $this->trades = array();
         $this->transactions = array();
@@ -1062,33 +1062,34 @@ class Exchange {
         }
     }
 
-    public function define_rest_api($api, $method_name, $options = array()) {
-        foreach ($api as $type => $methods) {
-            foreach ($methods as $http_method => $paths) {
-                foreach ($paths as $path) {
+    public function define_rest_api($api, $method_name, $paths = array()) {
+        foreach ($api as $key => $value) {
+            if (static::is_associative($value)) {
+                $copy = $paths;
+                array_push ($copy, $key);
+                $this->define_rest_api($value, $method_name, $copy);
+            } else {
+                $uppercaseMethod = mb_strtoupper($key);
+                $lowercaseMethod = mb_strtolower($key);
+                $camelcaseMethod = static::capitalize($lowercaseMethod);
+                foreach ($value as $path) {
                     $splitPath = mb_split('[^a-zA-Z0-9]', $path);
-
-                    $uppercaseMethod = mb_strtoupper($http_method);
-                    $lowercaseMethod = mb_strtolower($http_method);
-                    $camelcaseMethod = static::capitalize($lowercaseMethod);
                     $camelcaseSuffix = implode(array_map(get_called_class() . '::capitalize', $splitPath));
                     $lowercasePath = array_map('trim', array_map('strtolower', $splitPath));
                     $underscoreSuffix = implode('_', array_filter($lowercasePath));
-
-                    $camelcase = $type . $camelcaseMethod . static::capitalize($camelcaseSuffix);
-                    $underscore = $type . '_' . $lowercaseMethod . '_' . mb_strtolower($underscoreSuffix);
-
-                    if (array_key_exists('suffixes', $options)) {
-                        if (array_key_exists('camelcase', $options['suffixes'])) {
-                            $camelcase .= $options['suffixes']['camelcase'];
-                        }
-                        if (array_key_exists('underscore', $options['suffixes'])) {
-                            $underscore .= $options['suffixes']['underscore'];
-                        }
-                    }
-
-                    $this->defined_rest_api[$camelcase] = array($path, $type, $uppercaseMethod, $method_name);
-                    $this->defined_rest_api[$underscore] = array($path, $type, $uppercaseMethod, $method_name);
+                    $camelcasePrefix = implode('', array_merge(
+                        array($paths[0]),
+                        array_map(get_called_class() . '::capitalize', array_slice($paths, 1))
+                    ));
+                    $underscorePrefix = implode('_', array_merge(
+                        array($paths[0]),
+                        array_filter(array_map('trim', array_slice($paths, 1)))
+                    ));
+                    $camelcase = $camelcasePrefix . $camelcaseMethod . static::capitalize($camelcaseSuffix);
+                    $underscore = $underscorePrefix . '_' . $lowercaseMethod . '_' . mb_strtolower($underscoreSuffix);
+                    $apiArgument = (count($paths) > 1) ? $paths : $paths[0];
+                    $this->defined_rest_api[$camelcase] = array($path, $apiArgument, $uppercaseMethod, $method_name);
+                    $this->defined_rest_api[$underscore] = array($path, $apiArgument, $uppercaseMethod, $method_name);
                 }
             }
         }
@@ -1205,6 +1206,9 @@ class Exchange {
     }
 
     public function fetch2($path, $api = 'public', $method = 'GET', $params = array(), $headers = null, $body = null) {
+        if ($this->enableRateLimit) {
+            $this->throttle();
+        }
         $request = $this->sign($path, $api, $method, $params, $headers, $body);
         return $this->fetch($request['url'], $request['method'], $request['headers'], $request['body']);
     }
@@ -1269,9 +1273,6 @@ class Exchange {
     // }
 
     public function fetch($url, $method = 'GET', $headers = null, $body = null) {
-        if ($this->enableRateLimit) {
-            $this->throttle();
-        }
 
         $headers = array_merge($this->headers, $headers ? $headers : array());
 
@@ -1421,10 +1422,10 @@ class Exchange {
         }
 
         $json_response = null;
+        $is_json_encoded_response = $this->is_json_encoded_object($result);
 
-        if ($this->is_json_encoded_object($result)) {
+        if ($is_json_encoded_response) {
             $json_response = $this->parse_json($result);
-
             if ($this->enableLastJsonResponse) {
                 $this->last_json_response = $json_response;
             }
@@ -1473,7 +1474,7 @@ class Exchange {
             throw new $error_class(implode(' ', array($url, $method, $http_status_code, $result)));
         }
 
-        if (!$json_response) {
+        if ($is_json_encoded_response && !$json_response) {
             $details = '(possible reasons: ' . implode(', ', array(
                     'exchange is down or offline',
                     'on maintenance',
@@ -1482,9 +1483,10 @@ class Exchange {
                 )) . ')';
             $error_class = null;
             if (preg_match('#offline|busy|retry|wait|unavailable|maintain|maintenance|maintenancing#i', $result)) {
+                print("fobaro\n");
+                exit();
                 $error_class = 'ExchangeNotAvailable';
             }
-
             if (preg_match('#cloudflare|incapsula#i', $result)) {
                 $error_class = 'DDosProtection';
             }
@@ -1977,9 +1979,11 @@ class Exchange {
     }
 
     public function purge_cached_orders($before) {
-        $this->orders = static::index_by(array_filter($this->orders, function ($order) use ($before) {
-            return ('open' === $order['status']) || ($order['timestamp'] >= $before);
-        }), 'id');
+        if ($this->orders) {
+            $this->orders = static::index_by(array_filter($this->orders, function ($order) use ($before) {
+                return ('open' === $order['status']) || ($order['timestamp'] >= $before);
+            }), 'id');
+        }
         return $this->orders;
     }
 
@@ -2649,7 +2653,7 @@ class Exchange {
             return $s;
         }
         $splitted = explode('E', $s);
-        $number = $splitted[0];
+        $number = rtrim(rtrim($splitted[0], '0'), '.');
         $exp = (int) $splitted[1];
         $len_after_dot = 0;
         if (strpos($number, '.') !== false) {
@@ -2666,6 +2670,10 @@ class Exchange {
             $s = $sign . '0.' . $zeros . $number;
         }
         return $s;
+    }
+
+    public function vwap($baseVolume, $quoteVolume) {
+        return (($quoteVolume !== null) && ($baseVolume !== null) && ($baseVolume > 0)) ? ($quoteVolume / $baseVolume) : null;
     }
 
     // ------------------------------------------------------------------------

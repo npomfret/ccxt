@@ -123,6 +123,7 @@ class okex extends Exchange {
                         'instruments/{instrument_id}/ticker',
                         'instruments/{instrument_id}/trades',
                         'instruments/{instrument_id}/candles',
+                        'instruments/{instrument_id}/history/candles',
                     ),
                     'post' => array(
                         'order_algo',
@@ -187,6 +188,7 @@ class okex extends Exchange {
                         'instruments/{instrument_id}/ticker',
                         'instruments/{instrument_id}/trades',
                         'instruments/{instrument_id}/candles',
+                        'instruments/{instrument_id}/history/candles',
                         'instruments/{instrument_id}/index',
                         'rate',
                         'instruments/{instrument_id}/estimated_price',
@@ -231,6 +233,7 @@ class okex extends Exchange {
                         'instruments/{instrument_id}/ticker',
                         'instruments/{instrument_id}/trades',
                         'instruments/{instrument_id}/candles',
+                        'instruments/{instrument_id}/history/candles',
                         'instruments/{instrument_id}/index',
                         'rate',
                         'instruments/{instrument_id}/open_interest',
@@ -367,6 +370,7 @@ class okex extends Exchange {
                     '30037' => '\\ccxt\\ExchangeNotAvailable', // array( "code" => 30037, "message" => "endpoint is offline or unavailable" )
                     // '30038' => '\\ccxt\\AuthenticationError', // array( "code" => 30038, "message" => "user does not exist" )
                     '30038' => '\\ccxt\\OnMaintenance', // array("client_oid":"","code":"30038","error_code":"30038","error_message":"Matching engine is being upgraded. Please try in about 1 minute.","message":"Matching engine is being upgraded. Please try in about 1 minute.","order_id":"-1","result":false)
+                    '30044' => '\\ccxt\\RequestTimeout', // array( "code":30044, "message":"Endpoint request timeout" )
                     // futures
                     '32001' => '\\ccxt\\AccountSuspended', // array( "code" => 32001, "message" => "futures account suspended" )
                     '32002' => '\\ccxt\\PermissionDenied', // array( "code" => 32002, "message" => "futures account does not exist" )
@@ -1364,22 +1368,40 @@ class okex extends Exchange {
     public function fetch_ohlcv($symbol, $timeframe = '1m', $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
         $market = $this->market($symbol);
-        $method = $market['type'] . 'GetInstrumentsInstrumentIdCandles';
+        $method = null;
+        $duration = $this->parse_timeframe($timeframe);
         $request = array(
             'instrument_id' => $market['id'],
             'granularity' => $this->timeframes[$timeframe],
         );
-        $duration = $this->parse_timeframe($timeframe);
-        if ($since !== null) {
-            if ($limit !== null) {
-                $request['end'] = $this->iso8601($this->sum($since, $limit * $duration * 1000));
+        if ($market['option'] || $market['spot']) {
+            $method = $market['type'] . 'GetInstrumentsInstrumentIdCandles';
+            if ($since !== null) {
+                if ($limit !== null) {
+                    $request['end'] = $this->iso8601($this->sum($since, $limit * $duration * 1000));
+                }
+                $request['start'] = $this->iso8601($since);
+            } else {
+                if ($limit !== null) {
+                    $now = $this->milliseconds();
+                    $request['start'] = $this->iso8601($now - $limit * $duration * 1000);
+                    $request['end'] = $this->iso8601($now);
+                }
             }
-            $request['start'] = $this->iso8601($since);
         } else {
-            $now = $this->milliseconds();
-            if ($limit !== null) {
-                $request['start'] = $this->iso8601($now - $limit * $duration * 1000);
-                $request['end'] = $this->iso8601($now);
+            $method = $market['type'] . 'GetInstrumentsInstrumentIdHistoryCandles';
+            if ($since !== null) {
+                if ($limit === null) {
+                    $limit = 300; // default
+                }
+                $request['start'] = $this->iso8601($this->sum($since, $limit * $duration * 1000));
+                $request['end'] = $this->iso8601($since);
+            } else {
+                if ($limit !== null) {
+                    $now = $this->milliseconds();
+                    $request['end'] = $this->iso8601($now - $limit * $duration * 1000);
+                    $request['start'] = $this->iso8601($now);
+                }
             }
         }
         $response = $this->$method (array_merge($request, $params));
@@ -2597,7 +2619,7 @@ class okex extends Exchange {
                     // https://github.com/ccxt/ccxt/pull/5748
                     $lowercaseCurrencyId = strtolower($currencyId);
                     $feeWithoutCurrencyId = str_replace($lowercaseCurrencyId, '', $feeWithCurrencyId);
-                    $feeCost = floatval ($feeWithoutCurrencyId);
+                    $feeCost = floatval($feeWithoutCurrencyId);
                 }
             }
         }

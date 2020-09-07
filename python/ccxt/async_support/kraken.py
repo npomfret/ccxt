@@ -547,8 +547,8 @@ class kraken(Exchange):
         await self.load_markets()
         symbols = self.symbols if (symbols is None) else symbols
         marketIds = []
-        for i in range(0, len(self.symbols)):
-            symbol = self.symbols[i]
+        for i in range(0, len(symbols)):
+            symbol = symbols[i]
             market = self.markets[symbol]
             if market['active'] and not market['darkpool']:
                 marketIds.append(market['id'])
@@ -564,9 +564,8 @@ class kraken(Exchange):
             market = self.markets_by_id[id]
             symbol = market['symbol']
             ticker = tickers[id]
-            if self.in_array(symbol, symbols):
-                result[symbol] = self.parse_ticker(ticker, market)
-        return result
+            result[symbol] = self.parse_ticker(ticker, market)
+        return self.filter_by_array(result, 'symbol', symbols)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()

@@ -144,6 +144,7 @@ class okex(Exchange):
                         'instruments/{instrument_id}/ticker',
                         'instruments/{instrument_id}/trades',
                         'instruments/{instrument_id}/candles',
+                        'instruments/{instrument_id}/history/candles',
                     ],
                     'post': [
                         'order_algo',
@@ -208,6 +209,7 @@ class okex(Exchange):
                         'instruments/{instrument_id}/ticker',
                         'instruments/{instrument_id}/trades',
                         'instruments/{instrument_id}/candles',
+                        'instruments/{instrument_id}/history/candles',
                         'instruments/{instrument_id}/index',
                         'rate',
                         'instruments/{instrument_id}/estimated_price',
@@ -252,6 +254,7 @@ class okex(Exchange):
                         'instruments/{instrument_id}/ticker',
                         'instruments/{instrument_id}/trades',
                         'instruments/{instrument_id}/candles',
+                        'instruments/{instrument_id}/history/candles',
                         'instruments/{instrument_id}/index',
                         'rate',
                         'instruments/{instrument_id}/open_interest',
@@ -388,6 +391,7 @@ class okex(Exchange):
                     '30037': ExchangeNotAvailable,  # {"code": 30037, "message": "endpoint is offline or unavailable"}
                     # '30038': AuthenticationError,  # {"code": 30038, "message": "user does not exist"}
                     '30038': OnMaintenance,  # {"client_oid":"","code":"30038","error_code":"30038","error_message":"Matching engine is being upgraded. Please try in about 1 minute.","message":"Matching engine is being upgraded. Please try in about 1 minute.","order_id":"-1","result":false}
+                    '30044': RequestTimeout,  # {"code":30044, "message":"Endpoint request timeout"}
                     # futures
                     '32001': AccountSuspended,  # {"code": 32001, "message": "futures account suspended"}
                     '32002': PermissionDenied,  # {"code": 32002, "message": "futures account does not exist"}
@@ -1347,21 +1351,35 @@ class okex(Exchange):
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         self.load_markets()
         market = self.market(symbol)
-        method = market['type'] + 'GetInstrumentsInstrumentIdCandles'
+        method = None
+        duration = self.parse_timeframe(timeframe)
         request = {
             'instrument_id': market['id'],
             'granularity': self.timeframes[timeframe],
         }
-        duration = self.parse_timeframe(timeframe)
-        if since is not None:
-            if limit is not None:
-                request['end'] = self.iso8601(self.sum(since, limit * duration * 1000))
-            request['start'] = self.iso8601(since)
+        if market['option'] or market['spot']:
+            method = market['type'] + 'GetInstrumentsInstrumentIdCandles'
+            if since is not None:
+                if limit is not None:
+                    request['end'] = self.iso8601(self.sum(since, limit * duration * 1000))
+                request['start'] = self.iso8601(since)
+            else:
+                if limit is not None:
+                    now = self.milliseconds()
+                    request['start'] = self.iso8601(now - limit * duration * 1000)
+                    request['end'] = self.iso8601(now)
         else:
-            now = self.milliseconds()
-            if limit is not None:
-                request['start'] = self.iso8601(now - limit * duration * 1000)
-                request['end'] = self.iso8601(now)
+            method = market['type'] + 'GetInstrumentsInstrumentIdHistoryCandles'
+            if since is not None:
+                if limit is None:
+                    limit = 300  # default
+                request['start'] = self.iso8601(self.sum(since, limit * duration * 1000))
+                request['end'] = self.iso8601(since)
+            else:
+                if limit is not None:
+                    now = self.milliseconds()
+                    request['end'] = self.iso8601(now - limit * duration * 1000)
+                    request['start'] = self.iso8601(now)
         response = getattr(self, method)(self.extend(request, params))
         #
         # spot markets

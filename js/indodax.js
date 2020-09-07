@@ -95,6 +95,13 @@ module.exports = class indodax extends Exchange {
                 'timeDifference': 0, // the difference between system clock and exchange clock
                 'adjustForTimeDifference': false, // controls the adjustment logic upon instantiation
             },
+            'commonCurrencies': {
+                'STR': 'XLM',
+                'BCHABC': 'BCH',
+                'BCHSV': 'BSV',
+                'DRK': 'DASH',
+                'NEM': 'XEM',
+            },
         });
     }
 
@@ -151,7 +158,7 @@ module.exports = class indodax extends Exchange {
         const result = [];
         for (let i = 0; i < response.length; i++) {
             const market = response[i];
-            const id = this.safeString (market, 'id');
+            const id = this.safeString (market, 'ticker_id');
             const baseId = this.safeString (market, 'traded_currency');
             const quoteId = this.safeString (market, 'base_currency');
             const base = this.safeCurrencyCode (baseId);

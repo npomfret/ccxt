@@ -91,7 +91,7 @@ The CCXT library currently supports the following 122 cryptocurrency exchange ma
 | [![braziliex](https://user-images.githubusercontent.com/1294454/34703593-c4498674-f504-11e7-8d14-ff8e44fb78c1.jpg)](https://braziliex.com/?ref=5FE61AB6F6D67DA885BC98BA27223465)                 | braziliex          | [Braziliex](https://braziliex.com/?ref=5FE61AB6F6D67DA885BC98BA27223465)                | *   | [API](https://braziliex.com/exchange/api.php)                                                |                                                                                                                             |                                                                              |
 | [![btcalpha](https://user-images.githubusercontent.com/1294454/42625213-dabaa5da-85cf-11e8-8f99-aa8f8f7699f0.jpg)](https://btc-alpha.com/?r=123788)                                              | btcalpha           | [BTC-Alpha](https://btc-alpha.com/?r=123788)                                            | 1   | [API](https://btc-alpha.github.io/api-docs)                                                  |                                                                                                                             |                                                                              |
 | [![btcbox](https://user-images.githubusercontent.com/51840849/87327317-98c55400-c53c-11ea-9a11-81f7d951cc74.jpg)](https://www.btcbox.co.jp/)                                                     | btcbox             | [BtcBox](https://www.btcbox.co.jp/)                                                     | 1   | [API](https://blog.btcbox.jp/en/archives/8762)                                               |                                                                                                                             |                                                                              |
-| [![btcmarkets](https://user-images.githubusercontent.com/1294454/29142911-0e1acfc2-7d5c-11e7-98c4-07d9532b29d7.jpg)](https://btcmarkets.net)                                                     | btcmarkets         | [BTC Markets](https://btcmarkets.net)                                                   | *   | [API](https://api.btcmarkets.net/doc/v3#section/API-client-libraries)                        |                                                                                                                             |                                                                              |
+| [![btcmarkets](https://user-images.githubusercontent.com/51840849/89731817-b3fb8480-da52-11ea-817f-783b08aaf32b.jpg)](https://btcmarkets.net)                                                    | btcmarkets         | [BTC Markets](https://btcmarkets.net)                                                   | *   | [API](https://api.btcmarkets.net/doc/v3#section/API-client-libraries)                        |                                                                                                                             |                                                                              |
 | [![btctradeua](https://user-images.githubusercontent.com/1294454/27941483-79fc7350-62d9-11e7-9f61-ac47f28fcd96.jpg)](https://btc-trade.com.ua/registration/22689)                                | btctradeua         | [BTC Trade UA](https://btc-trade.com.ua/registration/22689)                             | *   | [API](https://docs.google.com/document/d/1ocYA0yMy_RXd561sfG3qEPZ80kyll36HUxvCRe5GbhE/edit)  |                                                                                                                             |                                                                              |
 | [![btcturk](https://user-images.githubusercontent.com/51840849/87153926-efbef500-c2c0-11ea-9842-05b63612c4b9.jpg)](https://www.btcturk.com)                                                      | btcturk            | [BTCTurk](https://www.btcturk.com)                                                      | *   | [API](https://github.com/BTCTrader/broker-api-docs)                                          |                                                                                                                             |                                                                              |
 | [![buda](https://user-images.githubusercontent.com/1294454/47380619-8a029200-d706-11e8-91e0-8a391fe48de3.jpg)](https://www.buda.com)                                                             | buda               | [Buda](https://www.buda.com)                                                            | 2   | [API](https://api.buda.com)                                                                  |                                                                                                                             |                                                                              |
@@ -115,7 +115,7 @@ The CCXT library currently supports the following 122 cryptocurrency exchange ma
 | [![coinspot](https://user-images.githubusercontent.com/1294454/28208429-3cacdf9a-6896-11e7-854e-4c79a772a30f.jpg)](https://www.coinspot.com.au/register?code=PJURCU)                             | coinspot           | [CoinSpot](https://www.coinspot.com.au/register?code=PJURCU)                            | *   | [API](https://www.coinspot.com.au/api)                                                       |                                                                                                                             |                                                                              |
 | [![coss](https://user-images.githubusercontent.com/51840849/87443313-008fa380-c5fe-11ea-8400-34d4749c7da5.jpg)](https://www.coss.io/c/reg?r=OWCMHQVW2Q)                                          | coss               | [COSS](https://www.coss.io/c/reg?r=OWCMHQVW2Q)                                          | 1   | [API](https://api.coss.io/v1/spec)                                                           |                                                                                                                             |                                                                              |
 | [![crex24](https://user-images.githubusercontent.com/1294454/47813922-6f12cc00-dd5d-11e8-97c6-70f957712d47.jpg)](https://crex24.com/?refid=slxsjsjtil8xexl9hksr)                                 | crex24             | [CREX24](https://crex24.com/?refid=slxsjsjtil8xexl9hksr)                                | 2   | [API](https://docs.crex24.com/trade-api/v2)                                                  |                                                                                                                             |                                                                              |
-| [![currencycom](https://user-images.githubusercontent.com/1294454/83718672-36745c00-a63e-11ea-81a9-677b1f789a4d.jpg)](https://currency.com/trading/signup?c=362jaimv&pid=referral)               | currencycom        | [Currency.com](https://currency.com/trading/signup?c=362jaimv&pid=referral)             | 1   | [API](https://currency.com/api)                                                              |                                                                                                                             |                                                                              |
+| [![currencycom](https://user-images.githubusercontent.com/1294454/83718672-36745c00-a63e-11ea-81a9-677b1f789a4d.jpg)](https://currency.com/trading/signup?c=362jaimv&pid=referral)               | currencycom        | [Currency.com](https://currency.com/trading/signup?c=362jaimv&pid=referral)             | 1   | [API](https://currency.com/api)                                                              | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![deribit](https://user-images.githubusercontent.com/1294454/41933112-9e2dd65a-798b-11e8-8440-5bab2959fcb8.jpg)](https://www.deribit.com/reg-1189.4038)                                         | deribit            | [Deribit](https://www.deribit.com/reg-1189.4038)                                        | 2   | [API](https://docs.deribit.com/v2)                                                           |                                                                                                                             |                                                                              |
 | [![digifinex](https://user-images.githubusercontent.com/51840849/87443315-01283a00-c5fe-11ea-8628-c2a0feaf07ac.jpg)](https://www.digifinex.com/en-ww/from/DhOzBg/3798****5114)                   | digifinex          | [DigiFinex](https://www.digifinex.com/en-ww/from/DhOzBg/3798****5114)                   | 3   | [API](https://docs.digifinex.com)                                                            |                                                                                                                             |                                                                              |
 | [![dsx](https://user-images.githubusercontent.com/51840849/76909626-cb2bb100-68bc-11ea-99e0-28ba54f04792.jpg)](https://dsxglobal.com)                                                            | dsx                | [DSX](https://dsxglobal.com)                                                            | 3   | [API](https://dsxglobal.com/developers/publicApi)                                            |                                                                                                                             |                                                                              |
@@ -564,6 +564,80 @@ A later retry is usually enough to handle that. More on that here:
 - [Authentication](https://github.com/ccxt/ccxt/wiki/Manual#authentication)
 - [Troubleshooting](https://github.com/ccxt/ccxt/wiki/Manual#troubleshooting)
 - [Overriding The Nonce](https://github.com/ccxt/ccxt/wiki/Manual#overriding-the-nonce)
+
+### Notes On Rate Limiter
+
+The rate limiter is a property of the exchange instance, in other words, each exchange instance has its own rate limiter that is not aware of the other instances. In many cases the user should reuse the same exchange instance throughout the program. Do not use multiple instances of the same exchange with the same API keypair from the same IP address.
+
+```JavaScript
+// DO NOT DO THIS!
+
+const binance1 = new ccxt.binance ({ enableRateLimit: true })
+const binance2 = new ccxt.binance ({ enableRateLimit: true })
+const binance3 = new ccxt.binance ({ enableRateLimit: true })
+
+while (true) {
+    const result = await Promise.all ([
+        binance1.fetchOrderBook ('BTC/USDT'),
+        binance2.fetchOrderBook ('ETH/USDT'),
+        binance3.fetchOrderBook ('ETH/BTC'),
+    ])
+    console.log (result)
+}
+```
+
+Reuse the exchange instance as much as possible as shown below:
+
+```JavaScript
+// DO THIS INSTEAD:
+
+const binance = new ccxt.binance ({ enableRateLimit: true })
+
+while (true) {
+    const result = await Promise.all ([
+        binance.fetchOrderBook ('BTC/USDT'),
+        binance.fetchOrderBook ('ETH/USDT'),
+        binance.fetchOrderBook ('ETH/BTC'),
+    ])
+    console.log (result)
+}
+```
+
+Since the rate limiter belongs to the exchange instance, destroying the exchange instance will destroy the rate limiter as well. Among the most common pitfalls with the rate limiting is creating and dropping the exchange instance over and over again. If in your program you are creating and destroying the exchange instance (say, inside a function that is called multiple times), then you are effectively resetting the rate limiter over and over and that will eventually break the rate limits.
+
+```JavaScript
+// DO NOT DO THIS!
+
+function tick () {
+    const exchange = new ccxt.binance ({ enableRateLimit: true })
+    const response = await exchange.fetchOrderBook ('BTC/USDT')
+    // ... some processing here ...
+    return response
+}
+
+while (true) {
+    const result = await tick ()
+    console.log (result)
+}
+```
+
+Do not break this rule unless you really understand the inner workings of the rate-limiter and you are 100% sure you know what you're doing. In order to stay safe always reuse the exchange instance throughout your functions and methods callchain like shown below:
+
+```JavaScript
+// DO THIS INSTEAD:
+
+async function tick (exchange) {
+    const response = await exchange.fetchOrderBook ('BTC/USDT')
+    // ... some processing here ...
+    return response
+}
+
+const exchange = new ccxt.binance ({ enableRateLimit: true })
+while (true) {
+    const result = await tick (exchange)
+    console.log (result)
+}
+```
 
 ### DDoS Protection By Cloudflare / Incapsula
 

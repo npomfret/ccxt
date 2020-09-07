@@ -32,6 +32,7 @@ class digifinex extends Exchange {
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
                 'fetchOrders' => true,
+                'fetchStatus' => true,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
                 'fetchTime' => true,
@@ -427,7 +428,7 @@ class digifinex extends Exchange {
             }
             $result[$symbol] = $this->parse_ticker($ticker, $market);
         }
-        return $result;
+        return $this->filter_by_array($result, 'symbol', $symbols);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {
@@ -612,6 +613,21 @@ class digifinex extends Exchange {
         return $this->safe_timestamp($response, 'server_time');
     }
 
+    public function fetch_status($params = array ()) {
+        $this->publicGetPing ($params);
+        //
+        //     {
+        //         "msg" => "pong",
+        //         "code" => 0
+        //     }
+        //
+        $this->status = array_merge($this->status, array(
+            'status' => 'ok',
+            'updated' => $this->milliseconds(),
+        ));
+        return $this->status;
+    }
+
     public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
         $market = $this->market($symbol);
@@ -679,7 +695,7 @@ class digifinex extends Exchange {
             // 'end_time' => 1564520003, // ending timestamp, current timestamp by default
         );
         if ($since !== null) {
-            $startTime = intval ($since / 1000);
+            $startTime = intval($since / 1000);
             $request['start_time'] = $startTime;
             if ($limit !== null) {
                 $duration = $this->parse_timeframe($timeframe);
@@ -962,7 +978,7 @@ class digifinex extends Exchange {
             $request['symbol'] = $market['id'];
         }
         if ($since !== null) {
-            $request['start_time'] = intval ($since / 1000); // default 3 days from now, max 30 days
+            $request['start_time'] = intval($since / 1000); // default 3 days from now, max 30 days
         }
         if ($limit !== null) {
             $request['limit'] = $limit; // default 10, max 100
@@ -1046,7 +1062,7 @@ class digifinex extends Exchange {
             $request['symbol'] = $market['id'];
         }
         if ($since !== null) {
-            $request['start_time'] = intval ($since / 1000); // default 3 days from now, max 30 days
+            $request['start_time'] = intval($since / 1000); // default 3 days from now, max 30 days
         }
         if ($limit !== null) {
             $request['limit'] = $limit; // default 10, max 100
@@ -1131,7 +1147,7 @@ class digifinex extends Exchange {
             $request['currency_mark'] = $currency['id'];
         }
         if ($since !== null) {
-            $request['start_time'] = intval ($since / 1000);
+            $request['start_time'] = intval($since / 1000);
         }
         if ($limit !== null) {
             $request['limit'] = $limit; // default 100, max 1000

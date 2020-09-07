@@ -41,6 +41,7 @@ class digifinex(Exchange):
                 'fetchOrder': True,
                 'fetchOrderBook': True,
                 'fetchOrders': True,
+                'fetchStatus': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTime': True,
@@ -423,7 +424,7 @@ class digifinex(Exchange):
                 quote = self.safe_currency_code(quoteId)
                 symbol = base + '/' + quote
             result[symbol] = self.parse_ticker(ticker, market)
-        return result
+        return self.filter_by_array(result, 'symbol', symbols)
 
     async def fetch_ticker(self, symbol, params={}):
         apiKey = self.safe_value(params, 'apiKey', self.apiKey)
@@ -593,6 +594,20 @@ class digifinex(Exchange):
         #     }
         #
         return self.safe_timestamp(response, 'server_time')
+
+    async def fetch_status(self, params={}):
+        await self.publicGetPing(params)
+        #
+        #     {
+        #         "msg": "pong",
+        #         "code": 0
+        #     }
+        #
+        self.status = self.extend(self.status, {
+            'status': 'ok',
+            'updated': self.milliseconds(),
+        })
+        return self.status
 
     async def fetch_trades(self, symbol, since=None, limit=None, params={}):
         await self.load_markets()

@@ -814,15 +814,15 @@ class wavesexchange extends Exchange {
     }
 
     public function price_to_precision($symbol, $price) {
-        return intval (floatval ($this->to_wei($price, $this->markets[$symbol]['precision']['price'])));
+        return intval(floatval($this->to_wei($price, $this->markets[$symbol]['precision']['price'])));
     }
 
     public function amount_to_precision($symbol, $amount) {
-        return intval (floatval ($this->to_wei($amount, $this->markets[$symbol]['precision']['amount'])));
+        return intval(floatval($this->to_wei($amount, $this->markets[$symbol]['precision']['amount'])));
     }
 
     public function currency_to_precision($currency, $amount) {
-        return intval (floatval ($this->to_wei($amount, $this->currencies[$currency]['precision'])));
+        return intval(floatval($this->to_wei($amount, $this->currencies[$currency]['precision'])));
     }
 
     public function currency_from_precision($currency, $amount) {
@@ -1301,11 +1301,9 @@ class wavesexchange extends Exchange {
             $code = null;
             if (is_array($this->currencies_by_id) && array_key_exists($currencyId, $this->currencies_by_id)) {
                 $code = $this->safe_currency_code($currencyId);
-            } else {
-                $code = $this->safe_currency_code($this->safe_string($issueTransaction, 'name'));
+                $result[$code] = $this->account();
+                $result[$code]['total'] = $this->from_wei($balance, $decimals);
             }
-            $result[$code] = $this->account();
-            $result[$code]['total'] = $this->from_wei($balance, $decimals);
         }
         $timestamp = $this->milliseconds();
         $byteArray = array(

@@ -107,14 +107,14 @@ class bithumb extends Exchange {
         $data = $this->safe_value($response, 'data');
         $currencyIds = is_array($data) ? array_keys($data) : array();
         $result = array();
+        $quote = $this->safe_currency_code('KRW');
         for ($i = 0; $i < count($currencyIds); $i++) {
             $currencyId = $currencyIds[$i];
             if ($currencyId === 'date') {
                 continue;
             }
             $market = $data[$currencyId];
-            $base = $currencyId;
-            $quote = 'KRW';
+            $base = $this->safe_currency_code($currencyId);
             $symbol = $currencyId . '/' . $quote;
             $active = true;
             if (gettype($market) === 'array' && count(array_filter(array_keys($market), 'is_string')) == 0) {
@@ -250,10 +250,7 @@ class bithumb extends Exchange {
         }
         $baseVolume = $this->safe_float($ticker, 'units_traded_24H');
         $quoteVolume = $this->safe_float($ticker, 'acc_trade_value_24H');
-        $vwap = null;
-        if ($quoteVolume !== null && $baseVolume !== null) {
-            $vwap = $quoteVolume / $baseVolume;
-        }
+        $vwap = $this->vwap($baseVolume, $quoteVolume);
         return array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
@@ -322,7 +319,7 @@ class bithumb extends Exchange {
                 $result[$symbol] = $this->parse_ticker($ticker, $market);
             }
         }
-        return $result;
+        return $this->filter_by_array($result, 'symbol', $symbols);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {
