@@ -355,8 +355,11 @@ module.exports = class phemex extends Exchange {
         //     }
         //
         const id = this.safeString (market, 'symbol');
+        const baseId = this.safeString (market, 'baseCurrency', 'contractUnderlyingAssets');
         const quoteId = this.safeString (market, 'quoteCurrency');
-        const baseId = this.safeString (market, 'baseCurrency');
+        const base = this.safeCurrencyCode (baseId);
+        const quote = this.safeCurrencyCode (quoteId);
+        const symbol = base + '/' + quote;
         const type = this.safeStringLower (market, 'type');
         let taker = undefined;
         let maker = undefined;
@@ -378,8 +381,12 @@ module.exports = class phemex extends Exchange {
         const maxPriceEp = this.safeFloat (market, 'maxPriceEp');
         const makerFeeRateEr = this.safeFloat (market, 'makerFeeRateEr');
         const takerFeeRateEr = this.safeFloat (market, 'takerFeeRateEr');
-        maker = this.fromEn (makerFeeRateEr, ratioScale, 0.00000001);
-        taker = this.fromEn (takerFeeRateEr, ratioScale, 0.00000001);
+        if (makerFeeRateEr !== undefined) {
+            maker = this.fromEn (makerFeeRateEr, ratioScale, 0.00000001);
+        }
+        if (takerFeeRateEr !== undefined) {
+            taker = this.fromEn (takerFeeRateEr, ratioScale, 0.00000001);
+        }
         const limits = {
             'amount': {
                 'min': precision['amount'],
@@ -394,9 +401,6 @@ module.exports = class phemex extends Exchange {
                 'max': this.parseSafeFloat (this.safeString (market, 'maxOrderQty')),
             },
         };
-        const base = this.safeCurrencyCode (baseId);
-        const quote = this.safeCurrencyCode (quoteId);
-        const symbol = base + '/' + quote;
         const active = undefined;
         return {
             'id': id,
@@ -2181,7 +2185,7 @@ module.exports = class phemex extends Exchange {
         const requestPath = '/' + this.implodeParams (path, params);
         let url = requestPath;
         let queryString = '';
-        if ((method === 'GET') || (method === 'DELETE')) {
+        if ((method === 'GET') || (method === 'DELETE') || (method === 'PUT')) {
             if (Object.keys (query).length) {
                 queryString = this.urlencodeWithArrayRepeat (query);
                 url += '?' + queryString;
@@ -2198,7 +2202,7 @@ module.exports = class phemex extends Exchange {
                 'x-phemex-request-expiry': expiryString,
             };
             let payload = '';
-            if ((method === 'POST') || (method === 'PUT')) {
+            if (method === 'POST') {
                 payload = this.json (params);
                 body = payload;
                 headers['Content-Type'] = 'application/json';

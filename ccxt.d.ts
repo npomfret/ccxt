@@ -509,6 +509,7 @@ declare module 'ccxt' {
     export class huobiru extends huobipro {}
     export class ice3x extends Exchange {}
     export class idex extends Exchange {}
+    export class idex2 extends Exchange {}
     export class independentreserve extends Exchange {}
     export class indodax extends Exchange {}
     export class itbit extends Exchange {}
@@ -524,6 +525,7 @@ declare module 'ccxt' {
     export class lykke extends Exchange {}
     export class mercado extends Exchange {}
     export class mixcoins extends Exchange {}
+    export class novadax extends Exchange {}
     export class oceanex extends Exchange {}
     export class okcoin extends okex {}
     export class okex extends Exchange {}
@@ -533,6 +535,7 @@ declare module 'ccxt' {
     export class probit extends Exchange {}
     export class qtrade extends Exchange {}
     export class rightbtc extends Exchange {}
+    export class ripio extends Exchange {}
     export class southxchange extends Exchange {}
     export class stex extends Exchange {}
     export class stronghold extends Exchange {}

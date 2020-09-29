@@ -175,6 +175,7 @@ class bitmex(Exchange):
                     'overloaded': ExchangeNotAvailable,
                     'Account has insufficient Available Balance': InsufficientFunds,
                     'Service unavailable': ExchangeNotAvailable,  # {"error":{"message":"Service unavailable","name":"HTTPError"}}
+                    'Server Error': ExchangeError,  # {"error":{"message":"Server Error","name":"HTTPError"}}
                 },
             },
             'precisionMode': TICK_SIZE,
@@ -1249,14 +1250,18 @@ class bitmex(Exchange):
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
+        orderType = self.capitalize(type)
         request = {
             'symbol': market['id'],
             'side': self.capitalize(side),
             'orderQty': amount,
-            'ordType': self.capitalize(type),
+            'ordType': orderType,
         }
         if price is not None:
-            request['price'] = price
+            if orderType == 'Stop':
+                request['stopPx'] = price
+            else:
+                request['price'] = price
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         if clientOrderId is not None:
             request['clOrdID'] = clientOrderId

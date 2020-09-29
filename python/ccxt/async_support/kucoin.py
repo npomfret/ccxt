@@ -194,7 +194,7 @@ class kucoin(Exchange):
                     '404': NotSupported,
                     '405': NotSupported,
                     '429': RateLimitExceeded,
-                    '500': ExchangeError,
+                    '500': ExchangeNotAvailable,  # Internal Server Error -- We had a problem with our server. Try again later.
                     '503': ExchangeNotAvailable,
                     '200004': InsufficientFunds,
                     '230003': InsufficientFunds,  # {"code":"230003","msg":"Balance insufficient!"}
@@ -1702,14 +1702,14 @@ class kucoin(Exchange):
             }, headers)
             payload = timestamp + method + endpoint + endpart
             signature = self.hmac(self.encode(payload), self.encode(self.secret), hashlib.sha256, 'base64')
-            headers['KC-API-SIGN'] = self.decode(signature)
+            headers['KC-API-SIGN'] = signature
             partner = self.safe_value(self.options, 'partner', {})
             partnerId = self.safe_string(partner, 'id')
             partnerSecret = self.safe_string(partner, 'secret')
             if (partnerId is not None) and (partnerSecret is not None):
                 partnerPayload = timestamp + partnerId + self.apiKey
                 partnerSignature = self.hmac(self.encode(partnerPayload), self.encode(partnerSecret), hashlib.sha256, 'base64')
-                headers['KC-API-PARTNER-SIGN'] = self.decode(partnerSignature)
+                headers['KC-API-PARTNER-SIGN'] = partnerSignature
                 headers['KC-API-PARTNER'] = partnerId
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 

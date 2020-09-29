@@ -36,7 +36,7 @@ use Elliptic\EC;
 use Elliptic\EdDSA;
 use BN\BN;
 
-$version = '1.34.7';
+$version = '1.34.64';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -55,7 +55,7 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.34.7';
+    const VERSION = '1.34.64';
 
     private static $base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     private static $base58_encoder = null;
@@ -142,6 +142,7 @@ class Exchange {
         'huobiru',
         'ice3x',
         'idex',
+        'idex2',
         'independentreserve',
         'indodax',
         'itbit',
@@ -157,6 +158,7 @@ class Exchange {
         'lykke',
         'mercado',
         'mixcoins',
+        'novadax',
         'oceanex',
         'okcoin',
         'okex',
@@ -166,6 +168,7 @@ class Exchange {
         'probit',
         'qtrade',
         'rightbtc',
+        'ripio',
         'southxchange',
         'stex',
         'stronghold',
@@ -310,6 +313,17 @@ class Exchange {
             // 48 bits for "node"
             mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
         );
+    }
+
+    public static function uuidv1() {
+        $biasSeconds = 12219292800;  // seconds from 15th Oct 1572 to Jan 1st 1970
+        $bias = $biasSeconds * 10000000;  // in hundreds of nanoseconds
+        $time = static::microseconds() * 10 + $bias;
+        $timeHex = dechex($time);
+        $arranged = substr($timeHex, 7, 8) . substr($timeHex, 3, 4) . '1' . substr($timeHex, 0, 3);
+        $clockId = '9696';
+        $macAddress = 'ffffffffffff';
+        return $arranged . $clockId . $macAddress;
     }
 
     public static function parse_timeframe($timeframe) {
@@ -992,6 +1006,7 @@ class Exchange {
         );
 
         $this->precisionMode = DECIMAL_PLACES;
+        $this->paddingMode = NO_PADDING;
 
         $this->lastRestRequestTimestamp = 0;
         $this->lastRestPollTimestamp = 0;
@@ -1108,7 +1123,12 @@ class Exchange {
     public static function hash($request, $type = 'md5', $digest = 'hex') {
         $base64 = ('base64' === $digest);
         $binary = ('binary' === $digest);
-        $hash = \hash($type, $request, ($binary || $base64) ? true : false);
+        $raw_output = ($binary || $base64) ? true : false;
+        if ($type === 'keccak') {
+            $hash = Keccak::hash($request, 256, $raw_output);
+        } else {
+            $hash = \hash($type, $request, $raw_output);
+        }
         if ($base64) {
             $hash = \base64_encode($hash);
         }
@@ -1454,48 +1474,10 @@ class Exchange {
 
         if (array_key_exists($string_code, $this->httpExceptions)) {
             $error_class = $this->httpExceptions[$string_code];
-            if ($error_class === 'ExchangeNotAvailable') {
-                if (preg_match('#cloudflare|incapsula|overload|ddos#i', $result)) {
-                    throw new DDoSProtection(implode(' ', array($url, $method, $http_status_code, $result)));
-                }
-                $details = '(possible reasons: ' . implode(', ', array(
-                        'invalid API keys',
-                        'bad or old nonce',
-                        'exchange is down or offline',
-                        'on maintenance',
-                        'DDoS protection',
-                        'rate-limiting in effect',
-                    )) . ')';
-                throw new ExchangeNotAvailable(implode(' ', array($url, $method, $http_status_code, $result, $details)));
-            }
             if (substr($error_class, 0, 6) !== '\\ccxt\\') {
                 $error_class = '\\ccxt\\' . $error_class;
             }
             throw new $error_class(implode(' ', array($url, $method, $http_status_code, $result)));
-        }
-
-        if ($is_json_encoded_response && !$json_response) {
-            $details = '(possible reasons: ' . implode(', ', array(
-                    'exchange is down or offline',
-                    'on maintenance',
-                    'DDoS protection',
-                    'rate-limiting in effect',
-                )) . ')';
-            $error_class = null;
-            if (preg_match('#offline|busy|retry|wait|unavailable|maintain|maintenance|maintenancing#i', $result)) {
-                print("fobaro\n");
-                exit();
-                $error_class = 'ExchangeNotAvailable';
-            }
-            if (preg_match('#cloudflare|incapsula#i', $result)) {
-                $error_class = 'DDosProtection';
-            }
-            if ($error_class !== null) {
-                if (substr($error_class, 0, 6) !== '\\ccxt\\') {
-                    $error_class = '\\ccxt\\' . $error_class;
-                }
-                throw new $error_class(implode(' ', array($url, $method, $http_status_code, 'not accessible from this location at the moment', $details)));
-            }
         }
 
         return isset($json_response) ? $json_response : $result;
@@ -2353,7 +2335,7 @@ class Exchange {
     }
 
     public function cost_to_precision($symbol, $cost) {
-        return self::decimal_to_precision($cost, ROUND, $this->markets[$symbol]['precision']['price'], $this->precisionMode);
+        return self::decimal_to_precision($cost, ROUND, $this->markets[$symbol]['precision']['price'], $this->precisionMode, $this->paddingMode);
     }
 
     public function costToPrecision($symbol, $cost) {
@@ -2361,7 +2343,7 @@ class Exchange {
     }
 
     public function price_to_precision($symbol, $price) {
-        return self::decimal_to_precision($price, ROUND, $this->markets[$symbol]['precision']['price'], $this->precisionMode);
+        return self::decimal_to_precision($price, ROUND, $this->markets[$symbol]['precision']['price'], $this->precisionMode, $this->paddingMode);
     }
 
     public function priceToPrecision($symbol, $price) {
@@ -2369,7 +2351,7 @@ class Exchange {
     }
 
     public function amount_to_precision($symbol, $amount) {
-        return self::decimal_to_precision($amount, TRUNCATE, $this->markets[$symbol]['precision']['amount'], $this->precisionMode);
+        return self::decimal_to_precision($amount, TRUNCATE, $this->markets[$symbol]['precision']['amount'], $this->precisionMode, $this->paddingMode);
     }
 
     public function amountToPrecision($symbol, $amount) {
@@ -2377,7 +2359,7 @@ class Exchange {
     }
 
     public function fee_to_precision($symbol, $fee) {
-        return self::decimalToPrecision($fee, ROUND, $this->markets[$symbol]['precision']['price'], $this->precisionMode);
+        return self::decimalToPrecision($fee, ROUND, $this->markets[$symbol]['precision']['price'], $this->precisionMode, $this->paddingMode);
     }
 
     public function feeToPrecision($symbol, $fee) {
@@ -2385,7 +2367,7 @@ class Exchange {
     }
 
     public function currency_to_precision($currency, $fee) {
-        return self::decimal_to_precision($fee, ROUND, $this->currencies[$currency]['precision'], $this->precisionMode);
+        return self::decimal_to_precision($fee, ROUND, $this->currencies[$currency]['precision'], $this->precisionMode, $this->paddingMode);
     }
 
     public function currencyToPrecision($symbol, $fee) {
@@ -2775,6 +2757,11 @@ class Exchange {
         return static::signHash(static::hashMessage($message), $privateKey);
     }
 
+    public function sign_message_string($message, $privateKey) {
+        $signature = static::signMessage($message, $privateKey);
+        return $signature['r'] . $this->remove0x_prefix($signature['s']) . dechex($signature['v']);
+    }
+
     public function oath() {
         if ($this->twofa) {
             return $this->totp($this->twofa);
@@ -2882,5 +2869,9 @@ class Exchange {
             $string[] = self::$base58_encoder[$next_character];
         }
         return implode('', array_reverse($string));
+    }
+
+    public function remove0x_prefix($string) {
+        return (substr($string, 0, 2) === '0x') ? substr($string, 2) : $string;
     }
 }
