@@ -4,7 +4,7 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '1.34.4'
+__version__ = '1.34.67'
 
 # -----------------------------------------------------------------------------
 
@@ -23,7 +23,7 @@ from ccxt.base.errors import RateLimitExceeded
 # -----------------------------------------------------------------------------
 
 from ccxt.base.decimal_to_precision import decimal_to_precision
-from ccxt.base.decimal_to_precision import DECIMAL_PLACES, TRUNCATE, ROUND, ROUND_UP, ROUND_DOWN
+from ccxt.base.decimal_to_precision import DECIMAL_PLACES, NO_PADDING, TRUNCATE, ROUND, ROUND_UP, ROUND_DOWN
 from ccxt.base.decimal_to_precision import number_to_string
 
 # -----------------------------------------------------------------------------
@@ -71,7 +71,7 @@ from numbers import Number
 import re
 from requests import Session
 from requests.utils import default_user_agent
-from requests.exceptions import HTTPError, Timeout, TooManyRedirects, RequestException
+from requests.exceptions import HTTPError, Timeout, TooManyRedirects, RequestException, ConnectionError as requestsConnectionError
 # import socket
 from ssl import SSLError
 # import sys
@@ -108,7 +108,6 @@ try:
     from web3 import Web3, HTTPProvider
 except ImportError:
     Web3 = HTTPProvider = None  # web3/0x not supported in Python 2
-
 # -----------------------------------------------------------------------------
 
 
@@ -298,6 +297,7 @@ class Exchange(object):
         'withdraw': False,
     }
     precisionMode = DECIMAL_PLACES
+    paddingMode = NO_PADDING
     minFundingAddressLength = 1  # used in check_address
     substituteCommonCurrencyCodes = True
     lastRestRequestTimestamp = 0
@@ -393,8 +393,8 @@ class Exchange(object):
         self.session = self.session if self.session or self.asyncio_loop else Session()
         self.logger = self.logger if self.logger else logging.getLogger(__name__)
 
-        if self.requiresWeb3 and Web3 and not self.web3:
-            self.web3 = Web3(HTTPProvider())
+        if self.requiresWeb3 and Web3 and not cls.web3:
+            cls.web3 = Web3(HTTPProvider())
 
     def __del__(self):
         if self.session:
@@ -598,15 +598,21 @@ class Exchange(object):
             self.handle_rest_errors(http_status_code, http_status_text, http_response, url, method)
             raise ExchangeError(method + ' ' + url)
 
+        except requestsConnectionError as e:
+            error_string = str(e)
+            if 'Read timed out' in error_string:
+                raise RequestTimeout(method + ' ' + url + ' ' + error_string)
+            else:
+                raise NetworkError(method + ' ' + url + ' ' + error_string)
+
         except RequestException as e:  # base exception class
             error_string = str(e)
-            if ('ECONNRESET' in error_string) or ('Connection aborted.' in error_string):
+            if any(x in error_string for x in ['ECONNRESET', 'Connection aborted.', 'Connection broken:']):
                 raise NetworkError(method + ' ' + url + ' ' + error_string)
             else:
                 raise ExchangeError(method + ' ' + url + ' ' + error_string)
 
         self.handle_errors(http_status_code, http_status_text, url, method, headers, http_response, json_response, request_headers, request_body)
-        self.handle_rest_response(http_response, json_response, url, method)
         if json_response is not None:
             return json_response
         if self.is_text_response(headers):
@@ -623,17 +629,6 @@ class Exchange(object):
                     error = DDoSProtection
         if error:
             raise error(' '.join([method, url, string_code, http_status_text, body]))
-
-    def handle_rest_response(self, response, json_response, url, method):
-        if self.is_json_encoded_object(response) and json_response is None:
-            ddos_protection = re.search('(cloudflare|incapsula|overload|ddos)', response, flags=re.IGNORECASE)
-            exchange_not_available = re.search('(offline|busy|retry|wait|unavailable|maintain|maintenance|maintenancing)', response, flags=re.IGNORECASE)
-            if ddos_protection:
-                raise DDoSProtection(' '.join([method, url, response]))
-            if exchange_not_available:
-                message = response + ' exchange downtime, exchange closed for maintenance or offline, DDoS protection or rate-limiting in effect'
-                raise ExchangeNotAvailable(' '.join([method, url, response, message]))
-            raise ExchangeError(' '.join([method, url, response]))
 
     def parse_json(self, http_response):
         try:
@@ -775,6 +770,10 @@ class Exchange(object):
     @staticmethod
     def uuid():
         return str(uuid.uuid4())
+
+    @staticmethod
+    def uuidv1():
+        return str(uuid.uuid1()).replace('-', '')
 
     @staticmethod
     def capitalize(string):  # first character only, rest characters unchanged
@@ -1063,21 +1062,26 @@ class Exchange(object):
 
     @staticmethod
     def hash(request, algorithm='md5', digest='hex'):
-        h = hashlib.new(algorithm, request)
-        if digest == 'hex':
-            return h.hexdigest()
-        elif digest == 'base64':
-            return base64.b64encode(h.digest())
-        return h.digest()
+        if algorithm == 'keccak':
+            binary = bytes(Exchange.web3.sha3(request))
+        else:
+            h = hashlib.new(algorithm, request)
+            binary = h.digest()
+        if digest == 'base64':
+            return Exchange.binary_to_base64(binary)
+        elif digest == 'hex':
+            return Exchange.binary_to_base16(binary)
+        return binary
 
     @staticmethod
     def hmac(request, secret, algorithm=hashlib.sha256, digest='hex'):
         h = hmac.new(secret, request, algorithm)
+        binary = h.digest()
         if digest == 'hex':
-            return h.hexdigest()
+            return Exchange.binary_to_base16(binary)
         elif digest == 'base64':
-            return base64.b64encode(h.digest())
-        return h.digest()
+            return Exchange.binary_to_base64(binary)
+        return binary
 
     @staticmethod
     def binary_concat(*args):
@@ -1100,6 +1104,16 @@ class Exchange(object):
     @staticmethod
     def binary_to_base64(s):
         return Exchange.decode(base64.standard_b64encode(s))
+
+    @staticmethod
+    def base64_to_binary(s):
+        return base64.standard_b64decode(s)
+
+    @staticmethod
+    def string_to_base64(s):
+        # will return string in the future
+        binary = Exchange.encode(s) if isinstance(s, str) else s
+        return Exchange.encode(Exchange.binary_to_base64(binary))
 
     @staticmethod
     def jwt(request, secret, alg='HS256'):
@@ -1198,11 +1212,11 @@ class Exchange(object):
 
     @staticmethod
     def encode(string):
-        return string.encode()
+        return string.encode('latin-1')
 
     @staticmethod
     def decode(string):
-        return string.decode()
+        return string.decode('latin-1')
 
     @staticmethod
     def to_array(value):
@@ -1255,19 +1269,19 @@ class Exchange(object):
         return len(parts[1]) if len(parts) > 1 else 0
 
     def cost_to_precision(self, symbol, cost):
-        return self.decimal_to_precision(cost, ROUND, self.markets[symbol]['precision']['price'], self.precisionMode)
+        return self.decimal_to_precision(cost, ROUND, self.markets[symbol]['precision']['price'], self.precisionMode, self.paddingMode)
 
     def price_to_precision(self, symbol, price):
-        return self.decimal_to_precision(price, ROUND, self.markets[symbol]['precision']['price'], self.precisionMode)
+        return self.decimal_to_precision(price, ROUND, self.markets[symbol]['precision']['price'], self.precisionMode, self.paddingMode)
 
     def amount_to_precision(self, symbol, amount):
-        return self.decimal_to_precision(amount, TRUNCATE, self.markets[symbol]['precision']['amount'], self.precisionMode)
+        return self.decimal_to_precision(amount, TRUNCATE, self.markets[symbol]['precision']['amount'], self.precisionMode, self.paddingMode)
 
     def fee_to_precision(self, symbol, fee):
-        return self.decimal_to_precision(fee, ROUND, self.markets[symbol]['precision']['price'], self.precisionMode)
+        return self.decimal_to_precision(fee, ROUND, self.markets[symbol]['precision']['price'], self.precisionMode, self.paddingMode)
 
     def currency_to_precision(self, currency, fee):
-        return self.decimal_to_precision(fee, ROUND, self.currencies[currency]['precision'], self.precisionMode)
+        return self.decimal_to_precision(fee, ROUND, self.currencies[currency]['precision'], self.precisionMode, self.paddingMode)
 
     def set_markets(self, markets, currencies=None):
         values = list(markets.values()) if type(markets) is dict else markets
@@ -1391,13 +1405,6 @@ class Exchange(object):
     def fetch_order_status(self, id, symbol=None, params={}):
         order = self.fetch_order(id, symbol, params)
         return order['status']
-
-    def purge_cached_orders(self, before):
-        if self.orders:
-            orders = self.to_array(self.orders)
-            orders = [order for order in orders if (order['status'] == 'open') or (order['timestamp'] >= before)]
-            self.orders = self.index_by(orders, 'id')
-        return self.orders
 
     def fetch_order(self, id, symbol=None, params={}):
         raise NotSupported('fetch_order() is not supported yet')
@@ -1865,128 +1872,14 @@ class Exchange(object):
     def solidityValues(self, array):
         return [self.web3.toChecksumAddress(value) if self.web3.isAddress(value) else (int(value, 16) if str(value)[:2] == '0x' else int(value)) for value in array]
 
-    def getZeroExOrderHash2(self, order):
-        return self.soliditySha3([
-            order['exchangeContractAddress'],  # address
-            order['maker'],  # address
-            order['taker'],  # address
-            order['makerTokenAddress'],  # address
-            order['takerTokenAddress'],  # address
-            order['feeRecipient'],  # address
-            order['makerTokenAmount'],  # uint256
-            order['takerTokenAmount'],  # uint256
-            order['makerFee'],  # uint256
-            order['takerFee'],  # uint256
-            order['expirationUnixTimestampSec'],  # uint256
-            order['salt'],  # uint256
-        ])
-
-    def getZeroExOrderHash(self, order):
-        unpacked = [
-            self.web3.toChecksumAddress(order['exchangeContractAddress']),  # { value: order.exchangeContractAddress, type: types_1.SolidityTypes.Address },
-            self.web3.toChecksumAddress(order['maker']),                    # { value: order.maker, type: types_1.SolidityTypes.Address },
-            self.web3.toChecksumAddress(order['taker']),                    # { value: order.taker, type: types_1.SolidityTypes.Address },
-            self.web3.toChecksumAddress(order['makerTokenAddress']),        # { value: order.makerTokenAddress, type: types_1.SolidityTypes.Address },
-            self.web3.toChecksumAddress(order['takerTokenAddress']),        # { value: order.takerTokenAddress, type: types_1.SolidityTypes.Address },
-            self.web3.toChecksumAddress(order['feeRecipient']),             # { value: order.feeRecipient, type: types_1.SolidityTypes.Address },
-            int(order['makerTokenAmount']),             # { value: bigNumberToBN(order.makerTokenAmount), type: types_1.SolidityTypes.Uint256, },
-            int(order['takerTokenAmount']),             # { value: bigNumberToBN(order.takerTokenAmount), type: types_1.SolidityTypes.Uint256, },
-            int(order['makerFee']),                     # { value: bigNumberToBN(order.makerFee), type: types_1.SolidityTypes.Uint256, },
-            int(order['takerFee']),                     # { value: bigNumberToBN(order.takerFee), type: types_1.SolidityTypes.Uint256, },
-            int(order['expirationUnixTimestampSec']),   # { value: bigNumberToBN(order.expirationUnixTimestampSec), type: types_1.SolidityTypes.Uint256, },
-            int(order['salt']),                         # { value: bigNumberToBN(order.salt), type: types_1.SolidityTypes.Uint256 },
-        ]
-        types = [
-            'address',  # { value: order.exchangeContractAddress, type: types_1.SolidityTypes.Address },
-            'address',  # { value: order.maker, type: types_1.SolidityTypes.Address },
-            'address',  # { value: order.taker, type: types_1.SolidityTypes.Address },
-            'address',  # { value: order.makerTokenAddress, type: types_1.SolidityTypes.Address },
-            'address',  # { value: order.takerTokenAddress, type: types_1.SolidityTypes.Address },
-            'address',  # { value: order.feeRecipient, type: types_1.SolidityTypes.Address },
-            'uint256',  # { value: bigNumberToBN(order.makerTokenAmount), type: types_1.SolidityTypes.Uint256, },
-            'uint256',  # { value: bigNumberToBN(order.takerTokenAmount), type: types_1.SolidityTypes.Uint256, },
-            'uint256',  # { value: bigNumberToBN(order.makerFee), type: types_1.SolidityTypes.Uint256, },
-            'uint256',  # { value: bigNumberToBN(order.takerFee), type: types_1.SolidityTypes.Uint256, },
-            'uint256',  # { value: bigNumberToBN(order.expirationUnixTimestampSec), type: types_1.SolidityTypes.Uint256, },
-            'uint256',  # { value: bigNumberToBN(order.salt), type: types_1.SolidityTypes.Uint256 },
-        ]
-        return self.web3.soliditySha3(types, unpacked).hex()
-
     @staticmethod
-    def remove_0x_prefix(value):
+    def remove0x_prefix(value):
         if value[:2] == '0x':
             return value[2:]
         return value
 
-    def getZeroExOrderHashV2(self, order):
-        # https://github.com/0xProject/0x-monorepo/blob/development/python-packages/order_utils/src/zero_ex/order_utils/__init__.py
-        def pad_20_bytes_to_32(twenty_bytes):
-            return bytes(12) + twenty_bytes
-
-        def int_to_32_big_endian_bytes(i):
-            return i.to_bytes(32, byteorder="big")
-
-        def to_bytes(value):
-            if not isinstance(value, str):
-                raise TypeError("Value must be an instance of str")
-            if len(value) % 2:
-                value = "0x0" + self.remove_0x_prefix(value)
-            return base64.b16decode(self.remove_0x_prefix(value), casefold=True)
-
-        domain_struct_header = b"\x91\xab=\x17\xe3\xa5\n\x9d\x89\xe6?\xd3\x0b\x92\xbe\x7fS6\xb0;({\xb9Fxz\x83\xa9\xd6*'f\xf0\xf2F\x18\xf4\xc4\xbe\x1eb\xe0&\xfb\x03\x9a \xef\x96\xf4IR\x94\x81}\x10'\xff\xaam\x1fp\xe6\x1e\xad|[\xef\x02x\x16\xa8\x00\xda\x176DO\xb5\x8a\x80~\xf4\xc9`;xHg?~:h\xeb\x14\xa5"
-        order_schema_hash = b'w\x05\x01\xf8\x8a&\xed\xe5\xc0J \xef\x87yi\xe9a\xeb\x11\xfc\x13\xb7\x8a\xafAKc=\xa0\xd4\xf8o'
-        header = b"\x19\x01"
-
-        domain_struct_hash = self.web3.sha3(
-            domain_struct_header +
-            pad_20_bytes_to_32(to_bytes(order["exchangeAddress"]))
-        )
-
-        order_struct_hash = self.web3.sha3(
-            order_schema_hash +
-            pad_20_bytes_to_32(to_bytes(order["makerAddress"])) +
-            pad_20_bytes_to_32(to_bytes(order["takerAddress"])) +
-            pad_20_bytes_to_32(to_bytes(order["feeRecipientAddress"])) +
-            pad_20_bytes_to_32(to_bytes(order["senderAddress"])) +
-            int_to_32_big_endian_bytes(int(order["makerAssetAmount"])) +
-            int_to_32_big_endian_bytes(int(order["takerAssetAmount"])) +
-            int_to_32_big_endian_bytes(int(order["makerFee"])) +
-            int_to_32_big_endian_bytes(int(order["takerFee"])) +
-            int_to_32_big_endian_bytes(int(order["expirationTimeSeconds"])) +
-            int_to_32_big_endian_bytes(int(order["salt"])) +
-            self.web3.sha3(to_bytes(order["makerAssetData"])) +
-            self.web3.sha3(to_bytes(order["takerAssetData"]))
-        )
-
-        sha3 = self.web3.sha3(
-            header +
-            domain_struct_hash +
-            order_struct_hash
-        )
-        return '0x' + base64.b16encode(sha3).decode('ascii').lower()
-
-    def signZeroExOrderV2(self, order, privateKey):
-        orderHash = self.getZeroExOrderHashV2(order)
-        signature = self.signMessage(orderHash[-64:], privateKey)
-        return self.extend(order, {
-            'orderHash': orderHash,
-            'signature': self._convertECSignatureToSignatureHex(signature),
-        })
-
-    def _convertECSignatureToSignatureHex(self, signature):
-        # https://github.com/0xProject/0x-monorepo/blob/development/packages/order-utils/src/signature_utils.ts
-        v = signature["v"]
-        if v != 27 and v != 28:
-            v = v + 27
-        return (
-            hex(v) +
-            signature["r"][-64:] +
-            signature["s"][-64:] +
-            "03"
-        )
-
     def hashMessage(self, message):
-        message_bytes = base64.b16decode(Exchange.encode(Exchange.remove_0x_prefix(message)), True)
+        message_bytes = base64.b16decode(Exchange.encode(Exchange.remove0x_prefix(message)), True)
         hash_bytes = self.web3.sha3(b"\x19Ethereum Signed Message:\n" + Exchange.encode(str(len(message_bytes))) + message_bytes)
         return '0x' + Exchange.decode(base64.b16encode(hash_bytes)).lower()
 
@@ -1998,6 +1891,10 @@ class Exchange(object):
             's': '0x' + signature['s'],
             'v': 27 + signature['v'],
         }
+
+    def sign_message_string(self, message, privateKey):
+        signature = self.signMessage(message, privateKey)
+        return signature['r'] + Exchange.remove0x_prefix(signature['s']) + Exchange.binary_to_base16(Exchange.number_to_be(signature['v'], 1))
 
     def signMessage(self, message, privateKey):
         #
@@ -2077,6 +1974,10 @@ class Exchange(object):
     @staticmethod
     def base16_to_binary(s):
         return base64.b16decode(s, True)
+
+    @staticmethod
+    def binary_to_base16(s):
+        return Exchange.decode(base64.b16encode(s)).lower()
 
     # python supports arbitrarily big integers
     @staticmethod

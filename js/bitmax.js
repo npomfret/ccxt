@@ -1691,12 +1691,12 @@ module.exports = class bitmax extends Exchange {
         } else {
             this.checkRequiredCredentials ();
             const timestamp = this.milliseconds ().toString ();
-            const auth = timestamp + '+' + request;
-            const signature = this.hmac (this.encode (auth), this.encode (this.secret), 'sha256', 'base64');
+            const payload = timestamp + '+' + request;
+            const hmac = this.hmac (this.encode (payload), this.encode (this.secret), 'sha256', 'base64');
             headers = {
                 'x-auth-key': this.apiKey,
                 'x-auth-timestamp': timestamp,
-                'x-auth-signature': this.decode (signature),
+                'x-auth-signature': hmac,
             };
             if (method === 'GET') {
                 if (Object.keys (query).length) {

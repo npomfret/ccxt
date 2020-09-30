@@ -84,6 +84,10 @@ class okex(Exchange):
                 '12h': '43200',
                 '1d': '86400',
                 '1w': '604800',
+                '1M': '2678400',
+                '3M': '8035200',
+                '6M': '16070400',
+                '1y': '31536000',
             },
             'hostname': 'okex.com',
             'urls': {
@@ -341,11 +345,15 @@ class okex(Exchange):
                 # 401 Unauthorized — Invalid API Key
                 # 403 Forbidden — You do not have access to the requested resource
                 # 404 Not Found
+                # 429 Client Error: Too Many Requests for url
                 # 500 Internal Server Error — We had a problem with our server
                 'exact': {
                     '1': ExchangeError,  # {"code": 1, "message": "System error"}
                     # undocumented
                     'failure to get a peer from the ring-balancer': ExchangeNotAvailable,  # {"message": "failure to get a peer from the ring-balancer"}
+                    'Server is busy, please try again': ExchangeNotAvailable,  # {"message": "Server is busy, please try again."}
+                    'An unexpected error occurred': ExchangeError,  # {"message": "An unexpected error occurred"}
+                    'System error': ExchangeError,  # {"error_message":"System error","message":"System error"}
                     '4010': PermissionDenied,  # {"code": 4010, "message": "For the security of your funds, withdrawals are not permitted within 24 hours after changing fund password  / mobile number / Google Authenticator settings "}
                     # common
                     # '0': ExchangeError,  # 200 successful,when the order placement / cancellation / operation is successful
@@ -381,7 +389,7 @@ class okex(Exchange):
                     '30027': AuthenticationError,  # {"code": 30027, "message": "login failure"}
                     '30028': PermissionDenied,  # {"code": 30028, "message": "unauthorized execution"}
                     '30029': AccountSuspended,  # {"code": 30029, "message": "account suspended"}
-                    '30030': ExchangeError,  # {"code": 30030, "message": "endpoint request failed. Please try again"}
+                    '30030': ExchangeNotAvailable,  # {"code": 30030, "message": "endpoint request failed. Please try again"}
                     '30031': BadRequest,  # {"code": 30031, "message": "token does not exist"}
                     '30032': BadSymbol,  # {"code": 30032, "message": "pair does not exist"}
                     '30033': BadRequest,  # {"code": 30033, "message": "exchange domain does not exist"}
@@ -563,10 +571,10 @@ class okex(Exchange):
                     '35019': InvalidOrder,  # {"code": 35019, "message": "Order size too large"}
                     '35020': InvalidOrder,  # {"code": 35020, "message": "Order price too high"}
                     '35021': InvalidOrder,  # {"code": 35021, "message": "Order size exceeded current tier limit"}
-                    '35022': ExchangeError,  # {"code": 35022, "message": "Contract status error"}
-                    '35024': ExchangeError,  # {"code": 35024, "message": "Contract not initialized"}
+                    '35022': BadRequest,  # {"code": 35022, "message": "Contract status error"}
+                    '35024': BadRequest,  # {"code": 35024, "message": "Contract not initialized"}
                     '35025': InsufficientFunds,  # {"code": 35025, "message": "No account balance"}
-                    '35026': ExchangeError,  # {"code": 35026, "message": "Contract settings not initialized"}
+                    '35026': BadRequest,  # {"code": 35026, "message": "Contract settings not initialized"}
                     '35029': OrderNotFound,  # {"code": 35029, "message": "Order does not exist"}
                     '35030': InvalidOrder,  # {"code": 35030, "message": "Order size too large"}
                     '35031': InvalidOrder,  # {"code": 35031, "message": "Cancel order size too large"}
@@ -673,6 +681,9 @@ class okex(Exchange):
             },
             'precisionMode': TICK_SIZE,
             'options': {
+                'fetchOHLCV': {
+                    'type': 'Candles',  # Candles or HistoryCandles
+                },
                 'createMarketBuyOrderRequiresPrice': True,
                 'fetchMarkets': ['spot', 'futures', 'swap', 'option'],
                 'defaultType': 'spot',  # 'account', 'spot', 'margin', 'futures', 'swap', 'option'
@@ -1351,14 +1362,17 @@ class okex(Exchange):
     async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
-        method = None
         duration = self.parse_timeframe(timeframe)
         request = {
             'instrument_id': market['id'],
             'granularity': self.timeframes[timeframe],
         }
-        if market['option'] or market['spot']:
-            method = market['type'] + 'GetInstrumentsInstrumentIdCandles'
+        options = self.safe_value(self.options, 'fetchOHLCV', {})
+        defaultType = self.safe_string(options, 'type', 'Candles')  # Candles or HistoryCandles
+        type = self.safe_string(params, 'type', defaultType)
+        params = self.omit(params, 'type')
+        method = market['type'] + 'GetInstrumentsInstrumentId' + type
+        if type == 'Candles':
             if since is not None:
                 if limit is not None:
                     request['end'] = self.iso8601(self.sum(since, limit * duration * 1000))
@@ -1368,8 +1382,9 @@ class okex(Exchange):
                     now = self.milliseconds()
                     request['start'] = self.iso8601(now - limit * duration * 1000)
                     request['end'] = self.iso8601(now)
-        else:
-            method = market['type'] + 'GetInstrumentsInstrumentIdHistoryCandles'
+        elif type == 'HistoryCandles':
+            if market['option']:
+                raise NotSupported(self.id + ' fetchOHLCV does not have ' + type + ' for ' + market['type'] + ' markets')
             if since is not None:
                 if limit is None:
                     limit = 300  # default
@@ -3128,7 +3143,7 @@ class okex(Exchange):
                     auth += body
                 headers['Content-Type'] = 'application/json'
             signature = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256, 'base64')
-            headers['OK-ACCESS-SIGN'] = self.decode(signature)
+            headers['OK-ACCESS-SIGN'] = signature
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def get_path_authentication_type(self, path):

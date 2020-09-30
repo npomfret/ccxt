@@ -359,8 +359,11 @@ class phemex extends Exchange {
         //     }
         //
         $id = $this->safe_string($market, 'symbol');
+        $baseId = $this->safe_string($market, 'baseCurrency', 'contractUnderlyingAssets');
         $quoteId = $this->safe_string($market, 'quoteCurrency');
-        $baseId = $this->safe_string($market, 'baseCurrency');
+        $base = $this->safe_currency_code($baseId);
+        $quote = $this->safe_currency_code($quoteId);
+        $symbol = $base . '/' . $quote;
         $type = $this->safe_string_lower($market, 'type');
         $taker = null;
         $maker = null;
@@ -382,8 +385,12 @@ class phemex extends Exchange {
         $maxPriceEp = $this->safe_float($market, 'maxPriceEp');
         $makerFeeRateEr = $this->safe_float($market, 'makerFeeRateEr');
         $takerFeeRateEr = $this->safe_float($market, 'takerFeeRateEr');
-        $maker = $this->from_en($makerFeeRateEr, $ratioScale, 0.00000001);
-        $taker = $this->from_en($takerFeeRateEr, $ratioScale, 0.00000001);
+        if ($makerFeeRateEr !== null) {
+            $maker = $this->from_en($makerFeeRateEr, $ratioScale, 0.00000001);
+        }
+        if ($takerFeeRateEr !== null) {
+            $taker = $this->from_en($takerFeeRateEr, $ratioScale, 0.00000001);
+        }
         $limits = array(
             'amount' => array(
                 'min' => $precision['amount'],
@@ -398,9 +405,6 @@ class phemex extends Exchange {
                 'max' => $this->parse_safe_float($this->safe_string($market, 'maxOrderQty')),
             ),
         );
-        $base = $this->safe_currency_code($baseId);
-        $quote = $this->safe_currency_code($quoteId);
-        $symbol = $base . '/' . $quote;
         $active = null;
         return array(
             'id' => $id,
@@ -2185,7 +2189,7 @@ class phemex extends Exchange {
         $requestPath = '/' . $this->implode_params($path, $params);
         $url = $requestPath;
         $queryString = '';
-        if (($method === 'GET') || ($method === 'DELETE')) {
+        if (($method === 'GET') || ($method === 'DELETE') || ($method === 'PUT')) {
             if ($query) {
                 $queryString = $this->urlencode_with_array_repeat($query);
                 $url .= '?' . $queryString;
@@ -2202,7 +2206,7 @@ class phemex extends Exchange {
                 'x-phemex-request-expiry' => $expiryString,
             );
             $payload = '';
-            if (($method === 'POST') || ($method === 'PUT')) {
+            if ($method === 'POST') {
                 $payload = $this->json($params);
                 $body = $payload;
                 $headers['Content-Type'] = 'application/json';
