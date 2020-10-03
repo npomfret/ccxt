@@ -4,7 +4,7 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '1.34.67'
+__version__ = '1.35.3'
 
 # -----------------------------------------------------------------------------
 
@@ -1116,6 +1116,10 @@ class Exchange(object):
         return Exchange.encode(Exchange.binary_to_base64(binary))
 
     @staticmethod
+    def base64_to_string(s):
+        return base64.b64decode(s).decode('utf-8')
+
+    @staticmethod
     def jwt(request, secret, alg='HS256'):
         algos = {
             'HS256': hashlib.sha256,
@@ -1692,6 +1696,20 @@ class Exchange(object):
         array = self.sort_by(array, 'timestamp')
         symbol = market['symbol'] if market else None
         return self.filter_by_symbol_since_limit(array, symbol, since, limit)
+
+    def safe_symbol(self, marketId, market=None, delimiter=None):
+        if marketId is not None:
+            if self.markets_by_id is not None and marketId in self.markets_by_id:
+                market = self.markets_by_id[marketId]
+                return market['symbol']
+            elif delimiter is not None:
+                baseId, quoteId = marketId.split(delimiter)
+                base = self.safe_currency_code(baseId)
+                quote = self.safe_currency_code(quoteId)
+                return base + '/' + quote
+        if market is not None:
+            return market['symbol']
+        return marketId
 
     def safe_currency_code(self, currency_id, currency=None):
         code = None

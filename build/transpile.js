@@ -138,6 +138,7 @@ class Transpiler {
             [ /\.isJsonEncodedObject\s/g, '.is_json_encoded_object'],
             [ /\.setSandboxMode\s/g, '.set_sandbox_mode'],
             [ /\.safeCurrencyCode\s/g, '.safe_currency_code'],
+            [ /\.safeSymbol\s/g, '.safe_symbol'],
             [ /\.roundTimeframe/g, '.round_timeframe'],
             [ /\.integerDivide/g, '.integer_divide'],
             [ /\.integerModulo/g, '.integer_modulo'],
@@ -222,7 +223,6 @@ class Transpiler {
             [ /else\s*[\n]/g, "else:\n" ],
             [ /for\s+\(([a-zA-Z0-9_]+)\s*=\s*([^\;\s]+\s*)\;[^\<\>\=]+(?:\<=|\>=|<|>)\s*(.*)\.length\s*\;[^\)]+\)\s*{/g, 'for $1 in range($2, len($3)):'],
             [ /for\s+\(([a-zA-Z0-9_]+)\s*=\s*([^\;\s]+\s*)\;[^\<\>\=]+(?:\<=|\>=|<|>)\s*(.*)\s*\;[^\)]+\)\s*{/g, 'for $1 in range($2, $3):'],
-            [ /while\s+\(([\s\S]+)\)\s*{/g, 'while $1:'],
             [ /\s\|\|\s/g, ' or ' ],
             [ /\s\&\&\s/g, ' and ' ],
             [ /\!([^\='"])/g, 'not $1'],
@@ -263,7 +263,7 @@ class Transpiler {
             [ / = new /g, ' = ' ], // python does not have a 'new' keyword
             [ /console\.log\s/g, 'print' ],
             [ /process\.exit\s+/g, 'sys.exit' ],
-            [ /([^:+=\/\*\s-]+)(?<!while) \(/g, '$1(' ], // PEP8 E225 remove whitespaces before left ( round bracket
+            [ /([^:+=\/\*\s-]+) \(/g, '$1(' ], // PEP8 E225 remove whitespaces before left ( round bracket
             [ /\sand\(/g, ' and (' ],
             [ /\sor\(/g, ' or (' ],
             [ /\snot\(/g, ' not (' ],
@@ -320,6 +320,7 @@ class Transpiler {
             [ /this\.stringToBase64\s/g, 'base64_encode' ],
             [ /this\.binaryToBase16\s/g, 'bin2hex' ],
             [ /this\.base64ToBinary\s/g, 'base64_decode' ],
+            [ /this\.base64ToString\s/g, 'base64_decode' ],
             // deepExtend is commented for PHP because it does not overwrite linear arrays
             // a proper \ccxt\Exchange::deep_extend() base method is implemented instead
             // [ /this\.deepExtend\s/g, 'array_replace_recursive'],
