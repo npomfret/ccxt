@@ -33,6 +33,7 @@ module.exports = class bittrex extends Exchange {
                 'fetchMyTrades': 'emulated',
                 'fetchOHLCV': true,
                 'fetchOrder': true,
+                'fetchOrderTrades': true,
                 'fetchOrderBook': true,
                 'fetchOpenOrders': true,
                 'fetchTicker': true,
@@ -73,6 +74,7 @@ module.exports = class bittrex extends Exchange {
                         'currencies',
                         'currencies/{symbol}',
                         'markets',
+                        'markets/tickers',
                         'markets/summaries',
                         'markets/{marketSymbol}',
                         'markets/{marketSymbol}/summary',
@@ -125,6 +127,7 @@ module.exports = class bittrex extends Exchange {
                         'transfers',
                     ],
                     'delete': [
+                        'orders/open',
                         'orders/{orderId}',
                         'withdrawals/{withdrawalId}',
                         'conditional-orders/{conditionalOrderId}',
@@ -211,6 +214,12 @@ module.exports = class bittrex extends Exchange {
                 },
             },
             'options': {
+                'fetchTicker': {
+                    'method': 'publicGetMarketsMarketSymbolTicker', // publicGetMarketsMarketSymbolSummary
+                },
+                'fetchTickers': {
+                    'method': 'publicGetMarketsTickers', // publicGetMarketsSummaries
+                },
                 'parseOrderStatus': false,
                 'hasAlreadyAuthenticatedSuccessfully': false, // a workaround for APIKEY_INVALID
                 'symbolSeparator': '-',
@@ -346,8 +355,31 @@ module.exports = class bittrex extends Exchange {
         const request = {
             'marketSymbol': this.marketId (symbol),
         };
+        if (limit !== undefined) {
+            if ((limit !== 1) && (limit !== 25) && (limit !== 500)) {
+                throw new BadRequest (this.id + ' fetchOrderBook() limit argument must be undefined, 1, 25 or 100, default is 25');
+            }
+            request['depth'] = limit;
+        }
         const response = await this.publicGetMarketsMarketSymbolOrderbook (this.extend (request, params));
-        return this.parseOrderBook (response, undefined, 'bid', 'ask', 'rate', 'quantity');
+        //
+        //     {
+        //         "bid":[
+        //             {"quantity":"0.01250000","rate":"10718.56200003"},
+        //             {"quantity":"0.10000000","rate":"10718.56200002"},
+        //             {"quantity":"0.39648292","rate":"10718.56200001"},
+        //         ],
+        //         "ask":[
+        //             {"quantity":"0.05100000","rate":"10724.30099631"},
+        //             {"quantity":"0.10000000","rate":"10724.30099632"},
+        //             {"quantity":"0.26000000","rate":"10724.30099634"},
+        //         ]
+        //     }
+        //
+        const sequence = this.safeInteger (this.last_response_headers, 'Sequence');
+        const orderbook = this.parseOrderBook (response, undefined, 'bid', 'ask', 'rate', 'quantity');
+        orderbook['nonce'] = sequence;
+        return orderbook;
     }
 
     async fetchCurrencies (params = {}) {
@@ -412,6 +444,17 @@ module.exports = class bittrex extends Exchange {
 
     parseTicker (ticker, market = undefined) {
         //
+        // ticker
+        //
+        //     {
+        //         "symbol":"ETH-BTC",
+        //         "lastTradeRate":"0.03284496",
+        //         "bidRate":"0.03284523",
+        //         "askRate":"0.03286857"
+        //     }
+        //
+        // summary
+        //
         //     {
         //         "symbol":"ETH-BTC",
         //         "high":"0.03369528",
@@ -436,6 +479,7 @@ module.exports = class bittrex extends Exchange {
             symbol = market['symbol'];
         }
         const percentage = this.safeFloat (ticker, 'percentChange');
+        const last = this.safeFloat (ticker, 'lastTradeRate');
         return {
             'symbol': symbol,
             'timestamp': timestamp,
@@ -448,8 +492,8 @@ module.exports = class bittrex extends Exchange {
             'askVolume': undefined,
             'vwap': undefined,
             'open': undefined,
-            'close': undefined,
-            'last': undefined,
+            'close': last,
+            'last': last,
             'previousClose': undefined,
             'change': undefined,
             'percentage': percentage,
@@ -462,7 +506,22 @@ module.exports = class bittrex extends Exchange {
 
     async fetchTickers (symbols = undefined, params = {}) {
         await this.loadMarkets ();
-        const response = await this.publicGetMarketsSummaries (params);
+        const options = this.safeValue (this.options, 'fetchTickers', {});
+        const method = this.safeString (options, 'method', 'publicGetMarketsTickers');
+        const response = await this[method] (params);
+        //
+        // publicGetMarketsTickers
+        //
+        //     [
+        //         {
+        //             "symbol":"4ART-BTC",
+        //             "lastTradeRate":"0.00000210",
+        //             "bidRate":"0.00000210",
+        //             "askRate":"0.00000215"
+        //         }
+        //     ]
+        //
+        // publicGetMarketsSummaries
         //
         //     [
         //         {
@@ -490,7 +549,21 @@ module.exports = class bittrex extends Exchange {
         const request = {
             'marketSymbol': market['id'],
         };
-        const response = await this.publicGetMarketsMarketSymbolSummary (this.extend (request, params));
+        const options = this.safeValue (this.options, 'fetchTicker', {});
+        const method = this.safeString (options, 'method', 'publicGetMarketsMarketSymbolTicker');
+        const response = await this[method] (this.extend (request, params));
+        //
+        // publicGetMarketsMarketSymbolTicker
+        //
+        //     {
+        //         "symbol":"ETH-BTC",
+        //         "lastTradeRate":"0.03284496",
+        //         "bidRate":"0.03284523",
+        //         "askRate":"0.03286857"
+        //     }
+        //
+        //
+        // publicGetMarketsMarketSymbolSummary
         //
         //     {
         //         "symbol":"ETH-BTC",
@@ -506,12 +579,46 @@ module.exports = class bittrex extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
-        const timestamp = this.parse8601 (trade['executedAt']);
-        const side = this.safeStringLower (trade, 'takerSide');
+        //
+        // public fetchTrades
+        //
+        //     {
+        //         "id":"9c5589db-42fb-436c-b105-5e2edcb95673",
+        //         "executedAt":"2020-10-03T11:48:43.38Z",
+        //         "quantity":"0.17939626",
+        //         "rate":"0.03297952",
+        //         "takerSide":"BUY"
+        //     }
+        //
+        // private fetchOrderTrades
+        //
+        //     {
+        //         "id": "aaa3e9bd-5b86-4a21-8b3d-1275c1d30b8e",
+        //         "marketSymbol": "OMG-BTC",
+        //         "executedAt": "2020-10-02T16:00:30.3Z",
+        //         "quantity": "7.52710000",
+        //         "rate": "0.00034907",
+        //         "orderId": "3a3dbd33-3a30-4ae5-a41d-68d3c1ac537e",
+        //         "commission": "0.00000525",
+        //         "isTaker": false
+        //     }
+        //
+        const timestamp = this.parse8601 (this.safeString (trade, 'executedAt'));
         const id = this.safeString (trade, 'id');
-        let symbol = undefined;
-        if (market !== undefined) {
-            symbol = market['symbol'];
+        const order = this.safeString (trade, 'orderId');
+        const marketId = this.safeString (trade, 'marketSymbol');
+        let symbol = this.safeSymbol (marketId, market, '-');
+        let quote = undefined;
+        if (marketId !== undefined) {
+            if (symbol in this.markets) {
+                market = this.safeValue (this.markets, symbol, market);
+                quote = market['quote'];
+            } else {
+                const [ baseId, quoteId ] = marketId.split ('-');
+                const base = this.safeCurrencyCode (baseId);
+                quote = this.safeCurrencyCode (quoteId);
+                symbol = base + '/' + quote;
+            }
         }
         let cost = undefined;
         const price = this.safeFloat (trade, 'rate');
@@ -521,20 +628,34 @@ module.exports = class bittrex extends Exchange {
                 cost = price * amount;
             }
         }
+        let takerOrMaker = undefined;
+        const isTaker = this.safeValue (trade, 'isTaker');
+        if (isTaker !== undefined) {
+            takerOrMaker = isTaker ? 'taker' : 'maker';
+        }
+        let fee = undefined;
+        const feeCost = this.safeFloat (trade, 'commission');
+        if (feeCost !== undefined) {
+            fee = {
+                'cost': feeCost,
+                'currency': quote,
+            };
+        }
+        const side = this.safeStringLower (trade, 'takerSide');
         return {
             'info': trade,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'symbol': symbol,
             'id': id,
-            'order': undefined,
-            'type': 'limit',
-            'takerOrMaker': undefined,
+            'order': order,
+            'takerOrMaker': takerOrMaker,
+            'type': undefined,
             'side': side,
             'price': price,
             'amount': amount,
             'cost': cost,
-            'fee': undefined,
+            'fee': fee,
         };
     }
 
@@ -555,6 +676,17 @@ module.exports = class bittrex extends Exchange {
             'marketSymbol': this.marketId (symbol),
         };
         const response = await this.publicGetMarketsMarketSymbolTrades (this.extend (request, params));
+        //
+        //     [
+        //         {
+        //             "id":"9c5589db-42fb-436c-b105-5e2edcb95673",
+        //             "executedAt":"2020-10-03T11:48:43.38Z",
+        //             "quantity":"0.17939626",
+        //             "rate":"0.03297952",
+        //             "takerSide":"BUY"
+        //         }
+        //     ]
+        //
         return this.parseTrades (response, market, since, limit);
     }
 
@@ -643,6 +775,19 @@ module.exports = class bittrex extends Exchange {
         const response = await this.privateGetOrdersOpen (this.extend (request, params));
         const orders = this.parseOrders (response, market, since, limit);
         return this.filterBySymbol (orders, symbol);
+    }
+
+    async fetchOrderTrades (id, symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const request = {
+            'orderId': id,
+        };
+        const response = await this.privateGetOrdersOrderIdExecutions (this.extend (request, params));
+        let market = undefined;
+        if (symbol !== undefined) {
+            market = this.market (symbol);
+        }
+        return this.parseTrades (response, market, since, limit);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -890,7 +1035,6 @@ module.exports = class bittrex extends Exchange {
         const fillQuantity = this.safeFloat (order, 'fillQuantity');
         const commission = this.safeFloat (order, 'commission');
         const proceeds = this.safeFloat (order, 'proceeds');
-        const status = this.safeStringLower (order, 'status');
         let average = undefined;
         let remaining = undefined;
         if (fillQuantity !== undefined) {
@@ -904,6 +1048,10 @@ module.exports = class bittrex extends Exchange {
             if (quantity !== undefined) {
                 remaining = quantity - fillQuantity;
             }
+        }
+        let status = this.safeStringLower (order, 'status');
+        if ((status === 'closed') && (remaining !== undefined) && (remaining > 0)) {
+            status = 'canceled';
         }
         return {
             'id': this.safeString (order, 'id'),
@@ -1111,14 +1259,10 @@ module.exports = class bittrex extends Exchange {
     sign (path, api = 'v3', method = 'GET', params = {}, headers = undefined, body = undefined) {
         let url = this.implodeParams (this.urls['api'][api], {
             'hostname': this.hostname,
-        }) + '/' + this.version + '/';
-        if (api === 'public') {
-            url += this.implodeParams (path, params);
-            params = this.omit (params, this.extractParams (path));
-            if (Object.keys (params).length) {
-                url += '?' + this.urlencode (params);
-            }
-        } else if (api === 'private') {
+        }) + '/';
+        if (api === 'private') {
+            url += this.version + '/';
+            this.checkRequiredCredentials ();
             url += this.implodeParams (path, params);
             params = this.omit (params, this.extractParams (path));
             let hashString = '';
@@ -1151,18 +1295,14 @@ module.exports = class bittrex extends Exchange {
                 headers['Content-Type'] = 'application/json';
             }
         } else {
-            this.checkRequiredCredentials ();
-            url += api + '/';
-            const request = {
-                'apikey': this.apiKey,
-            };
-            const disableNonce = this.safeValue (this.options, 'disableNonce');
-            if ((disableNonce === undefined) || !disableNonce) {
-                request['nonce'] = this.nonce ();
+            if (api === 'public') {
+                url += this.version + '/';
             }
-            url += path + '?' + this.urlencode (this.extend (request, params));
-            const signature = this.hmac (this.encode (url), this.encode (this.secret), 'sha512');
-            headers = { 'apisign': signature };
+            url += this.implodeParams (path, params);
+            params = this.omit (params, this.extractParams (path));
+            if (Object.keys (params).length) {
+                url += '?' + this.urlencode (params);
+            }
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
@@ -1243,9 +1383,5 @@ module.exports = class bittrex extends Exchange {
                 throw new ExchangeError (feedback);
             }
         }
-    }
-
-    async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
-        return await this.fetch2 (path, api, method, params, headers, body);
     }
 };

@@ -18,6 +18,7 @@ class ripio extends Exchange {
             'countries' => array( 'AR' ), // Argentina
             'rateLimit' => 50,
             'version' => 'v1',
+            'pro' => true,
             // new metainfo interface
             'has' => array(
                 'CORS' => false,
@@ -89,12 +90,24 @@ class ripio extends Exchange {
                 'exact' => array(
                 ),
                 'broad' => array(
-                    'Invalid pair' => '\\ccxt\\BadSymbol', // array("status_code":400,"errors":array("pair":["Invalid pair FOOBAR"]),"message":"An error has occurred, please check the form.")
-                    'Disabled pair' => '\\ccxt\\BadSymbol', // array("status_code":400,"errors":array("pair":["Invalid/Disabled pair BTC_ARS"]),"message":"An error has occurred, please check the form.")
                     'Authentication credentials were not provided' => '\\ccxt\\AuthenticationError', // array("detail":"Authentication credentials were not provided.")
+                    'Disabled pair' => '\\ccxt\\BadSymbol', // array("status_code":400,"errors":array("pair":["Invalid/Disabled pair BTC_ARS"]),"message":"An error has occurred, please check the form.")
                     'Invalid order type' => '\\ccxt\\InvalidOrder', // array("status_code":400,"errors":array("order_type":["Invalid order type. Valid options => ['MARKET', 'LIMIT']"]),"message":"An error has occurred, please check the form.")
-                    'not found' => '\\ccxt\\OrderNotFound', // array("status_code":404,"errors":array("order":["Order 286e560e-b8a2-464b-8b84-15a7e2a67eab not found."]),"message":"An error has occurred, please check the form.")
                     'Your balance is not enough' => '\\ccxt\\InsufficientFunds', // array("status_code":400,"errors":array("non_field_errors":["Your balance is not enough for this order => You have 0 BTC but you need 1 BTC"]),"message":"An error has occurred, please check the form.")
+                    "Order couldn't be created" => '\\ccxt\\ExchangeError', // array('status_code' => 400,'errors' => array('non_field_errors' => _("Order couldn't be created")), 'message' => _('Seems like an unexpected error occurred. Please try again later or write us to support@ripio.com if the problem persists.') )
+                    // array("status_code":404,"errors":array("order":["Order 286e560e-b8a2-464b-8b84-15a7e2a67eab not found."]),"message":"An error has occurred, please check the form.")
+                    // array("status_code":404,"errors":array("trade":["Trade <trade_id> not found."]),"message":"An error has occurred, please check the form.")
+                    'not found' => '\\ccxt\\OrderNotFound',
+                    'Invalid pair' => '\\ccxt\\BadSymbol', // array("status_code":400,"errors":array("pair":["Invalid pair FOOBAR"]),"message":"An error has occurred, please check the form.")
+                    'amount must be a number' => '\\ccxt\\BadRequest', // array("status_code":400,"errors":array("amount":["amount must be a number"]),"message":"An error has occurred, please check the form.")
+                    'Total must be at least' => '\\ccxt\\InvalidOrder', // array("status_code":400,"errors":array("non_field_errors":["Total must be at least 10."]),"message":"An error has occurred, please check the form.")
+                    'Account not found' => '\\ccxt\\BadRequest', // array("error_description" => "Account not found."), "status" => 404
+                    'Wrong password provided' => '\\ccxt\\AuthenticationError', // array('error' => "Wrong password provided."), “status_code” => 400
+                    'User tokens limit' => '\\ccxt\\DDoSProtection', // array('error' => "User tokens limit. Can't create more than 10 tokens."), “status_code” => 400
+                    'Something unexpected ocurred' => '\\ccxt\\ExchangeError', // array('status_code' => 400, 'errors' => array('non_field_errors' => 'Something unexpected ocurred!'), 'message' => 'Seems like an unexpected error occurred. Please try again later or write us to support@ripio.com if the problem persists.')
+                    // array('status_code' => 404, 'errors' => array('account_balance' => ['Exchange balance <currency>not found.']),'message' => 'An error has occurred, please check the form.')
+                    // array('status_code' => 404, 'errors' => array('account_balance' => ['Account balance <id> not found.']),'message' => 'An error has occurred, please check the form.')
+                    'account_balance' => '\\ccxt\\BadRequest',
                 ),
             ),
         ));
@@ -251,9 +264,9 @@ class ripio extends Exchange {
         //         "high":"10909.99",
         //         "variation":"1.21",
         //         "volume":"0.83868",
-        //         "$base":"BTC",
+        //         "base":"BTC",
         //         "base_name":"Bitcoin",
-        //         "$quote":"USDC",
+        //         "quote":"USDC",
         //         "quote_name":"USD Coin",
         //         "bid":"10811.00",
         //         "ask":"10720.03",
@@ -265,20 +278,7 @@ class ripio extends Exchange {
         //
         $timestamp = $this->parse8601($this->safe_string($ticker, 'created_at'));
         $marketId = $this->safe_string($ticker, 'pair');
-        $symbol = null;
-        if ($marketId !== null) {
-            if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
-                $market = $this->markets_by_id[$marketId];
-            } else if ($marketId !== null) {
-                list($baseId, $quoteId) = explode('_', $marketId);
-                $base = $this->safe_currency_code($baseId);
-                $quote = $this->safe_currency_code($quoteId);
-                $symbol = $base . '/' . $quote;
-            }
-        }
-        if (($symbol === null) && ($market !== null)) {
-            $symbol = $market['symbol'];
-        }
+        $symbol = $this->safe_symbol($marketId, $market);
         $last = $this->safe_float($ticker, 'last_price');
         $average = $this->safe_float($ticker, 'avg');
         return array(
@@ -412,14 +412,28 @@ class ripio extends Exchange {
         //         "maker":2577937
         //     }
         //
+        // createOrder fills
+        //
+        //     {
+        //         "pair":"BTC_USDC",
+        //         "exchanged":0.002,
+        //         "match_price":10593.99,
+        //         "maker_fee":0.0,
+        //         "taker_fee":0.0,
+        //         "$timestamp":1601730306942
+        //     }
+        //
         $id = $this->safe_string($trade, 'id');
-        $timestamp = $this->safe_timestamp($trade, 'created_at');
+        $timestamp = $this->safe_integer($trade, 'timestamp');
+        $timestamp = $this->safe_timestamp($trade, 'created_at', $timestamp);
         $side = $this->safe_string($trade, 'side');
         $takerSide = $this->safe_string($trade, 'taker_side');
         $takerOrMaker = ($takerSide === $side) ? 'taker' : 'maker';
-        $side = strtolower($side);
-        $price = $this->safe_float($trade, 'price');
-        $amount = $this->safe_float($trade, 'amount');
+        if ($side !== null) {
+            $side = strtolower($side);
+        }
+        $price = $this->safe_float_2($trade, 'price', 'match_price');
+        $amount = $this->safe_float_2($trade, 'amount', 'exchanged');
         $cost = null;
         if (($amount !== null) && ($price !== null)) {
             $cost = $amount * $price;
@@ -558,6 +572,38 @@ class ripio extends Exchange {
         //         "limit_price" => "10.00",
         //         "stop_price" => null,
         //         "distance" => null
+        //     }
+        //
+        // createOrder $market $type
+        //
+        //     {
+        //         "order_id":"d6b60c01-8624-44f2-9e6c-9e8cd677ea5c",
+        //         "pair":"BTC_USDC",
+        //         "$side":"BUY",
+        //         "$amount":"0.00200",
+        //         "notional":"50",
+        //         "fill_or_kill":false,
+        //         "all_or_none":false,
+        //         "order_type":"MARKET",
+        //         "status":"OPEN",
+        //         "created_at":1601730306,
+        //         "filled":"0.00000",
+        //         "fill_price":10593.99,
+        //         "fee":0.0,
+        //         "fills":array(
+        //             {
+        //                 "pair":"BTC_USDC",
+        //                 "exchanged":0.002,
+        //                 "match_price":10593.99,
+        //                 "maker_fee":0.0,
+        //                 "taker_fee":0.0,
+        //                 "timestamp":1601730306942
+        //             }
+        //         ),
+        //         "filled_at":"2020-10-03T13:05:06.942186Z",
+        //         "limit_price":"0.000000",
+        //         "stop_price":null,
+        //         "distance":null
         //     }
         //
         return $this->parse_order($response, $market);
@@ -703,7 +749,6 @@ class ripio extends Exchange {
         //
         // createOrder, cancelOrder, fetchOpenOrders, fetchClosedOrders, fetchOrders, fetchOrder
         //
-        //
         //     {
         //         "order_id" => "286e560e-b8a2-464b-8b84-15a7e2a67eab",
         //         "pair" => "BTC_ARS",
@@ -721,17 +766,71 @@ class ripio extends Exchange {
         //         "distance" => null
         //     }
         //
+        //     {
+        //         "order_id":"d6b60c01-8624-44f2-9e6c-9e8cd677ea5c",
+        //         "pair":"BTC_USDC",
+        //         "$side":"BUY",
+        //         "$amount":"0.00200",
+        //         "notional":"50",
+        //         "fill_or_kill":false,
+        //         "all_or_none":false,
+        //         "order_type":"MARKET",
+        //         "$status":"OPEN",
+        //         "created_at":1601730306,
+        //         "$filled":"0.00000",
+        //         "fill_price":10593.99,
+        //         "fee":0.0,
+        //         "$fills":array(
+        //             {
+        //                 "pair":"BTC_USDC",
+        //                 "exchanged":0.002,
+        //                 "match_price":10593.99,
+        //                 "maker_fee":0.0,
+        //                 "taker_fee":0.0,
+        //                 "$timestamp":1601730306942
+        //             }
+        //         ),
+        //         "filled_at":"2020-10-03T13:05:06.942186Z",
+        //         "limit_price":"0.000000",
+        //         "stop_price":null,
+        //         "distance":null
+        //     }
+        //
         $id = $this->safe_string($order, 'order_id');
         $amount = $this->safe_float($order, 'amount');
-        $price = $this->safe_float($order, 'limit_price');
         $cost = $this->safe_float($order, 'notional');
         $type = $this->safe_string_lower($order, 'order_type');
+        $priceField = ($type === 'market') ? 'fill_price' : 'limit_price';
+        $price = $this->safe_float($order, $priceField);
         $side = $this->safe_string_lower($order, 'side');
         $status = $this->parse_order_status($this->safe_string($order, 'status'));
-        $timestamp = $this->safe_timestamp($order, 'timestamp');
-        $average = $this->safe_float($order, 'created_at');
+        $timestamp = $this->safe_timestamp($order, 'created_at');
+        $average = $this->safe_value($order, 'fill_price');
         $filled = $this->safe_float($order, 'filled');
         $remaining = null;
+        $fills = $this->safe_value($order, 'fills');
+        $trades = null;
+        $lastTradeTimestamp = null;
+        if ($fills !== null) {
+            $numFills = is_array($fills) ? count($fills) : 0;
+            if ($numFills > 0) {
+                $filled = 0;
+                $cost = 0;
+                $trades = $this->parse_trades($fills, $market, null, null, array(
+                    'order' => $id,
+                    'side' => $side,
+                ));
+                for ($i = 0; $i < count($trades); $i++) {
+                    $trade = $trades[$i];
+                    $filled = $this->sum($trade['amount'], $filled);
+                    $cost = $this->sum($trade['cost'], $cost);
+                    $lastTradeTimestamp = $trade['timestamp'];
+                }
+                if (($average === null) && ($filled > 0)) {
+                    $average = $cost / $filled;
+                }
+            }
+        }
         if ($filled !== null) {
             if (($cost === null) && ($price !== null)) {
                 $cost = $price * $filled;
@@ -740,28 +839,15 @@ class ripio extends Exchange {
                 $remaining = max (0, $amount - $filled);
             }
         }
-        $symbol = null;
         $marketId = $this->safe_string($order, 'pair');
-        if ($marketId !== null) {
-            if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
-                $market = $this->markets_by_id[$marketId];
-            } else {
-                list($baseId, $quoteId) = explode('_', $marketId);
-                $base = $this->safe_currency_code($baseId);
-                $quote = $this->safe_currency_code($quoteId);
-                $symbol = $base . '/' . $quote;
-            }
-        }
-        if (($symbol === null) && ($market !== null)) {
-            $symbol = $market['symbol'];
-        }
+        $symbol = $this->safe_symbol($marketId, $market, '_');
         return array(
             'id' => $id,
             'clientOrderId' => null,
             'info' => $order,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'lastTradeTimestamp' => null,
+            'lastTradeTimestamp' => $lastTradeTimestamp,
             'symbol' => $symbol,
             'type' => $type,
             'side' => $side,
@@ -773,7 +859,7 @@ class ripio extends Exchange {
             'remaining' => $remaining,
             'status' => $status,
             'fee' => null,
-            'trades' => null,
+            'trades' => $trades,
         );
     }
 

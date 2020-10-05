@@ -3,7 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { AuthenticationError, ExchangeError, BadSymbol, InvalidOrder, ArgumentsRequired, OrderNotFound, InsufficientFunds } = require ('./base/errors');
+const { AuthenticationError, ExchangeError, BadSymbol, BadRequest, InvalidOrder, ArgumentsRequired, OrderNotFound, InsufficientFunds, DDoSProtection } = require ('./base/errors');
 const { TICK_SIZE } = require ('./base/functions/number');
 
 //  ---------------------------------------------------------------------------
@@ -16,6 +16,7 @@ module.exports = class ripio extends Exchange {
             'countries': [ 'AR' ], // Argentina
             'rateLimit': 50,
             'version': 'v1',
+            'pro': true,
             // new metainfo interface
             'has': {
                 'CORS': false,
@@ -87,12 +88,24 @@ module.exports = class ripio extends Exchange {
                 'exact': {
                 },
                 'broad': {
-                    'Invalid pair': BadSymbol, // {"status_code":400,"errors":{"pair":["Invalid pair FOOBAR"]},"message":"An error has occurred, please check the form."}
-                    'Disabled pair': BadSymbol, // {"status_code":400,"errors":{"pair":["Invalid/Disabled pair BTC_ARS"]},"message":"An error has occurred, please check the form."}
                     'Authentication credentials were not provided': AuthenticationError, // {"detail":"Authentication credentials were not provided."}
+                    'Disabled pair': BadSymbol, // {"status_code":400,"errors":{"pair":["Invalid/Disabled pair BTC_ARS"]},"message":"An error has occurred, please check the form."}
                     'Invalid order type': InvalidOrder, // {"status_code":400,"errors":{"order_type":["Invalid order type. Valid options: ['MARKET', 'LIMIT']"]},"message":"An error has occurred, please check the form."}
-                    'not found': OrderNotFound, // {"status_code":404,"errors":{"order":["Order 286e560e-b8a2-464b-8b84-15a7e2a67eab not found."]},"message":"An error has occurred, please check the form."}
                     'Your balance is not enough': InsufficientFunds, // {"status_code":400,"errors":{"non_field_errors":["Your balance is not enough for this order: You have 0 BTC but you need 1 BTC"]},"message":"An error has occurred, please check the form."}
+                    "Order couldn't be created": ExchangeError, // {'status_code': 400,'errors': {'non_field_errors': _("Order couldn't be created")}, 'message': _('Seems like an unexpected error occurred. Please try again later or write us to support@ripio.com if the problem persists.') }
+                    // {"status_code":404,"errors":{"order":["Order 286e560e-b8a2-464b-8b84-15a7e2a67eab not found."]},"message":"An error has occurred, please check the form."}
+                    // {"status_code":404,"errors":{"trade":["Trade <trade_id> not found."]},"message":"An error has occurred, please check the form."}
+                    'not found': OrderNotFound,
+                    'Invalid pair': BadSymbol, // {"status_code":400,"errors":{"pair":["Invalid pair FOOBAR"]},"message":"An error has occurred, please check the form."}
+                    'amount must be a number': BadRequest, // {"status_code":400,"errors":{"amount":["amount must be a number"]},"message":"An error has occurred, please check the form."}
+                    'Total must be at least': InvalidOrder, // {"status_code":400,"errors":{"non_field_errors":["Total must be at least 10."]},"message":"An error has occurred, please check the form."}
+                    'Account not found': BadRequest, // {"error_description": "Account not found."}, "status": 404
+                    'Wrong password provided': AuthenticationError, // {'error': "Wrong password provided."}, “status_code”: 400
+                    'User tokens limit': DDoSProtection, // {'error': "User tokens limit. Can't create more than 10 tokens."}, “status_code”: 400
+                    'Something unexpected ocurred': ExchangeError, // {'status_code': 400, 'errors': {'non_field_errors': 'Something unexpected ocurred!'}, 'message': 'Seems like an unexpected error occurred. Please try again later or write us to support@ripio.com if the problem persists.'}
+                    // {'status_code': 404, 'errors': {'account_balance': ['Exchange balance <currency>not found.']},'message': 'An error has occurred, please check the form.'}
+                    // {'status_code': 404, 'errors': {'account_balance': ['Account balance <id> not found.']},'message': 'An error has occurred, please check the form.'}
+                    'account_balance': BadRequest,
                 },
             },
         });
@@ -263,20 +276,7 @@ module.exports = class ripio extends Exchange {
         //
         const timestamp = this.parse8601 (this.safeString (ticker, 'created_at'));
         const marketId = this.safeString (ticker, 'pair');
-        let symbol = undefined;
-        if (marketId !== undefined) {
-            if (marketId in this.markets_by_id) {
-                market = this.markets_by_id[marketId];
-            } else if (marketId !== undefined) {
-                const [ baseId, quoteId ] = marketId.split ('_');
-                const base = this.safeCurrencyCode (baseId);
-                const quote = this.safeCurrencyCode (quoteId);
-                symbol = base + '/' + quote;
-            }
-        }
-        if ((symbol === undefined) && (market !== undefined)) {
-            symbol = market['symbol'];
-        }
+        const symbol = this.safeSymbol (marketId, market);
         const last = this.safeFloat (ticker, 'last_price');
         const average = this.safeFloat (ticker, 'avg');
         return {
@@ -410,14 +410,28 @@ module.exports = class ripio extends Exchange {
         //         "maker":2577937
         //     }
         //
+        // createOrder fills
+        //
+        //     {
+        //         "pair":"BTC_USDC",
+        //         "exchanged":0.002,
+        //         "match_price":10593.99,
+        //         "maker_fee":0.0,
+        //         "taker_fee":0.0,
+        //         "timestamp":1601730306942
+        //     }
+        //
         const id = this.safeString (trade, 'id');
-        const timestamp = this.safeTimestamp (trade, 'created_at');
+        let timestamp = this.safeInteger (trade, 'timestamp');
+        timestamp = this.safeTimestamp (trade, 'created_at', timestamp);
         let side = this.safeString (trade, 'side');
         const takerSide = this.safeString (trade, 'taker_side');
         const takerOrMaker = (takerSide === side) ? 'taker' : 'maker';
-        side = side.toLowerCase ();
-        const price = this.safeFloat (trade, 'price');
-        const amount = this.safeFloat (trade, 'amount');
+        if (side !== undefined) {
+            side = side.toLowerCase ();
+        }
+        const price = this.safeFloat2 (trade, 'price', 'match_price');
+        const amount = this.safeFloat2 (trade, 'amount', 'exchanged');
         let cost = undefined;
         if ((amount !== undefined) && (price !== undefined)) {
             cost = amount * price;
@@ -556,6 +570,38 @@ module.exports = class ripio extends Exchange {
         //         "limit_price": "10.00",
         //         "stop_price": null,
         //         "distance": null
+        //     }
+        //
+        // createOrder market type
+        //
+        //     {
+        //         "order_id":"d6b60c01-8624-44f2-9e6c-9e8cd677ea5c",
+        //         "pair":"BTC_USDC",
+        //         "side":"BUY",
+        //         "amount":"0.00200",
+        //         "notional":"50",
+        //         "fill_or_kill":false,
+        //         "all_or_none":false,
+        //         "order_type":"MARKET",
+        //         "status":"OPEN",
+        //         "created_at":1601730306,
+        //         "filled":"0.00000",
+        //         "fill_price":10593.99,
+        //         "fee":0.0,
+        //         "fills":[
+        //             {
+        //                 "pair":"BTC_USDC",
+        //                 "exchanged":0.002,
+        //                 "match_price":10593.99,
+        //                 "maker_fee":0.0,
+        //                 "taker_fee":0.0,
+        //                 "timestamp":1601730306942
+        //             }
+        //         ],
+        //         "filled_at":"2020-10-03T13:05:06.942186Z",
+        //         "limit_price":"0.000000",
+        //         "stop_price":null,
+        //         "distance":null
         //     }
         //
         return this.parseOrder (response, market);
@@ -701,7 +747,6 @@ module.exports = class ripio extends Exchange {
         //
         // createOrder, cancelOrder, fetchOpenOrders, fetchClosedOrders, fetchOrders, fetchOrder
         //
-        //
         //     {
         //         "order_id": "286e560e-b8a2-464b-8b84-15a7e2a67eab",
         //         "pair": "BTC_ARS",
@@ -719,17 +764,71 @@ module.exports = class ripio extends Exchange {
         //         "distance": null
         //     }
         //
+        //     {
+        //         "order_id":"d6b60c01-8624-44f2-9e6c-9e8cd677ea5c",
+        //         "pair":"BTC_USDC",
+        //         "side":"BUY",
+        //         "amount":"0.00200",
+        //         "notional":"50",
+        //         "fill_or_kill":false,
+        //         "all_or_none":false,
+        //         "order_type":"MARKET",
+        //         "status":"OPEN",
+        //         "created_at":1601730306,
+        //         "filled":"0.00000",
+        //         "fill_price":10593.99,
+        //         "fee":0.0,
+        //         "fills":[
+        //             {
+        //                 "pair":"BTC_USDC",
+        //                 "exchanged":0.002,
+        //                 "match_price":10593.99,
+        //                 "maker_fee":0.0,
+        //                 "taker_fee":0.0,
+        //                 "timestamp":1601730306942
+        //             }
+        //         ],
+        //         "filled_at":"2020-10-03T13:05:06.942186Z",
+        //         "limit_price":"0.000000",
+        //         "stop_price":null,
+        //         "distance":null
+        //     }
+        //
         const id = this.safeString (order, 'order_id');
         const amount = this.safeFloat (order, 'amount');
-        const price = this.safeFloat (order, 'limit_price');
         let cost = this.safeFloat (order, 'notional');
         const type = this.safeStringLower (order, 'order_type');
+        const priceField = (type === 'market') ? 'fill_price' : 'limit_price';
+        const price = this.safeFloat (order, priceField);
         const side = this.safeStringLower (order, 'side');
         const status = this.parseOrderStatus (this.safeString (order, 'status'));
-        const timestamp = this.safeTimestamp (order, 'timestamp');
-        const average = this.safeFloat (order, 'created_at');
-        const filled = this.safeFloat (order, 'filled');
+        const timestamp = this.safeTimestamp (order, 'created_at');
+        let average = this.safeValue (order, 'fill_price');
+        let filled = this.safeFloat (order, 'filled');
         let remaining = undefined;
+        const fills = this.safeValue (order, 'fills');
+        let trades = undefined;
+        let lastTradeTimestamp = undefined;
+        if (fills !== undefined) {
+            const numFills = fills.length;
+            if (numFills > 0) {
+                filled = 0;
+                cost = 0;
+                trades = this.parseTrades (fills, market, undefined, undefined, {
+                    'order': id,
+                    'side': side,
+                });
+                for (let i = 0; i < trades.length; i++) {
+                    const trade = trades[i];
+                    filled = this.sum (trade['amount'], filled);
+                    cost = this.sum (trade['cost'], cost);
+                    lastTradeTimestamp = trade['timestamp'];
+                }
+                if ((average === undefined) && (filled > 0)) {
+                    average = cost / filled;
+                }
+            }
+        }
         if (filled !== undefined) {
             if ((cost === undefined) && (price !== undefined)) {
                 cost = price * filled;
@@ -738,28 +837,15 @@ module.exports = class ripio extends Exchange {
                 remaining = Math.max (0, amount - filled);
             }
         }
-        let symbol = undefined;
         const marketId = this.safeString (order, 'pair');
-        if (marketId !== undefined) {
-            if (marketId in this.markets_by_id) {
-                market = this.markets_by_id[marketId];
-            } else {
-                const [ baseId, quoteId ] = marketId.split ('_');
-                const base = this.safeCurrencyCode (baseId);
-                const quote = this.safeCurrencyCode (quoteId);
-                symbol = base + '/' + quote;
-            }
-        }
-        if ((symbol === undefined) && (market !== undefined)) {
-            symbol = market['symbol'];
-        }
+        const symbol = this.safeSymbol (marketId, market, '_');
         return {
             'id': id,
             'clientOrderId': undefined,
             'info': order,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'lastTradeTimestamp': undefined,
+            'lastTradeTimestamp': lastTradeTimestamp,
             'symbol': symbol,
             'type': type,
             'side': side,
@@ -771,7 +857,7 @@ module.exports = class ripio extends Exchange {
             'remaining': remaining,
             'status': status,
             'fee': undefined,
-            'trades': undefined,
+            'trades': trades,
         };
     }
 

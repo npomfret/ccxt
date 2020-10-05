@@ -36,7 +36,7 @@ use Elliptic\EC;
 use Elliptic\EdDSA;
 use BN\BN;
 
-$version = '1.34.67';
+$version = '1.35.26';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -55,7 +55,7 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.34.67';
+    const VERSION = '1.35.26';
 
     private static $base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     private static $base58_encoder = null;
@@ -1841,6 +1841,28 @@ class Exchange {
 
     public function parseOrders($orders, $market = null, $since = null, $limit = null, $params = array()) {
         return $this->parse_orders($orders, $market, $since, $limit, $params);
+    }
+
+    public function safe_symbol($marketId, $market = null, $delimiter = null) {
+        if ($marketId !== null) {
+            if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
+                $market = $this->markets_by_id[$marketId];
+                return $market['symbol'];
+            } else if ($delimiter !== null) {
+                list($baseId, $quoteId) = explode($delimiter, $marketId);
+                $base = $this->safe_currency_code($baseId);
+                $quote = $this->safe_currency_code($quoteId);
+                return $base . '/' . $quote;
+            }
+        }
+        if ($market !== null) {
+            return $market['symbol'];
+        }
+        return $marketId;
+    }
+
+    public function safeSymbol($marketId, $market = null, $delimiter = null) {
+        return $this->safe_symbol($marketId, $market, $delimiter);
     }
 
     public function safe_currency_code($currency_id, $currency = null) {

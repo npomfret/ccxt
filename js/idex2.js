@@ -4,7 +4,7 @@
 
 const Exchange = require ('./base/Exchange');
 const { PAD_WITH_ZERO } = require ('./base/functions/number');
-const { InvalidOrder, InsufficientFunds, ExchangeError, ExchangeNotAvailable, DDoSProtection, BadRequest } = require ('./base/errors');
+const { InvalidOrder, InsufficientFunds, ExchangeError, ExchangeNotAvailable, DDoSProtection, BadRequest, NotSupported } = require ('./base/errors');
 
 // ---------------------------------------------------------------------------
 
@@ -891,6 +891,14 @@ module.exports = class idex2 extends Exchange {
         } else if (type === 'market') {
             typeEnum = 0;
         }
+        let amountEnum = 0; // base quantity
+        if ('quoteOrderQuantity' in params) {
+            if (type !== 'market') {
+                throw new NotSupported (this.id + ' quoteOrderQuantity is not supported for ' + type + ' orders, only supported for market orders');
+            }
+            amountEnum = 1;
+            amount = this.safeFloat (params, 'quoteOrderQuantity');
+        }
         const sideEnum = (side === 'buy') ? 0 : 1;
         const walletBytes = this.remove0xPrefix (this.walletAddress);
         const orderVersion = 1;
@@ -936,6 +944,7 @@ module.exports = class idex2 extends Exchange {
             this.numberToBE (typeEnum, 1),
             this.numberToBE (sideEnum, 1),
             this.stringToBinary (this.encode (amountString)),
+            this.numberToBE (amountEnum, 1),
         ];
         if (type === 'limit') {
             const encodedPrice = this.stringToBinary (this.encode (priceString));
@@ -956,7 +965,6 @@ module.exports = class idex2 extends Exchange {
                 'market': market['id'],
                 'side': side,
                 'type': type,
-                'quantity': amountString,
                 'wallet': this.walletAddress,
                 'timeInForce': timeInForce,
                 'selfTradePrevention': selfTradePrevention,
@@ -965,6 +973,11 @@ module.exports = class idex2 extends Exchange {
         };
         if (type === 'limit') {
             request['parameters']['price'] = priceString;
+        }
+        if (amountEnum === 0) {
+            request['parameters']['quantity'] = amountString;
+        } else {
+            request['parameters']['quoteOrderQuantity'] = amountString;
         }
         // {
         //   market: 'DIL-ETH',

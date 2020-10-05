@@ -739,8 +739,6 @@ module.exports = class hitbtc extends Exchange {
         if (order['status'] === 'rejected') {
             throw new InvalidOrder (this.id + ' order was rejected by the exchange ' + this.json (order));
         }
-        const id = order['id'];
-        this.orders[id] = order;
         return order;
     }
 
@@ -765,9 +763,7 @@ module.exports = class hitbtc extends Exchange {
             request['price'] = this.priceToPrecision (symbol, price);
         }
         const response = await this.privatePatchOrderClientOrderId (this.extend (request, params));
-        const order = this.parseOrder (response);
-        this.orders[order['id']] = order;
-        return order;
+        return this.parseOrder (response);
     }
 
     async cancelOrder (id, symbol = undefined, params = {}) {
@@ -841,11 +837,6 @@ module.exports = class hitbtc extends Exchange {
         const id = this.safeString (order, 'clientOrderId');
         const clientOrderId = id;
         let price = this.safeFloat (order, 'price');
-        if (price === undefined) {
-            if (id in this.orders) {
-                price = this.orders[id]['price'];
-            }
-        }
         let remaining = undefined;
         let cost = undefined;
         if (amount !== undefined) {

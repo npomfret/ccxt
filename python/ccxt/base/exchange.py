@@ -4,7 +4,7 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '1.34.67'
+__version__ = '1.35.26'
 
 # -----------------------------------------------------------------------------
 
@@ -1116,6 +1116,10 @@ class Exchange(object):
         return Exchange.encode(Exchange.binary_to_base64(binary))
 
     @staticmethod
+    def base64_to_string(s):
+        return base64.b64decode(s).decode('utf-8')
+
+    @staticmethod
     def jwt(request, secret, alg='HS256'):
         algos = {
             'HS256': hashlib.sha256,
@@ -1550,12 +1554,16 @@ class Exchange(object):
                 self.options['limitsLoaded'] = self.milliseconds()
         return self.markets
 
-    def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+    def fetch_ohlcvc(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         if not self.has['fetchTrades']:
             raise NotSupported('fetch_ohlcv() not supported yet')
         self.load_markets()
         trades = self.fetch_trades(symbol, since, limit, params)
-        return self.build_ohlcv(trades, timeframe, since, limit)
+        return self.build_ohlcvc(trades, timeframe, since, limit)
+
+    def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        ohlcvs = self.fetch_ohlcvc(symbol, timeframe, since, limit, params)
+        return [ohlcv[0:-1] for ohlcv in ohlcvs]
 
     def fetch_status(self, params={}):
         if self.has['fetchTime']:
@@ -1600,10 +1608,10 @@ class Exchange(object):
             result[v].append(ohlcvs[i][5])
         return result
 
-    def build_ohlcv(self, trades, timeframe='1m', since=None, limit=None):
+    def build_ohlcvc(self, trades, timeframe='1m', since=None, limit=None):
         ms = self.parse_timeframe(timeframe) * 1000
         ohlcvs = []
-        (high, low, close, volume) = (2, 3, 4, 5)
+        (timestamp, open, high, low, close, volume, count) = (0, 1, 2, 3, 4, 5, 6)
         num_trades = len(trades)
         oldest = (num_trades - 1) if limit is None else min(num_trades - 1, limit)
         for i in range(0, oldest):
@@ -1612,7 +1620,8 @@ class Exchange(object):
                 continue
             opening_time = int(math.floor(trade['timestamp'] / ms) * ms)  # Shift the edge of the m/h/d (but not M)
             j = len(ohlcvs)
-            if (j == 0) or opening_time >= ohlcvs[j - 1][0] + ms:
+            candle = j - 1
+            if (j == 0) or opening_time >= ohlcvs[candle][timestamp] + ms:
                 # moved to a new timeframe -> create a new candle from opening trade
                 ohlcvs.append([
                     opening_time,
@@ -1621,13 +1630,15 @@ class Exchange(object):
                     trade['price'],
                     trade['price'],
                     trade['amount'],
+                    1,  # count
                 ])
             else:
                 # still processing the same timeframe -> update opening trade
-                ohlcvs[j - 1][high] = max(ohlcvs[j - 1][high], trade['price'])
-                ohlcvs[j - 1][low] = min(ohlcvs[j - 1][low], trade['price'])
-                ohlcvs[j - 1][close] = trade['price']
-                ohlcvs[j - 1][volume] += trade['amount']
+                ohlcvs[candle][high] = max(ohlcvs[candle][high], trade['price'])
+                ohlcvs[candle][low] = min(ohlcvs[candle][low], trade['price'])
+                ohlcvs[candle][close] = trade['price']
+                ohlcvs[candle][volume] += trade['amount']
+                ohlcvs[candle][count] += 1
         return ohlcvs
 
     @staticmethod
@@ -1692,6 +1703,20 @@ class Exchange(object):
         array = self.sort_by(array, 'timestamp')
         symbol = market['symbol'] if market else None
         return self.filter_by_symbol_since_limit(array, symbol, since, limit)
+
+    def safe_symbol(self, marketId, market=None, delimiter=None):
+        if marketId is not None:
+            if self.markets_by_id is not None and marketId in self.markets_by_id:
+                market = self.markets_by_id[marketId]
+                return market['symbol']
+            elif delimiter is not None:
+                baseId, quoteId = marketId.split(delimiter)
+                base = self.safe_currency_code(baseId)
+                quote = self.safe_currency_code(quoteId)
+                return base + '/' + quote
+        if market is not None:
+            return market['symbol']
+        return marketId
 
     def safe_currency_code(self, currency_id, currency=None):
         code = None

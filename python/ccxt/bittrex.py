@@ -55,6 +55,7 @@ class bittrex(Exchange):
                 'fetchMyTrades': 'emulated',
                 'fetchOHLCV': True,
                 'fetchOrder': True,
+                'fetchOrderTrades': True,
                 'fetchOrderBook': True,
                 'fetchOpenOrders': True,
                 'fetchTicker': True,
@@ -95,6 +96,7 @@ class bittrex(Exchange):
                         'currencies',
                         'currencies/{symbol}',
                         'markets',
+                        'markets/tickers',
                         'markets/summaries',
                         'markets/{marketSymbol}',
                         'markets/{marketSymbol}/summary',
@@ -147,6 +149,7 @@ class bittrex(Exchange):
                         'transfers',
                     ],
                     'delete': [
+                        'orders/open',
                         'orders/{orderId}',
                         'withdrawals/{withdrawalId}',
                         'conditional-orders/{conditionalOrderId}',
@@ -233,6 +236,12 @@ class bittrex(Exchange):
                 },
             },
             'options': {
+                'fetchTicker': {
+                    'method': 'publicGetMarketsMarketSymbolTicker',  # publicGetMarketsMarketSymbolSummary
+                },
+                'fetchTickers': {
+                    'method': 'publicGetMarketsTickers',  # publicGetMarketsSummaries
+                },
                 'parseOrderStatus': False,
                 'hasAlreadyAuthenticatedSuccessfully': False,  # a workaround for APIKEY_INVALID
                 'symbolSeparator': '-',
@@ -361,8 +370,29 @@ class bittrex(Exchange):
         request = {
             'marketSymbol': self.market_id(symbol),
         }
+        if limit is not None:
+            if (limit != 1) and (limit != 25) and (limit != 500):
+                raise BadRequest(self.id + ' fetchOrderBook() limit argument must be None, 1, 25 or 100, default is 25')
+            request['depth'] = limit
         response = self.publicGetMarketsMarketSymbolOrderbook(self.extend(request, params))
-        return self.parse_order_book(response, None, 'bid', 'ask', 'rate', 'quantity')
+        #
+        #     {
+        #         "bid":[
+        #             {"quantity":"0.01250000","rate":"10718.56200003"},
+        #             {"quantity":"0.10000000","rate":"10718.56200002"},
+        #             {"quantity":"0.39648292","rate":"10718.56200001"},
+        #         ],
+        #         "ask":[
+        #             {"quantity":"0.05100000","rate":"10724.30099631"},
+        #             {"quantity":"0.10000000","rate":"10724.30099632"},
+        #             {"quantity":"0.26000000","rate":"10724.30099634"},
+        #         ]
+        #     }
+        #
+        sequence = self.safe_integer(self.last_response_headers, 'Sequence')
+        orderbook = self.parse_order_book(response, None, 'bid', 'ask', 'rate', 'quantity')
+        orderbook['nonce'] = sequence
+        return orderbook
 
     def fetch_currencies(self, params={}):
         response = self.publicGetCurrencies(params)
@@ -424,6 +454,17 @@ class bittrex(Exchange):
 
     def parse_ticker(self, ticker, market=None):
         #
+        # ticker
+        #
+        #     {
+        #         "symbol":"ETH-BTC",
+        #         "lastTradeRate":"0.03284496",
+        #         "bidRate":"0.03284523",
+        #         "askRate":"0.03286857"
+        #     }
+        #
+        # summary
+        #
         #     {
         #         "symbol":"ETH-BTC",
         #         "high":"0.03369528",
@@ -445,6 +486,7 @@ class bittrex(Exchange):
         if (symbol is None) and (market is not None):
             symbol = market['symbol']
         percentage = self.safe_float(ticker, 'percentChange')
+        last = self.safe_float(ticker, 'lastTradeRate')
         return {
             'symbol': symbol,
             'timestamp': timestamp,
@@ -457,8 +499,8 @@ class bittrex(Exchange):
             'askVolume': None,
             'vwap': None,
             'open': None,
-            'close': None,
-            'last': None,
+            'close': last,
+            'last': last,
             'previousClose': None,
             'change': None,
             'percentage': percentage,
@@ -470,7 +512,22 @@ class bittrex(Exchange):
 
     def fetch_tickers(self, symbols=None, params={}):
         self.load_markets()
-        response = self.publicGetMarketsSummaries(params)
+        options = self.safe_value(self.options, 'fetchTickers', {})
+        method = self.safe_string(options, 'method', 'publicGetMarketsTickers')
+        response = getattr(self, method)(params)
+        #
+        # publicGetMarketsTickers
+        #
+        #     [
+        #         {
+        #             "symbol":"4ART-BTC",
+        #             "lastTradeRate":"0.00000210",
+        #             "bidRate":"0.00000210",
+        #             "askRate":"0.00000215"
+        #         }
+        #     ]
+        #
+        # publicGetMarketsSummaries
         #
         #     [
         #         {
@@ -496,7 +553,21 @@ class bittrex(Exchange):
         request = {
             'marketSymbol': market['id'],
         }
-        response = self.publicGetMarketsMarketSymbolSummary(self.extend(request, params))
+        options = self.safe_value(self.options, 'fetchTicker', {})
+        method = self.safe_string(options, 'method', 'publicGetMarketsMarketSymbolTicker')
+        response = getattr(self, method)(self.extend(request, params))
+        #
+        # publicGetMarketsMarketSymbolTicker
+        #
+        #     {
+        #         "symbol":"ETH-BTC",
+        #         "lastTradeRate":"0.03284496",
+        #         "bidRate":"0.03284523",
+        #         "askRate":"0.03286857"
+        #     }
+        #
+        #
+        # publicGetMarketsMarketSymbolSummary
         #
         #     {
         #         "symbol":"ETH-BTC",
@@ -511,32 +582,77 @@ class bittrex(Exchange):
         return self.parse_ticker(response, market)
 
     def parse_trade(self, trade, market=None):
-        timestamp = self.parse8601(trade['executedAt'])
-        side = self.safe_string_lower(trade, 'takerSide')
+        #
+        # public fetchTrades
+        #
+        #     {
+        #         "id":"9c5589db-42fb-436c-b105-5e2edcb95673",
+        #         "executedAt":"2020-10-03T11:48:43.38Z",
+        #         "quantity":"0.17939626",
+        #         "rate":"0.03297952",
+        #         "takerSide":"BUY"
+        #     }
+        #
+        # private fetchOrderTrades
+        #
+        #     {
+        #         "id": "aaa3e9bd-5b86-4a21-8b3d-1275c1d30b8e",
+        #         "marketSymbol": "OMG-BTC",
+        #         "executedAt": "2020-10-02T16:00:30.3Z",
+        #         "quantity": "7.52710000",
+        #         "rate": "0.00034907",
+        #         "orderId": "3a3dbd33-3a30-4ae5-a41d-68d3c1ac537e",
+        #         "commission": "0.00000525",
+        #         "isTaker": False
+        #     }
+        #
+        timestamp = self.parse8601(self.safe_string(trade, 'executedAt'))
         id = self.safe_string(trade, 'id')
-        symbol = None
-        if market is not None:
-            symbol = market['symbol']
+        order = self.safe_string(trade, 'orderId')
+        marketId = self.safe_string(trade, 'marketSymbol')
+        symbol = self.safe_symbol(marketId, market, '-')
+        quote = None
+        if marketId is not None:
+            if symbol in self.markets:
+                market = self.safe_value(self.markets, symbol, market)
+                quote = market['quote']
+            else:
+                baseId, quoteId = marketId.split('-')
+                base = self.safe_currency_code(baseId)
+                quote = self.safe_currency_code(quoteId)
+                symbol = base + '/' + quote
         cost = None
         price = self.safe_float(trade, 'rate')
         amount = self.safe_float(trade, 'quantity')
         if amount is not None:
             if price is not None:
                 cost = price * amount
+        takerOrMaker = None
+        isTaker = self.safe_value(trade, 'isTaker')
+        if isTaker is not None:
+            takerOrMaker = 'taker' if isTaker else 'maker'
+        fee = None
+        feeCost = self.safe_float(trade, 'commission')
+        if feeCost is not None:
+            fee = {
+                'cost': feeCost,
+                'currency': quote,
+            }
+        side = self.safe_string_lower(trade, 'takerSide')
         return {
             'info': trade,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'symbol': symbol,
             'id': id,
-            'order': None,
-            'type': 'limit',
-            'takerOrMaker': None,
+            'order': order,
+            'takerOrMaker': takerOrMaker,
+            'type': None,
             'side': side,
             'price': price,
             'amount': amount,
             'cost': cost,
-            'fee': None,
+            'fee': fee,
         }
 
     def fetch_time(self, params={}):
@@ -555,6 +671,17 @@ class bittrex(Exchange):
             'marketSymbol': self.market_id(symbol),
         }
         response = self.publicGetMarketsMarketSymbolTrades(self.extend(request, params))
+        #
+        #     [
+        #         {
+        #             "id":"9c5589db-42fb-436c-b105-5e2edcb95673",
+        #             "executedAt":"2020-10-03T11:48:43.38Z",
+        #             "quantity":"0.17939626",
+        #             "rate":"0.03297952",
+        #             "takerSide":"BUY"
+        #         }
+        #     ]
+        #
         return self.parse_trades(response, market, since, limit)
 
     def parse_ohlcv(self, ohlcv, market=None):
@@ -634,6 +761,17 @@ class bittrex(Exchange):
         response = self.privateGetOrdersOpen(self.extend(request, params))
         orders = self.parse_orders(response, market, since, limit)
         return self.filter_by_symbol(orders, symbol)
+
+    def fetch_order_trades(self, id, symbol=None, since=None, limit=None, params={}):
+        self.load_markets()
+        request = {
+            'orderId': id,
+        }
+        response = self.privateGetOrdersOrderIdExecutions(self.extend(request, params))
+        market = None
+        if symbol is not None:
+            market = self.market(symbol)
+        return self.parse_trades(response, market, since, limit)
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         # A ceiling order is a market or limit order that allows you to specify
@@ -864,7 +1002,6 @@ class bittrex(Exchange):
         fillQuantity = self.safe_float(order, 'fillQuantity')
         commission = self.safe_float(order, 'commission')
         proceeds = self.safe_float(order, 'proceeds')
-        status = self.safe_string_lower(order, 'status')
         average = None
         remaining = None
         if fillQuantity is not None:
@@ -875,6 +1012,9 @@ class bittrex(Exchange):
                     average = 0
             if quantity is not None:
                 remaining = quantity - fillQuantity
+        status = self.safe_string_lower(order, 'status')
+        if (status == 'closed') and (remaining is not None) and (remaining > 0):
+            status = 'canceled'
         return {
             'id': self.safe_string(order, 'id'),
             'clientOrderId': None,
@@ -1055,13 +1195,10 @@ class bittrex(Exchange):
     def sign(self, path, api='v3', method='GET', params={}, headers=None, body=None):
         url = self.implode_params(self.urls['api'][api], {
             'hostname': self.hostname,
-        }) + '/' + self.version + '/'
-        if api == 'public':
-            url += self.implode_params(path, params)
-            params = self.omit(params, self.extract_params(path))
-            if params:
-                url += '?' + self.urlencode(params)
-        elif api == 'private':
+        }) + '/'
+        if api == 'private':
+            url += self.version + '/'
+            self.check_required_credentials()
             url += self.implode_params(path, params)
             params = self.omit(params, self.extract_params(path))
             hashString = ''
@@ -1089,17 +1226,12 @@ class bittrex(Exchange):
             if method == 'POST':
                 headers['Content-Type'] = 'application/json'
         else:
-            self.check_required_credentials()
-            url += api + '/'
-            request = {
-                'apikey': self.apiKey,
-            }
-            disableNonce = self.safe_value(self.options, 'disableNonce')
-            if (disableNonce is None) or not disableNonce:
-                request['nonce'] = self.nonce()
-            url += path + '?' + self.urlencode(self.extend(request, params))
-            signature = self.hmac(self.encode(url), self.encode(self.secret), hashlib.sha512)
-            headers = {'apisign': signature}
+            if api == 'public':
+                url += self.version + '/'
+            url += self.implode_params(path, params)
+            params = self.omit(params, self.extract_params(path))
+            if params:
+                url += '?' + self.urlencode(params)
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):
@@ -1163,6 +1295,3 @@ class bittrex(Exchange):
                 if message is not None:
                     self.throw_broadly_matched_exception(self.exceptions['broad'], message, feedback)
                 raise ExchangeError(feedback)
-
-    def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        return self.fetch2(path, api, method, params, headers, body)
