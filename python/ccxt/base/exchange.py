@@ -4,7 +4,7 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '1.35.32'
+__version__ = '1.35.85'
 
 # -----------------------------------------------------------------------------
 
@@ -531,10 +531,13 @@ class Exchange(object):
         if self.proxy:
             headers.update({'Origin': self.origin})
         headers.update({'Accept-Encoding': 'gzip, deflate'})
-        return headers
+        return self.set_headers(headers)
 
     def print(self, *args):
         print(*args)
+
+    def set_headers(self, headers):
+        return headers
 
     def fetch(self, url, method='GET', headers=None, body=None):
         """Perform a HTTP request and return decoded JSON data"""
@@ -1704,31 +1707,45 @@ class Exchange(object):
         symbol = market['symbol'] if market else None
         return self.filter_by_symbol_since_limit(array, symbol, since, limit)
 
-    def safe_symbol(self, marketId, market=None, delimiter=None):
+    def safe_market(self, marketId, market=None, delimiter=None):
         if marketId is not None:
             if self.markets_by_id is not None and marketId in self.markets_by_id:
                 market = self.markets_by_id[marketId]
-                return market['symbol']
             elif delimiter is not None:
                 baseId, quoteId = marketId.split(delimiter)
                 base = self.safe_currency_code(baseId)
                 quote = self.safe_currency_code(quoteId)
-                return base + '/' + quote
+                symbol = base + '/' + quote
+                return {
+                    'symbol': symbol,
+                    'base': base,
+                    'quote': quote,
+                }
         if market is not None:
-            return market['symbol']
-        return marketId
+            return market
+        return {
+            'symbol': marketId,
+            'base': None,
+            'quote': None,
+        }
+
+    def safe_symbol(self, marketId, market=None, delimiter=None):
+        market = self.safe_market(marketId, market, delimiter)
+        return market['symbol']
+
+    def safe_currency(self, currency_id, currency=None):
+        if currency_id is None and currency is not None:
+            return currency
+        if (self.currencies_by_id is not None) and (currency_id in self.currencies_by_id):
+            return self.currencies_by_id[currency_id]
+        return {
+            'id': currency_id,
+            'code': self.common_currency_code(currency_id.upper()) if currency_id is not None else currency_id
+        }
 
     def safe_currency_code(self, currency_id, currency=None):
-        code = None
-        if currency_id is not None:
-            currency_id = str(currency_id)
-            if self.currencies_by_id is not None and currency_id in self.currencies_by_id:
-                code = self.currencies_by_id[currency_id]['code']
-            else:
-                code = self.common_currency_code(currency_id.upper())
-        if code is None and currency is not None:
-            code = currency['code']
-        return code
+        currency = self.safe_currency(currency_id, currency)
+        return currency['code']
 
     def filter_by_value_since_limit(self, array, field, value=None, since=None, limit=None, key='timestamp', tail=False):
         array = self.to_array(array)

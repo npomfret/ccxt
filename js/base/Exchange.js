@@ -462,6 +462,10 @@ module.exports = class Exchange {
         console.log (... args)
     }
 
+    setHeaders (headers) {
+        return headers;
+    }
+
     fetch (url, method = 'GET', headers = undefined, body = undefined) {
 
         if (isNode && this.userAgent) {
@@ -489,6 +493,7 @@ module.exports = class Exchange {
         }
 
         headers = extend (this.headers, headers)
+        headers = this.setHeaders (headers)
 
         if (this.verbose) {
             this.print ("fetch:\n", this.id, method, url, "\nRequest:\n", headers, "\n", body, "\n")
@@ -638,8 +643,8 @@ module.exports = class Exchange {
             const allCurrencies = baseCurrencies.concat (quoteCurrencies)
             const groupedCurrencies = groupBy (allCurrencies, 'code')
             const currencies = Object.keys (groupedCurrencies).map ((code) =>
-                groupedCurrencies[code].reduce ((previous, current) =>
-                    ((previous.precision > current.precision) ? previous : current), groupedCurrencies[code][0]))
+                groupedCurrencies[code].reduce ((previous, current) => // eslint-disable-line implicit-arrow-linebreak
+                    ((previous.precision > current.precision) ? previous : current), groupedCurrencies[code][0])) // eslint-disable-line implicit-arrow-linebreak
             const sortedCurrencies = sortBy (flatten (currencies), 'code')
             this.currencies = deepExtend (indexBy (sortedCurrencies, 'code'), this.currencies)
         }
@@ -1146,37 +1151,55 @@ module.exports = class Exchange {
         return this.filterBySymbolSinceLimit (result, symbol, since, limit)
     }
 
-    safeCurrencyCode (currencyId, currency = undefined) {
-        let code = undefined
-        if (currencyId !== undefined) {
-            if (this.currencies_by_id !== undefined && currencyId in this.currencies_by_id) {
-                code = this.currencies_by_id[currencyId]['code']
-            } else {
-                code = this.commonCurrencyCode (currencyId.toUpperCase ())
-            }
+    safeCurrency (currencyId, currency = undefined) {
+        if ((currencyId === undefined) && (currency !== undefined)) {
+            return currency
         }
-        if (code === undefined && currency !== undefined) {
-            code = currency['code']
+        if ((this.currencies_by_id !== undefined) && (currencyId in this.currencies_by_id)) {
+            return this.currencies_by_id[currencyId]
         }
-        return code
+        return {
+            'id': currencyId,
+            'code': (currencyId === undefined) ? currencyId : this.commonCurrencyCode (currencyId.toUpperCase ()),
+        }
     }
 
-    safeSymbol (marketId, market = undefined, delimiter = undefined) {
+    safeCurrencyCode (currencyId, currency = undefined) {
+        currency = this.safeCurrency (currencyId, currency)
+        return currency['code']
+    }
+
+    safeMarket (marketId, market = undefined, delimiter = undefined) {
         if (marketId !== undefined) {
             if (this.markets_by_id !== undefined && marketId in this.markets_by_id) {
                 market = this.markets_by_id[marketId]
-                return market['symbol']
             } else if (delimiter !== undefined) {
                 const [ baseId, quoteId ] = marketId.split (delimiter)
                 const base = this.safeCurrencyCode (baseId)
                 const quote = this.safeCurrencyCode (quoteId)
-                return base + '/' + quote
+                const symbol = base + '/' + quote
+                return {
+                    'id': marketId,
+                    'symbol': symbol,
+                    'base': base,
+                    'quote': quote,
+                }
             }
         }
         if (market !== undefined) {
-            return market['symbol']
+            return market
         }
-        return marketId
+        return {
+            'id': marketId,
+            'symbol': marketId,
+            'base': undefined,
+            'quote': undefined,
+        }
+    }
+
+    safeSymbol (marketId, market = undefined, delimiter = undefined) {
+        market = this.safeMarket (marketId, market, delimiter)
+        return market['symbol'];
     }
 
     filterBySymbol (array, symbol = undefined) {
