@@ -36,7 +36,7 @@ use Elliptic\EC;
 use Elliptic\EdDSA;
 use BN\BN;
 
-$version = '1.35.32';
+$version = '1.36.2';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -55,7 +55,7 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.35.32';
+    const VERSION = '1.36.2';
 
     private static $base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     private static $base58_encoder = null;
@@ -1292,6 +1292,14 @@ class Exchange {
     //     }
     // }
 
+    public function set_headers($headers) {
+        return $headers;
+    }
+
+    public function setHeaders($headers) {
+        return $this->set_headers($headers);
+    }
+
     public function fetch($url, $method = 'GET', $headers = null, $body = null) {
 
         $headers = array_merge($this->headers, $headers ? $headers : array());
@@ -1299,6 +1307,10 @@ class Exchange {
         if (strlen($this->proxy)) {
             $headers['Origin'] = $this->origin;
         }
+
+        $headers = $this->set_headers ($headers);
+
+        $verbose_headers = $headers;
 
         if (!$headers) {
             $headers = array();
@@ -1313,8 +1325,6 @@ class Exchange {
         // this name for the proxy string is deprecated
         // we should rename it to $this->cors everywhere
         $url = $this->proxy . $url;
-
-        $verbose_headers = $headers;
 
         // https://github.com/ccxt/ccxt/issues/5914
         if ($this->curl) {
@@ -1413,12 +1423,17 @@ class Exchange {
                     }
                     return $length;
                 }
-                $key = strtolower(trim($tuple[0]));
+                $key = trim($tuple[0]);
+                $key = implode('-', array_map(get_called_class() . '::capitalize', explode('-', $key)));
                 $value = trim($tuple[1]);
                 if (!array_key_exists($key, $response_headers)) {
-                    $response_headers[$key] = array($value);
+                    $response_headers[$key] = $value;
                 } else {
-                    $response_headers[$key][] = $value;
+                    if (is_array($response_headers[$key])) {
+                        $response_headers[$key][] = $value;
+                    } else {
+                        $response_headers[$key] = array($response_headers[$key], $value);
+                    }
                 }
                 return $length;
             }
@@ -1829,10 +1844,15 @@ class Exchange {
     }
 
     public function parse_orders($orders, $market = null, $since = null, $limit = null, $params = array()) {
-        $array = is_array($orders) ? array_values($orders) : array();
         $result = array();
-        foreach ($array as $order) {
-            $result[] = array_replace_recursive($this->parse_order($order, $market), $params);
+        if (count(array_filter(array_keys($orders), 'is_string')) == 0) {
+            foreach ($orders as $order) {
+                $result[] = array_replace_recursive($this->parse_order($order, $market), $params);
+            }
+        } else {
+            foreach ($orders as $id => $order) {
+                $result[] = array_replace_recursive($this->parse_order(array_replace_recursive(array('id' => $id), $order), $market), $params);
+            }
         }
         $result = $this->sort_by($result, 'timestamp');
         $symbol = isset($market) ? $market['symbol'] : null;
@@ -1843,41 +1863,65 @@ class Exchange {
         return $this->parse_orders($orders, $market, $since, $limit, $params);
     }
 
-    public function safe_symbol($marketId, $market = null, $delimiter = null) {
+    public function safe_market($marketId, $market = null, $delimiter = null) {
         if ($marketId !== null) {
             if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
                 $market = $this->markets_by_id[$marketId];
-                return $market['symbol'];
             } else if ($delimiter !== null) {
                 list($baseId, $quoteId) = explode($delimiter, $marketId);
                 $base = $this->safe_currency_code($baseId);
                 $quote = $this->safe_currency_code($quoteId);
-                return $base . '/' . $quote;
+                $symbol = $base . '/' . $quote;
+                return array(
+                    'symbol' => $symbol,
+                    'base' => $base,
+                    'quote' => $quote,
+                );
             }
         }
         if ($market !== null) {
-            return $market['symbol'];
+            return $market;
         }
-        return $marketId;
+        return array(
+            'symbol' => $marketId,
+            'base' => null,
+            'quote' => null,
+        );
+    }
+
+    public function safeMarket($marketId, $market = null, $delimiter = null) {
+        return $this->safe_market($marketId, $market, $delimiter);
+    }
+
+    public function safe_symbol($marketId, $market = null, $delimiter = null) {
+        $market = $this->safe_market($marketId, $market, $delimiter);
+        return $market['symbol'];
     }
 
     public function safeSymbol($marketId, $market = null, $delimiter = null) {
         return $this->safe_symbol($marketId, $market, $delimiter);
     }
 
+    public function safe_currency($currency_id, $currency = null) {
+        if (($currency_id === null) && ($currency !== null)) {
+            return $currency;
+        }
+        if (($this->currencies_by_id !== null) && array_key_exists($currency_id, $this->currencies_by_id)) {
+            return $this->currencies_by_id[$currency_id];
+        }
+        return array(
+            'id' => $currency_id,
+            'code' => ($currency_id === null) ? $currency_id : $this->common_currency_code(mb_strtoupper($currency_id)),
+        );
+    }
+
+    public function safeCurrency($currency_id, $currency = null) {
+        return $this->safe_currency($currency_id, $currency);
+    }
+
     public function safe_currency_code($currency_id, $currency = null) {
-        $code = null;
-        if ($currency_id !== null) {
-            if ($this->currencies_by_id !== null && array_key_exists($currency_id, $this->currencies_by_id)) {
-                $code = $this->currencies_by_id[$currency_id]['code'];
-            } else {
-                $code = $this->common_currency_code(mb_strtoupper($currency_id));
-            }
-        }
-        if ($code === null && $currency !== null) {
-            $code = $currency['code'];
-        }
-        return $code;
+        $currency = $this->safe_currency($currency_id, $currency);
+        return $currency['code'];
     }
 
     public function safeCurrencyCode($currency_id, $currency = null) {

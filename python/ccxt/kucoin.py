@@ -378,10 +378,17 @@ class kucoin(Exchange):
         response = self.publicGetCurrencies(params)
         #
         #     {
-        #         precision: 10,
-        #         name: 'KCS',
-        #         fullName: 'KCS shares',
-        #         currency: 'KCS'
+        #       "currency": "OMG",
+        #       "name": "OMG",
+        #       "fullName": "OmiseGO",
+        #       "precision": 8,
+        #       "confirms": 12,
+        #       "withdrawalMinSize": "4",
+        #       "withdrawalMinFee": "1.25",
+        #       "isWithdrawEnabled": False,
+        #       "isDepositEnabled": False,
+        #       "isMarginEnabled": False,
+        #       "isDebitEnabled": False
         #     }
         #
         responseData = response['data']
@@ -392,14 +399,18 @@ class kucoin(Exchange):
             name = self.safe_string(entry, 'fullName')
             code = self.safe_currency_code(id)
             precision = self.safe_integer(entry, 'precision')
+            isWithdrawEnabled = self.safe_value(entry, 'isWithdrawEnabled', False)
+            isDepositEnabled = self.safe_value(entry, 'isDepositEnabled', False)
+            fee = self.safe_float(entry, 'withdrawalMinFee')
+            active = (isWithdrawEnabled and isDepositEnabled)
             result[code] = {
                 'id': id,
                 'name': name,
                 'code': code,
                 'precision': precision,
                 'info': entry,
-                'active': None,
-                'fee': None,
+                'active': active,
+                'fee': fee,
                 'limits': self.limits,
             }
         return result

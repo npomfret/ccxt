@@ -374,10 +374,17 @@ class kucoin extends Exchange {
         $response = $this->publicGetCurrencies ($params);
         //
         //     {
-        //         $precision => 10,
-        //         $name => 'KCS',
-        //         fullName => 'KCS shares',
-        //         currency => 'KCS'
+        //       "currency" => "OMG",
+        //       "$name" => "OMG",
+        //       "fullName" => "OmiseGO",
+        //       "$precision" => 8,
+        //       "confirms" => 12,
+        //       "withdrawalMinSize" => "4",
+        //       "withdrawalMinFee" => "1.25",
+        //       "$isWithdrawEnabled" => false,
+        //       "$isDepositEnabled" => false,
+        //       "isMarginEnabled" => false,
+        //       "isDebitEnabled" => false
         //     }
         //
         $responseData = $response['data'];
@@ -388,14 +395,18 @@ class kucoin extends Exchange {
             $name = $this->safe_string($entry, 'fullName');
             $code = $this->safe_currency_code($id);
             $precision = $this->safe_integer($entry, 'precision');
+            $isWithdrawEnabled = $this->safe_value($entry, 'isWithdrawEnabled', false);
+            $isDepositEnabled = $this->safe_value($entry, 'isDepositEnabled', false);
+            $fee = $this->safe_float($entry, 'withdrawalMinFee');
+            $active = ($isWithdrawEnabled && $isDepositEnabled);
             $result[$code] = array(
                 'id' => $id,
                 'name' => $name,
                 'code' => $code,
                 'precision' => $precision,
                 'info' => $entry,
-                'active' => null,
-                'fee' => null,
+                'active' => $active,
+                'fee' => $fee,
                 'limits' => $this->limits,
             );
         }
