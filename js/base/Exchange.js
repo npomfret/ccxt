@@ -767,16 +767,6 @@ module.exports = class Exchange {
         throw new NotSupported (this.id + ' fetchTickers not supported yet')
     }
 
-    purgeCachedOrders (before) {
-        if (this.orders) {
-            const orders = Object
-                .values (this.orders)
-                .filter ((order) => (order.status === 'open') || (order.timestamp >= before))
-            this.orders = indexBy (orders, 'id')
-        }
-        return this.orders
-    }
-
     fetchOrder (id, symbol = undefined, params = {}) {
         throw new NotSupported (this.id + ' fetchOrder not supported yet');
     }
@@ -1164,7 +1154,7 @@ module.exports = class Exchange {
         //
         let result = Array.isArray (orders) ?
             Object.values (orders).map ((order) => this.extend (this.parseOrder (order, market), params)) :
-            Object.entries (orders).map ((id, order) => this.extend (this.parseOrder (this.extend ({ 'id': id }, order), market), params))
+            Object.entries (orders).map (([ id, order ]) => this.extend (this.parseOrder (this.extend ({ 'id': id }, order), market), params))
         result = sortBy (result, 'timestamp')
         const symbol = (market !== undefined) ? market['symbol'] : undefined
         return this.filterBySymbolSinceLimit (result, symbol, since, limit)
