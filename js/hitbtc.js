@@ -528,6 +528,9 @@ module.exports = class hitbtc extends Exchange {
         //   timestamp: '2018-04-28T18:39:55.345Z' }
         const timestamp = this.parse8601 (trade['timestamp']);
         const marketId = this.safeString (trade, 'symbol');
+        if (market === undefined) {
+            market = this.markets_by_id[marketId]
+        }
         const symbol = this.safeSymbol (marketId, market);
         let fee = undefined;
         const feeCost = this.safeFloat (trade, 'fee');
