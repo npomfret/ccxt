@@ -395,10 +395,11 @@ class coinfalcon extends Exchange {
         if ($since !== null) {
             $request['since_time'] = $this->iso8601($since);
         }
-        // TODO => test status=all if it works for closed orders too
+        // TODO => test status=all if it works for closed $orders too
         $response = $this->privateGetUserOrders (array_merge($request, $params));
         $data = $this->safe_value($response, 'data', array());
-        return $this->parse_orders($data, $market, $since, $limit);
+        $orders = $this->filter_by_array($data, 'status', array( 'pending', 'open', 'partially_filled' ), false);
+        return $this->parse_orders($orders, $market, $since, $limit);
     }
 
     public function nonce() {

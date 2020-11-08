@@ -193,6 +193,12 @@ class binance(Exchange):
                         'mining/payment/list',
                         'mining/statistics/user/status',
                         'mining/statistics/user/list',
+                        # liquid swap endpoints
+                        'bswap/pools',
+                        'bswap/liquidity',
+                        'bswap/liquidityOps',
+                        'bswap/quote',
+                        'bswap/swap',
                     ],
                     'post': [
                         'asset/dust',
@@ -223,6 +229,10 @@ class binance(Exchange):
                         'lending/customizedFixed/purchase',
                         'lending/daily/purchase',
                         'lending/daily/redeem',
+                        # liquid swap endpoints
+                        'bswap/liquidityAdd',
+                        'bswap/liquidityRemove',
+                        'bswap/swap',
                     ],
                     'put': [
                         'userDataStream',
@@ -1098,6 +1108,9 @@ class binance(Exchange):
         elif market['delivery']:
             method = 'dapiPublicGetTicker24hr'
         response = getattr(self, method)(self.extend(request, params))
+        if isinstance(response, list):
+            firstTicker = self.safe_value(response, 0, {})
+            return self.parse_ticker(firstTicker, market)
         return self.parse_ticker(response, market)
 
     def parse_tickers(self, rawTickers, symbols=None):
@@ -2219,10 +2232,7 @@ class binance(Exchange):
         #     }
         #
         marketId = self.safe_string(fee, 'symbol')
-        symbol = marketId
-        if marketId in self.markets_by_id:
-            market = self.markets_by_id[marketId]
-            symbol = market['symbol']
+        symbol = self.safe_symbol(marketId)
         return {
             'info': fee,
             'symbol': symbol,

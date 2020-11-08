@@ -374,10 +374,17 @@ class kucoin extends Exchange {
         $response = $this->publicGetCurrencies ($params);
         //
         //     {
-        //         $precision => 10,
-        //         $name => 'KCS',
-        //         fullName => 'KCS shares',
-        //         currency => 'KCS'
+        //       "currency" => "OMG",
+        //       "$name" => "OMG",
+        //       "fullName" => "OmiseGO",
+        //       "$precision" => 8,
+        //       "confirms" => 12,
+        //       "withdrawalMinSize" => "4",
+        //       "withdrawalMinFee" => "1.25",
+        //       "$isWithdrawEnabled" => false,
+        //       "$isDepositEnabled" => false,
+        //       "isMarginEnabled" => false,
+        //       "isDebitEnabled" => false
         //     }
         //
         $responseData = $response['data'];
@@ -390,6 +397,7 @@ class kucoin extends Exchange {
             $precision = $this->safe_integer($entry, 'precision');
             $isWithdrawEnabled = $this->safe_value($entry, 'isWithdrawEnabled', false);
             $isDepositEnabled = $this->safe_value($entry, 'isDepositEnabled', false);
+            $fee = $this->safe_float($entry, 'withdrawalMinFee');
             $active = ($isWithdrawEnabled && $isDepositEnabled);
             $result[$code] = array(
                 'id' => $id,
@@ -398,7 +406,7 @@ class kucoin extends Exchange {
                 'precision' => $precision,
                 'info' => $entry,
                 'active' => $active,
-                'fee' => null,
+                'fee' => $fee,
                 'limits' => $this->limits,
             );
         }
@@ -508,24 +516,8 @@ class kucoin extends Exchange {
             $percentage = $percentage * 100;
         }
         $last = $this->safe_float_2($ticker, 'last', 'lastTradedPrice');
-        $symbol = null;
         $marketId = $this->safe_string($ticker, 'symbol');
-        if ($marketId !== null) {
-            if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
-                $market = $this->markets_by_id[$marketId];
-                $symbol = $market['symbol'];
-            } else {
-                list($baseId, $quoteId) = explode('-', $marketId);
-                $base = $this->safe_currency_code($baseId);
-                $quote = $this->safe_currency_code($quoteId);
-                $symbol = $base . '/' . $quote;
-            }
-        }
-        if ($symbol === null) {
-            if ($market !== null) {
-                $symbol = $market['symbol'];
-            }
-        }
+        $symbol = $this->safe_symbol($marketId, $market, '-');
         $baseVolume = $this->safe_float($ticker, 'vol');
         $quoteVolume = $this->safe_float($ticker, 'volValue');
         $vwap = $this->vwap($baseVolume, $quoteVolume);
@@ -991,25 +983,8 @@ class kucoin extends Exchange {
         //         "createdAt" => 1547026471000  // time
         //     }
         //
-        $symbol = null;
         $marketId = $this->safe_string($order, 'symbol');
-        if ($marketId !== null) {
-            if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
-                $market = $this->markets_by_id[$marketId];
-                $symbol = $market['symbol'];
-            } else {
-                list($baseId, $quoteId) = explode('-', $marketId);
-                $base = $this->safe_currency_code($baseId);
-                $quote = $this->safe_currency_code($quoteId);
-                $symbol = $base . '/' . $quote;
-            }
-            $market = $this->safe_value($this->markets_by_id, $marketId);
-        }
-        if ($symbol === null) {
-            if ($market !== null) {
-                $symbol = $market['symbol'];
-            }
-        }
+        $symbol = $this->safe_symbol($marketId, $market, '-');
         $orderId = $this->safe_string($order, 'id');
         $type = $this->safe_string($order, 'type');
         $timestamp = $this->safe_integer($order, 'createdAt');
@@ -1257,24 +1232,8 @@ class kucoin extends Exchange {
         //         "$id":"5c4d389e4c8c60413f78e2e5",
         //     }
         //
-        $symbol = null;
         $marketId = $this->safe_string($trade, 'symbol');
-        if ($marketId !== null) {
-            if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
-                $market = $this->markets_by_id[$marketId];
-                $symbol = $market['symbol'];
-            } else {
-                list($baseId, $quoteId) = explode('-', $marketId);
-                $base = $this->safe_currency_code($baseId);
-                $quote = $this->safe_currency_code($quoteId);
-                $symbol = $base . '/' . $quote;
-            }
-        }
-        if ($symbol === null) {
-            if ($market !== null) {
-                $symbol = $market['symbol'];
-            }
-        }
+        $symbol = $this->safe_symbol($marketId, $market, '-');
         $id = $this->safe_string_2($trade, 'tradeId', 'id');
         $orderId = $this->safe_string($trade, 'orderId');
         $takerOrMaker = $this->safe_string($trade, 'liquidity');

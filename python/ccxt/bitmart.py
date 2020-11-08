@@ -452,7 +452,7 @@ class bitmart(Exchange):
             #
             pricePrecision = self.safe_integer(market, 'price_max_precision')
             precision = {
-                'amount': self.safe_float(market, 'quote_increment'),
+                'amount': self.safe_float(market, 'base_min_size'),
                 'price': float(self.decimal_to_precision(math.pow(10, -pricePrecision), ROUND, 10)),
             }
             minBuyCost = self.safe_float(market, 'min_buy_amount')
@@ -1511,18 +1511,8 @@ class bitmart(Exchange):
         id = self.safe_string(order, 'order_id', id)
         timestamp = self.parse8601(self.safe_string(order, 'created_at'))
         timestamp = self.safe_integer(order, 'create_time', timestamp)
-        symbol = None
         marketId = self.safe_string_2(order, 'symbol', 'contract_id')
-        if marketId is not None:
-            if marketId in self.markets_by_id:
-                market = self.markets_by_id[marketId]
-            else:
-                baseId, quoteId = marketId.split('_')
-                base = self.safe_currency_code(baseId)
-                quote = self.safe_currency_code(quoteId)
-                symbol = base + '/' + quote
-        if (symbol is None) and (market is not None):
-            symbol = market['symbol']
+        symbol = self.safe_symbol(marketId, market, '_')
         status = None
         if market is not None:
             status = self.parse_order_status_by_type(market['type'], self.safe_string(order, 'status'))

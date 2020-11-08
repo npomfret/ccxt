@@ -114,6 +114,12 @@ class bitstamp extends Exchange {
                         'xlm_address/',
                         'pax_withdrawal/',
                         'pax_address/',
+                        'link_withdrawal/',
+                        'link_address/',
+                        'usdc_withdrawal/',
+                        'usdc_address/',
+                        'omg_withdrawal/',
+                        'omg_address/',
                         'transfer-to-main/',
                         'transfer-from-main/',
                         'withdrawal-requests/',
@@ -1409,18 +1415,10 @@ class bitstamp extends Exchange {
         //         }
         //     )
         //
-        $result = array();
-        for ($i = 0; $i < count($response); $i++) {
-            $order = $this->parse_order($response[$i], $market);
-            $result[] = array_merge($order, array(
-                'status' => 'open',
-                'type' => 'limit',
-            ));
-        }
-        if ($symbol === null) {
-            return $this->filter_by_since_limit($result, $since, $limit);
-        }
-        return $this->filter_by_symbol_since_limit($result, $symbol, $since, $limit);
+        return $this->parse_orders($response, $market, $since, $limit, array(
+            'status' => 'open',
+            'type' => 'limit',
+        ));
     }
 
     public function get_currency_name($code) {
@@ -1449,7 +1447,7 @@ class bitstamp extends Exchange {
             $response = json_decode($response, $as_associative_array = true);
         }
         $address = $v1 ? $response : $this->safe_string($response, 'address');
-        $tag = $v1 ? null : $this->safe_string($response, 'destination_tag');
+        $tag = $v1 ? null : $this->safe_string_2($response, 'memo_id', 'destination_tag');
         $this->check_address($address);
         return array(
             'currency' => $code,

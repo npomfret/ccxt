@@ -23,6 +23,7 @@ from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import NotSupported
 from ccxt.base.errors import RateLimitExceeded
 from ccxt.base.errors import OnMaintenance
+from ccxt.base.decimal_to_precision import TICK_SIZE
 
 
 class coinbasepro(Exchange):
@@ -44,8 +45,9 @@ class coinbasepro(Exchange):
                 'deposit': True,
                 'fetchAccounts': True,
                 'fetchBalance': True,
+                'fetchCurrencies': True,
                 'fetchClosedOrders': True,
-                'fetchDepositAddress': True,
+                'fetchDepositAddress': False,  # the exchange does not have self method, only createDepositAddress, see https://github.com/ccxt/ccxt/pull/7405
                 'fetchMarkets': True,
                 'fetchMyTrades': True,
                 'fetchOHLCV': True,
@@ -59,6 +61,8 @@ class coinbasepro(Exchange):
                 'fetchTrades': True,
                 'fetchTransactions': True,
                 'withdraw': True,
+                'fetchDeposits': True,
+                'fetchWithdrawals': True,
             },
             'timeframes': {
                 '1m': 60,
@@ -112,7 +116,6 @@ class coinbasepro(Exchange):
                         'accounts/{id}/ledger',
                         'accounts/{id}/transfers',
                         'coinbase-accounts',
-                        'coinbase-accounts/{id}/addresses',
                         'fills',
                         'funding',
                         'fees',
@@ -138,6 +141,7 @@ class coinbasepro(Exchange):
                         'transfers/{transfer_id}',
                         'users/self/trailing-volume',
                         'users/self/exchange-limits',
+                        'withdrawals/fee-estimate',
                     ],
                     'post': [
                         'conversions',
@@ -162,6 +166,10 @@ class coinbasepro(Exchange):
                     ],
                 },
             },
+            'commonCurrencies': {
+                'CGLD': 'CELO',
+            },
+            'precisionMode': TICK_SIZE,
             'fees': {
                 'trading': {
                     'tierBased': True,  # complicated tier system per coin
@@ -214,8 +222,99 @@ class coinbasepro(Exchange):
             },
         })
 
+    async def fetch_currencies(self, params={}):
+        response = await self.publicGetCurrencies(params)
+        #
+        #     [
+        #         {
+        #             id: 'XTZ',
+        #             name: 'Tezos',
+        #             min_size: '0.000001',
+        #             status: 'online',
+        #             message: '',
+        #             max_precision: '0.000001',
+        #             convertible_to: [],
+        #             details: {
+        #                 type: 'crypto',
+        #                 symbol: 'Τ',
+        #                 network_confirmations: 60,
+        #                 sort_order: 53,
+        #                 crypto_address_link: 'https://tzstats.com/{{address}}',
+        #                 crypto_transaction_link: 'https://tzstats.com/{{txId}}',
+        #                 push_payment_methods: ['crypto'],
+        #                 group_types: [],
+        #                 display_name: '',
+        #                 processing_time_seconds: 0,
+        #                 min_withdrawal_amount: 1
+        #             }
+        #         }
+        #     ]
+        #
+        result = {}
+        for i in range(0, len(response)):
+            currency = response[i]
+            id = self.safe_string(currency, 'id')
+            name = self.safe_string(currency, 'name')
+            code = self.safe_currency_code(id)
+            details = self.safe_value(currency, 'details', {})
+            precision = self.safe_float(currency, 'max_precision')
+            status = self.safe_string(currency, 'status')
+            active = (status == 'online')
+            result[code] = {
+                'id': id,
+                'code': code,
+                'info': currency,
+                'type': self.safe_string(details, 'type'),
+                'name': name,
+                'active': active,
+                'fee': None,
+                'precision': precision,
+                'limits': {
+                    'amount': {
+                        'min': self.safe_float(details, 'min_size'),
+                        'max': None,
+                    },
+                    'price': {
+                        'min': None,
+                        'max': None,
+                    },
+                    'cost': {
+                        'min': None,
+                        'max': None,
+                    },
+                    'withdraw': {
+                        'min': self.safe_float(details, 'min_withdrawal_amount'),
+                        'max': None,
+                    },
+                },
+            }
+        return result
+
     async def fetch_markets(self, params={}):
         response = await self.publicGetProducts(params)
+        #
+        #     [
+        #         {
+        #             "id":"ZEC-BTC",
+        #             "base_currency":"ZEC",
+        #             "quote_currency":"BTC",
+        #             "base_min_size":"0.01000000",
+        #             "base_max_size":"1500.00000000",
+        #             "quote_increment":"0.00000100",
+        #             "base_increment":"0.00010000",
+        #             "display_name":"ZEC/BTC",
+        #             "min_market_funds":"0.001",
+        #             "max_market_funds":"30",
+        #             "margin_enabled":false,
+        #             "post_only":false,
+        #             "limit_only":false,
+        #             "cancel_only":false,
+        #             "trading_disabled":false,
+        #             "status":"online",
+        #             "status_message":""
+        #         }
+        #     ]
+        #
         result = []
         for i in range(0, len(response)):
             market = response[i]
@@ -230,10 +329,11 @@ class coinbasepro(Exchange):
                 'max': None,
             }
             precision = {
-                'amount': self.precision_from_string(self.safe_string(market, 'base_increment')),
-                'price': self.precision_from_string(self.safe_string(market, 'quote_increment')),
+                'amount': self.safe_float(market, 'base_increment'),
+                'price': self.safe_float(market, 'quote_increment'),
             }
-            active = market['status'] == 'online'
+            status = self.safe_string(market, 'status')
+            active = (status == 'online')
             result.append(self.extend(self.fees['trading'], {
                 'id': id,
                 'symbol': symbol,
@@ -762,23 +862,37 @@ class coinbasepro(Exchange):
         currency = None
         id = self.safe_string(params, 'id')  # account id
         if id is None:
-            if code is None:
-                raise ArgumentsRequired(self.id + ' fetchTransactions() requires a currency code argument if no account id specified in params')
-            currency = self.currency(code)
-            accountsByCurrencyCode = self.index_by(self.accounts, 'currency')
-            account = self.safe_value(accountsByCurrencyCode, code)
-            if account is None:
-                raise ExchangeError(self.id + ' fetchTransactions() could not find account id for ' + code)
-            id = account['id']
-        request = {
-            'id': id,
-        }
+            if code is not None:
+                currency = self.currency(code)
+                accountsByCurrencyCode = self.index_by(self.accounts, 'currency')
+                account = self.safe_value(accountsByCurrencyCode, code)
+                if account is None:
+                    raise ExchangeError(self.id + ' fetchTransactions() could not find account id for ' + code)
+                id = account['id']
+        request = {}
+        if id is not None:
+            request['id'] = id
         if limit is not None:
             request['limit'] = limit
-        response = await self.privateGetAccountsIdTransfers(self.extend(request, params))
-        for i in range(0, len(response)):
-            response[i]['currency'] = code
+        response = None
+        if id is None:
+            response = await self.privateGetTransfers(self.extend(request, params))
+            for i in range(0, len(response)):
+                account_id = self.safe_string(response[i], 'account_id')
+                account = self.safe_value(self.accountsById, account_id)
+                code = self.safe_string(account, 'currency')
+                response[i]['currency'] = code
+        else:
+            response = await self.privateGetAccountsIdTransfers(self.extend(request, params))
+            for i in range(0, len(response)):
+                response[i]['currency'] = code
         return self.parse_transactions(response, currency, since, limit)
+
+    async def fetch_deposits(self, code=None, since=None, limit=None, params={}):
+        return self.fetch_transactions(code, since, limit, self.extend(params, {'type': 'deposit'}))
+
+    async def fetch_withdrawals(self, code=None, since=None, limit=None, params={}):
+        return self.fetch_transactions(code, since, limit, self.extend(params, {'type': 'withdraw'}))
 
     def parse_transaction_status(self, transaction):
         canceled = self.safe_value(transaction, 'canceled_at')
@@ -801,16 +915,22 @@ class coinbasepro(Exchange):
         updated = self.parse8601(self.safe_string(transaction, 'processed_at'))
         currencyId = self.safe_string(transaction, 'currency')
         code = self.safe_currency_code(currencyId, currency)
-        fee = None
         status = self.parse_transaction_status(transaction)
         amount = self.safe_float(transaction, 'amount')
         type = self.safe_string(transaction, 'type')
         address = self.safe_string(details, 'crypto_address')
         tag = self.safe_string(details, 'destination_tag')
         address = self.safe_string(transaction, 'crypto_address', address)
+        fee = None
         if type == 'withdraw':
             type = 'withdrawal'
             address = self.safe_string(details, 'sent_to_address', address)
+            feeCost = self.safe_float(details, 'fee')
+            if feeCost is not None:
+                fee = {
+                    'cost': feeCost,
+                    'code': code,
+                }
         return {
             'info': transaction,
             'id': id,
@@ -853,32 +973,6 @@ class coinbasepro(Exchange):
                 'Content-Type': 'application/json',
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
-
-    async def fetch_deposit_address(self, code, params={}):
-        await self.load_markets()
-        currency = self.currency(code)
-        accounts = self.safe_value(self.options, 'coinbaseAccounts')
-        if accounts is None:
-            accounts = await self.privateGetCoinbaseAccounts()
-            self.options['coinbaseAccounts'] = accounts  # cache it
-            self.options['coinbaseAccountsByCurrencyId'] = self.index_by(accounts, 'currency')
-        currencyId = currency['id']
-        account = self.safe_value(self.options['coinbaseAccountsByCurrencyId'], currencyId)
-        if account is None:
-            # eslint-disable-next-line quotes
-            raise InvalidAddress(self.id + " fetchDepositAddress() could not find currency code " + code + " with id = " + currencyId + " in self.options['coinbaseAccountsByCurrencyId']")
-        request = {
-            'id': account['id'],
-        }
-        response = await self.privateGetCoinbaseAccountsIdAddresses(self.extend(request, params))
-        address = self.safe_string(response, 'address')
-        tag = self.safe_string(response, 'destination_tag')
-        return {
-            'currency': code,
-            'address': self.check_address(address),
-            'tag': tag,
-            'info': response,
-        }
 
     async def create_deposit_address(self, code, params={}):
         await self.load_markets()

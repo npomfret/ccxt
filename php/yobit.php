@@ -143,7 +143,7 @@ class yobit extends Exchange {
                 'PLAY' => 'PlayCoin',
                 'PIVX' => 'Darknet',
                 'PRS' => 'PRE',
-                'PUTIN' => 'PUT',
+                'PUTIN' => 'PutinCoin',
                 'STK' => 'StakeCoin',
                 'SUB' => 'Subscriptio',
                 'PAY' => 'EPAY',
@@ -152,8 +152,10 @@ class yobit extends Exchange {
                 'REP' => 'Republicoin',
                 'RUR' => 'RUB',
                 'TTC' => 'TittieCoin',
+                'UNI' => 'Universe',
                 'VOL' => 'VolumeCoin',
                 'XIN' => 'XINCoin',
+                'XRA' => 'Ratecoin',
             ),
             'options' => array(
                 // 'fetchTickersMaxLength' => 2048,
@@ -605,21 +607,6 @@ class yobit extends Exchange {
             'trades' => null,
         );
         return $result;
-    }
-
-    public function parse_orders($orders, $market = null, $since = null, $limit = null, $params = array ()) {
-        $result = array();
-        $ids = is_array($orders) ? array_keys($orders) : array();
-        $symbol = null;
-        if ($market !== null) {
-            $symbol = $market['symbol'];
-        }
-        for ($i = 0; $i < count($ids); $i++) {
-            $id = $ids[$i];
-            $order = array_merge(array( 'id' => $id ), $orders[$id]);
-            $result[] = array_merge($this->parse_order($order, $market), $params);
-        }
-        return $this->filter_by_symbol_since_limit($result, $symbol, $since, $limit);
     }
 
     public function fetch_order($id, $symbol = null, $params = array ()) {

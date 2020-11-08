@@ -36,7 +36,7 @@ use Elliptic\EC;
 use Elliptic\EdDSA;
 use BN\BN;
 
-$version = '1.35.86';
+$version = '1.37.34';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -55,7 +55,7 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.35.86';
+    const VERSION = '1.37.34';
 
     private static $base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     private static $base58_encoder = null;
@@ -74,6 +74,7 @@ class Exchange {
         'bit2c',
         'bitbank',
         'bitbay',
+        'bitcoincom',
         'bitfinex',
         'bitfinex2',
         'bitflyer',
@@ -142,7 +143,6 @@ class Exchange {
         'huobiru',
         'ice3x',
         'idex',
-        'idex2',
         'independentreserve',
         'indodax',
         'itbit',
@@ -1474,8 +1474,6 @@ class Exchange {
             print_r(array('Response:', $method, $url, $http_status_code, $curl_error, $response_headers, $result));
         }
 
-        $this->handle_errors($http_status_code, $http_status_text, $url, $method, $response_headers, $result ? $result : null, $json_response, $headers, $body);
-
         if ($result === false) {
             if ($curl_errno == 28) { // CURLE_OPERATION_TIMEDOUT
                 throw new RequestTimeout(implode(' ', array($url, $method, $curl_errno, $curl_error)));
@@ -1485,17 +1483,21 @@ class Exchange {
             throw new ExchangeNotAvailable(implode(' ', array($url, $method, $curl_errno, $curl_error)));
         }
 
-        $string_code = (string) $http_status_code;
+        $this->handle_errors($http_status_code, $http_status_text, $url, $method, $response_headers, $result ? $result : null, $json_response, $headers, $body);
+        $this->handle_http_status_code($http_status_code, $http_status_text, $url, $method, $result);
 
+        return isset($json_response) ? $json_response : $result;
+    }
+
+    public function handle_http_status_code($http_status_code, $status_text, $url, $method, $body) {
+        $string_code = (string) $http_status_code;
         if (array_key_exists($string_code, $this->httpExceptions)) {
             $error_class = $this->httpExceptions[$string_code];
             if (substr($error_class, 0, 6) !== '\\ccxt\\') {
                 $error_class = '\\ccxt\\' . $error_class;
             }
-            throw new $error_class(implode(' ', array($url, $method, $http_status_code, $result)));
+            throw new $error_class(implode(' ', array($this->id, $url, $method, $http_status_code, $body)));
         }
-
-        return isset($json_response) ? $json_response : $result;
     }
 
     public function set_markets($markets, $currencies = null) {
@@ -1844,10 +1846,15 @@ class Exchange {
     }
 
     public function parse_orders($orders, $market = null, $since = null, $limit = null, $params = array()) {
-        $array = is_array($orders) ? array_values($orders) : array();
         $result = array();
-        foreach ($array as $order) {
-            $result[] = array_replace_recursive($this->parse_order($order, $market), $params);
+        if (count(array_filter(array_keys($orders), 'is_string')) == 0) {
+            foreach ($orders as $order) {
+                $result[] = array_replace_recursive($this->parse_order($order, $market), $params);
+            }
+        } else {
+            foreach ($orders as $id => $order) {
+                $result[] = array_replace_recursive($this->parse_order(array_replace_recursive(array('id' => $id), $order), $market), $params);
+            }
         }
         $result = $this->sort_by($result, 'timestamp');
         $symbol = isset($market) ? $market['symbol'] : null;
@@ -1871,6 +1878,8 @@ class Exchange {
                     'symbol' => $symbol,
                     'base' => $base,
                     'quote' => $quote,
+                    'baseId' => $baseId,
+                    'quoteId' => $quoteId,
                 );
             }
         }
@@ -1881,6 +1890,8 @@ class Exchange {
             'symbol' => $marketId,
             'base' => null,
             'quote' => null,
+            'baseId' => null,
+            'quoteId' => null,
         );
     }
 
@@ -2019,19 +2030,6 @@ class Exchange {
 
     public function fetchOrderStatus($id, $market = null) {
         return $this->fetch_order_status($id);
-    }
-
-    public function purge_cached_orders($before) {
-        if ($this->orders) {
-            $this->orders = static::index_by(array_filter($this->orders, function ($order) use ($before) {
-                return ('open' === $order['status']) || ($order['timestamp'] >= $before);
-            }), 'id');
-        }
-        return $this->orders;
-    }
-
-    public function purgeCachedOrders($before) {
-        return $this->purge_cached_orders($before);
     }
 
     public function fetch_order($id, $symbol = null, $params = array()) {

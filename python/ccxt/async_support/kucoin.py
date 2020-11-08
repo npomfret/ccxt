@@ -378,10 +378,17 @@ class kucoin(Exchange):
         response = await self.publicGetCurrencies(params)
         #
         #     {
-        #         precision: 10,
-        #         name: 'KCS',
-        #         fullName: 'KCS shares',
-        #         currency: 'KCS'
+        #       "currency": "OMG",
+        #       "name": "OMG",
+        #       "fullName": "OmiseGO",
+        #       "precision": 8,
+        #       "confirms": 12,
+        #       "withdrawalMinSize": "4",
+        #       "withdrawalMinFee": "1.25",
+        #       "isWithdrawEnabled": False,
+        #       "isDepositEnabled": False,
+        #       "isMarginEnabled": False,
+        #       "isDebitEnabled": False
         #     }
         #
         responseData = response['data']
@@ -394,6 +401,7 @@ class kucoin(Exchange):
             precision = self.safe_integer(entry, 'precision')
             isWithdrawEnabled = self.safe_value(entry, 'isWithdrawEnabled', False)
             isDepositEnabled = self.safe_value(entry, 'isDepositEnabled', False)
+            fee = self.safe_float(entry, 'withdrawalMinFee')
             active = (isWithdrawEnabled and isDepositEnabled)
             result[code] = {
                 'id': id,
@@ -402,7 +410,7 @@ class kucoin(Exchange):
                 'precision': precision,
                 'info': entry,
                 'active': active,
-                'fee': None,
+                'fee': fee,
                 'limits': self.limits,
             }
         return result
@@ -506,20 +514,8 @@ class kucoin(Exchange):
         if percentage is not None:
             percentage = percentage * 100
         last = self.safe_float_2(ticker, 'last', 'lastTradedPrice')
-        symbol = None
         marketId = self.safe_string(ticker, 'symbol')
-        if marketId is not None:
-            if marketId in self.markets_by_id:
-                market = self.markets_by_id[marketId]
-                symbol = market['symbol']
-            else:
-                baseId, quoteId = marketId.split('-')
-                base = self.safe_currency_code(baseId)
-                quote = self.safe_currency_code(quoteId)
-                symbol = base + '/' + quote
-        if symbol is None:
-            if market is not None:
-                symbol = market['symbol']
+        symbol = self.safe_symbol(marketId, market, '-')
         baseVolume = self.safe_float(ticker, 'vol')
         quoteVolume = self.safe_float(ticker, 'volValue')
         vwap = self.vwap(baseVolume, quoteVolume)
@@ -953,21 +949,8 @@ class kucoin(Exchange):
         #         "createdAt": 1547026471000  # time
         #     }
         #
-        symbol = None
         marketId = self.safe_string(order, 'symbol')
-        if marketId is not None:
-            if marketId in self.markets_by_id:
-                market = self.markets_by_id[marketId]
-                symbol = market['symbol']
-            else:
-                baseId, quoteId = marketId.split('-')
-                base = self.safe_currency_code(baseId)
-                quote = self.safe_currency_code(quoteId)
-                symbol = base + '/' + quote
-            market = self.safe_value(self.markets_by_id, marketId)
-        if symbol is None:
-            if market is not None:
-                symbol = market['symbol']
+        symbol = self.safe_symbol(marketId, market, '-')
         orderId = self.safe_string(order, 'id')
         type = self.safe_string(order, 'type')
         timestamp = self.safe_integer(order, 'createdAt')
@@ -1200,20 +1183,8 @@ class kucoin(Exchange):
         #         "id":"5c4d389e4c8c60413f78e2e5",
         #     }
         #
-        symbol = None
         marketId = self.safe_string(trade, 'symbol')
-        if marketId is not None:
-            if marketId in self.markets_by_id:
-                market = self.markets_by_id[marketId]
-                symbol = market['symbol']
-            else:
-                baseId, quoteId = marketId.split('-')
-                base = self.safe_currency_code(baseId)
-                quote = self.safe_currency_code(quoteId)
-                symbol = base + '/' + quote
-        if symbol is None:
-            if market is not None:
-                symbol = market['symbol']
+        symbol = self.safe_symbol(marketId, market, '-')
         id = self.safe_string_2(trade, 'tradeId', 'id')
         orderId = self.safe_string(trade, 'orderId')
         takerOrMaker = self.safe_string(trade, 'liquidity')

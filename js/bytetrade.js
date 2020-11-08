@@ -60,11 +60,11 @@ module.exports = class bytetrade extends Exchange {
                 },
                 'logo': 'https://user-images.githubusercontent.com/1294454/67288762-2f04a600-f4e6-11e9-9fd6-c60641919491.jpg',
                 'api': {
-                    'market': 'https://api-v2.bytetrade.com',
-                    'public': 'https://api-v2.bytetrade.com',
+                    'market': 'https://api-v2.byte-trade.com',
+                    'public': 'https://api-v2.byte-trade.com',
                 },
                 'www': 'https://www.byte-trade.com',
-                'doc': 'https://github.com/Bytetrade/bytetrade-official-api-docs/wiki',
+                'doc': 'https://docs.byte-trade.com/#description',
             },
             'api': {
                 'market': {
@@ -632,6 +632,8 @@ module.exports = class bytetrade extends Exchange {
         const defaultDappId = 'Sagittarius';
         const dappId = this.safeString (params, 'dappId', defaultDappId);
         const defaultFee = this.safeString (this.options, 'fee', '300000000000000');
+        const totalFeeRate = this.safeString (params, 'totalFeeRate', 8);
+        const chainFeeRate = this.safeString (params, 'chainFeeRate', 1);
         const fee = this.safeString (params, 'fee', defaultFee);
         const eightBytes = this.integerPow ('2', '64');
         const allByteStringArray = [
@@ -656,7 +658,10 @@ module.exports = class bytetrade extends Exchange {
             this.numberToLE (0, 2),
             this.numberToLE (Math.floor (now / 1000), 4),
             this.numberToLE (Math.floor (expiration / 1000), 4),
-            this.numberToLE (0, 2),
+            this.numberToLE (1, 1),
+            this.numberToLE (parseInt (chainFeeRate), 2),
+            this.numberToLE (1, 1),
+            this.numberToLE (parseInt (totalFeeRate), 2),
             this.numberToLE (parseInt (quoteId), 4),
             this.numberToLE (parseInt (baseId), 4),
             this.numberToLE (0, 1),
@@ -686,7 +691,10 @@ module.exports = class bytetrade extends Exchange {
             this.numberToLE (0, 2),
             this.numberToLE (Math.floor (now / 1000), 4),
             this.numberToLE (Math.floor (expiration / 1000), 4),
-            this.numberToLE (0, 2),
+            this.numberToLE (1, 1),
+            this.numberToLE (parseInt (chainFeeRate), 2),
+            this.numberToLE (1, 1),
+            this.numberToLE (parseInt (totalFeeRate), 2),
             this.numberToLE (parseInt (quoteId), 4),
             this.numberToLE (parseInt (baseId), 4),
             this.numberToLE (0, 1),
@@ -724,6 +732,8 @@ module.exports = class bytetrade extends Exchange {
             'use_btt_as_fee': false,
             'money_id': parseInt (quoteId),
             'stock_id': parseInt (baseId),
+            'custom_no_btt_fee_rate': parseInt (totalFeeRate),
+            'custom_btt_fee_rate': parseInt (chainFeeRate),
         };
         const fatty = {
             'timestamp': datetime,

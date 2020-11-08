@@ -69,6 +69,7 @@ The CCXT library currently supports the following 125 cryptocurrency exchange ma
 | [![bit2c](https://user-images.githubusercontent.com/1294454/27766119-3593220e-5ece-11e7-8b3a-5a041f6bcc3f.jpg)](https://bit2c.co.il/Aff/63bfed10-e359-420c-ab5a-ad368dab0baf)                    | bit2c              | [Bit2C](https://bit2c.co.il/Aff/63bfed10-e359-420c-ab5a-ad368dab0baf)                   | *   | [API](https://www.bit2c.co.il/home/api)                                                      |                                                                                                                             |                                                                              |
 | [![bitbank](https://user-images.githubusercontent.com/1294454/37808081-b87f2d9c-2e59-11e8-894d-c1900b7584fe.jpg)](https://bitbank.cc/)                                                           | bitbank            | [bitbank](https://bitbank.cc/)                                                          | 1   | [API](https://docs.bitbank.cc/)                                                              |                                                                                                                             |                                                                              |
 | [![bitbay](https://user-images.githubusercontent.com/1294454/27766132-978a7bd8-5ece-11e7-9540-bc96d1e9bbb8.jpg)](https://auth.bitbay.net/ref/jHlbB4mIkdS1)                                       | bitbay             | [BitBay](https://auth.bitbay.net/ref/jHlbB4mIkdS1)                                      | *   | [API](https://bitbay.net/public-api)                                                         |                                                                                                                             |                                                                              |
+| [![bitcoincom](https://user-images.githubusercontent.com/1294454/97296144-514fa300-1861-11eb-952b-3d55d492200b.jpg)](https://exchange.bitcoin.com/referral/da948b21d6c92d69)                     | bitcoincom         | [bitcoin.com](https://exchange.bitcoin.com/referral/da948b21d6c92d69)                   | 2   | [API](https://api.exchange.bitcoin.com/api/2/explore)                                        |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![bitfinex](https://user-images.githubusercontent.com/1294454/27766244-e328a50c-5ed2-11e7-947b-041416579bb3.jpg)](https://www.bitfinex.com/?refcode=P61eYxFL)                                   | bitfinex           | [Bitfinex](https://www.bitfinex.com/?refcode=P61eYxFL)                                  | 1   | [API](https://docs.bitfinex.com/v1/docs)                                                     | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![bitfinex2](https://user-images.githubusercontent.com/1294454/27766244-e328a50c-5ed2-11e7-947b-041416579bb3.jpg)](https://www.bitfinex.com/?refcode=P61eYxFL)                                  | bitfinex2          | [Bitfinex](https://www.bitfinex.com/?refcode=P61eYxFL)                                  | 2   | [API](https://docs.bitfinex.com/v2/docs/)                                                    |                                                                                                                             |                                                                              |
 | [![bitflyer](https://user-images.githubusercontent.com/1294454/28051642-56154182-660e-11e7-9b0d-6042d1e6edd8.jpg)](https://bitflyer.com)                                                         | bitflyer           | [bitFlyer](https://bitflyer.com)                                                        | 1   | [API](https://lightning.bitflyer.com/docs?lang=en)                                           |                                                                                                                             |                                                                              |
@@ -97,7 +98,7 @@ The CCXT library currently supports the following 125 cryptocurrency exchange ma
 | [![buda](https://user-images.githubusercontent.com/1294454/47380619-8a029200-d706-11e8-91e0-8a391fe48de3.jpg)](https://www.buda.com)                                                             | buda               | [Buda](https://www.buda.com)                                                            | 2   | [API](https://api.buda.com)                                                                  |                                                                                                                             |                                                                              |
 | [![bw](https://user-images.githubusercontent.com/1294454/69436317-31128c80-0d52-11ea-91d1-eb7bb5818812.jpg)](https://www.bw.com/regGetCommission/N3JuT1R3bWxKTE0)                                | bw                 | [BW](https://www.bw.com/regGetCommission/N3JuT1R3bWxKTE0)                               | 1   | [API](https://github.com/bw-exchange/api_docs_en/wiki)                                       |                                                                                                                             |                                                                              |
 | [![bybit](https://user-images.githubusercontent.com/51840849/76547799-daff5b80-649e-11ea-87fb-3be9bac08954.jpg)](https://www.bybit.com/app/register?ref=X7Prm)                                   | bybit              | [Bybit](https://www.bybit.com/app/register?ref=X7Prm)                                   | 2   | [API](https://bybit-exchange.github.io/docs/inverse/)                                        |                                                                                                                             |                                                                              |
-| [![bytetrade](https://user-images.githubusercontent.com/1294454/67288762-2f04a600-f4e6-11e9-9fd6-c60641919491.jpg)](https://www.byte-trade.com)                                                  | bytetrade          | [ByteTrade](https://www.byte-trade.com)                                                 | *   | [API](https://github.com/Bytetrade/bytetrade-official-api-docs/wiki)                         | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) |                                                                              |
+| [![bytetrade](https://user-images.githubusercontent.com/1294454/67288762-2f04a600-f4e6-11e9-9fd6-c60641919491.jpg)](https://www.byte-trade.com)                                                  | bytetrade          | [ByteTrade](https://www.byte-trade.com)                                                 | *   | [API](https://docs.byte-trade.com/#description)                                              | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) |                                                                              |
 | [![cex](https://user-images.githubusercontent.com/1294454/27766442-8ddc33b0-5ed8-11e7-8b98-f786aef0f3c9.jpg)](https://cex.io/r/0/up105393824/0/)                                                 | cex                | [CEX.IO](https://cex.io/r/0/up105393824/0/)                                             | *   | [API](https://cex.io/cex-api)                                                                |                                                                                                                             |                                                                              |
 | [![chilebit](https://user-images.githubusercontent.com/1294454/27991414-1298f0d8-647f-11e7-9c40-d56409266336.jpg)](https://chilebit.net)                                                         | chilebit           | [ChileBit](https://chilebit.net)                                                        | 1   | [API](https://blinktrade.com/docs)                                                           |                                                                                                                             |                                                                              |
 | [![coinbase](https://user-images.githubusercontent.com/1294454/40811661-b6eceae2-653a-11e8-829e-10bfadb078cf.jpg)](https://www.coinbase.com/join/58cbe25a355148797479dbd2)                       | coinbase           | [Coinbase](https://www.coinbase.com/join/58cbe25a355148797479dbd2)                      | 2   | [API](https://developers.coinbase.com/api/v2)                                                |                                                                                                                             |                                                                              |
@@ -136,8 +137,7 @@ The CCXT library currently supports the following 125 cryptocurrency exchange ma
 | [![huobipro](https://user-images.githubusercontent.com/1294454/76137448-22748a80-604e-11ea-8069-6e389271911d.jpg)](https://www.huobi.com/en-us/topic/invited/?invite_code=rwrd3)                 | huobipro           | [Huobi Pro](https://www.huobi.com/en-us/topic/invited/?invite_code=rwrd3)               | 1   | [API](https://huobiapi.github.io/docs/spot/v1/cn/)                                           |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![huobiru](https://user-images.githubusercontent.com/1294454/52978816-e8552e00-33e3-11e9-98ed-845acfece834.jpg)](https://www.huobi.com.ru/invite?invite_code=esc74)                             | huobiru            | [Huobi Russia](https://www.huobi.com.ru/invite?invite_code=esc74)                       | 1   | [API](https://github.com/cloudapidoc/API_Docs_en)                                            |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![ice3x](https://user-images.githubusercontent.com/51840849/87460809-1dd06c00-c616-11ea-98ad-7d5e1cb7fcdd.jpg)](https://ice3x.com?ref=14341802)                                                 | ice3x              | [ICE3X](https://ice3x.com?ref=14341802)                                                 | 1   | [API](https://ice3x.co.za/ice-cubed-bitcoin-exchange-api-documentation-1-june-2017)          |                                                                                                                             |                                                                              |
-| [![idex](https://user-images.githubusercontent.com/1294454/63693236-3415e380-c81c-11e9-8600-ba1634f1407d.jpg)](https://idex.market)                                                              | idex               | [IDEX](https://idex.market)                                                             | 1   | [API](https://docs.idex.market/)                                                             | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) |                                                                              |
-| [![idex2](https://user-images.githubusercontent.com/51840849/94481303-2f222100-01e0-11eb-97dd-bc14c5943a86.jpg)](https://idex.io)                                                                | idex2              | [IDEX](https://idex.io)                                                                 | 2   | [API](https://docs.idex.io/)                                                                 |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
+| [![idex](https://user-images.githubusercontent.com/51840849/94481303-2f222100-01e0-11eb-97dd-bc14c5943a86.jpg)](https://idex.io)                                                                 | idex               | [IDEX](https://idex.io)                                                                 | 2   | [API](https://docs.idex.io/)                                                                 | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![independentreserve](https://user-images.githubusercontent.com/51840849/87182090-1e9e9080-c2ec-11ea-8e49-563db9a38f37.jpg)](https://www.independentreserve.com)                                | independentreserve | [Independent Reserve](https://www.independentreserve.com)                               | *   | [API](https://www.independentreserve.com/API)                                                |                                                                                                                             |                                                                              |
 | [![indodax](https://user-images.githubusercontent.com/51840849/87070508-9358c880-c221-11ea-8dc5-5391afbbb422.jpg)](https://indodax.com/ref/testbitcoincoid/1)                                    | indodax            | [INDODAX](https://indodax.com/ref/testbitcoincoid/1)                                    | 2.0 | [API](https://github.com/btcid/indodax-official-api-docs)                                    |                                                                                                                             |                                                                              |
 | [![itbit](https://user-images.githubusercontent.com/1294454/27822159-66153620-60ad-11e7-89e7-005f6d7f3de0.jpg)](https://www.itbit.com)                                                           | itbit              | [itBit](https://www.itbit.com)                                                          | 1   | [API](https://api.itbit.com/docs)                                                            |                                                                                                                             |                                                                              |
@@ -1343,15 +1343,15 @@ To fetch historical orders or trades, the user will need to traverse the data in
 
 In most cases users are **required to use at least some type of pagination** in order to get the expected results consistently. If the user does not apply any pagination, most methods will return the exchanges' default, which may start from the beginning of history or may be a subset of most recent objects. The default behaviour (without pagination) is exchange-specific! The means of pagination are often used with the following methods in particular:
 
-- `fetchTrades`
-- `fetchOHLCV`
-- `fetchOrders`
-- `fetchOpenOrders`
-- `fetchClosedOrders`
-- `fetchMyTrades`
-- `fetchTransactions`
-- `fetchDeposits`
-- `fetchWithdrawals`
+- `fetchTrades()`
+- `fetchOHLCV()`
+- `fetchOrders()`
+- `fetchOpenOrders()`
+- `fetchClosedOrders()`
+- `fetchMyTrades()`
+- `fetchTransactions()`
+- `fetchDeposits()`
+- `fetchWithdrawals()`
 
 With methods returning lists of objects, exchanges may offer one or more types of pagination. CCXT unifies **date-based pagination** by default, with timestamps **in milliseconds** throughout the entire library.
 
@@ -2329,10 +2329,6 @@ print (exchange.fetch_balance ())
 var_dump ($exchange->fetch_balance ());
 ```
 
-### Balance inference
-
-Some exchanges do not return the full set of balance information from their API. Those will only return just the `free` or just the `total` funds, i.e. funds `used` on orders unknown. In such cases ccxt will try to obtain the missing data from [.orders cache](#orders-cache) and will guess complete balance info from what is known for sure. However, in rare cases the available info may not be enough to deduce the missing part, thus, **the user shoud be aware of the possibility of not getting complete balance info from less sophisticated exchanges**.
-
 ## Orders
 
 ```diff
@@ -2399,82 +2395,29 @@ exchange.has = {
 }
 ```
 
-The meanings of boolean `true` and `false` are obvious. A string value of `emulated` means that particular method is missing in the exchange API and ccxt will workaround that where possible by adding a caching layer, the `.orders` cache. The next section describes the inner workings of the `.orders` cache, one has to understand it to do order management with ccxt effectively.
+The meanings of boolean `true` and `false` are obvious. A string value of `emulated` means that particular method is missing in the exchange API and ccxt will workaround that where possible on the client-side.
 
 #### Querying Multiple Orders And Trades
 
 All methods returning lists of trades and lists of orders, accept the second `since` argument and the third `limit` argument:
 
-- `fetchTrades` (public)
-- `fetchMyTrades` (private)
-- `fetchOrders`
-- `fetchOpenOrders`
-- `fetchClosedOrders`
+- `fetchTrades()` (public)
+- `fetchMyTrades()` (private)
+- `fetchOrders()`
+- `fetchOpenOrders()`
+- `fetchClosedOrders()`
 
 The second  argument `since` reduces the array by timestamp, the third `limit` argument reduces by number (count) of returned items.
 
-If the user does not specify `since`, the `fetchTrades/fetchOrders` method will return the default set from the exchange. The default set is exchange-specific, some exchanges will return trades or recent orders starting from the date of listing a pair on the exchange, other exchanges will return a reduced set of trades or orders (like, last 24 hours, last 100 trades, first 100 orders, etc). If the user wants precise control over the timeframe, the user is responsible for specifying the `since` argument.
+If the user does not specify `since`, the `fetchTrades()/fetchOrders()` methods will return the default set of results from the exchange. The default set is exchange-specific, some exchanges will return trades or recent orders starting from the date of listing a pair on the exchange, other exchanges will return a reduced set of trades or orders (like, last 24 hours, last 100 trades, first 100 orders, etc). If the user wants precise control over the timeframe, the user is responsible for specifying the `since` argument.
 
 **NOTE: not all exchanges provide means for filtering the lists of trades and orders by starting time, so, the support for `since ` and `limit` is exchange-specific. However, most exchanges do provide at least some alternative for "pagination" and "scrolling" which can be overrided with extra `params` argument.**
 
-
-#### `.orders` cache
-
-Some exchanges do not have a method for fetching closed orders or all orders. They will offer just the `fetchOpenOrders` endpoint, sometimes they are also generous to offer a `fetchOrder` endpoint as well. This means that they don't have any methods for fetching the order history. The ccxt library will try to emulate the order history for the user by keeping the cached `.orders` property containing all orders issued within a particular exchange class instance.
-
-Whenever a user creates a new order or cancels an existing open order or does some other action that would alter the order status, the ccxt library will remember the entire order info in its cache. Upon a subsequent call to an emulated `fetchOrder`, `fetchOrders` or `fetchClosedOrders` method, the exchange instance will send a single request to **`fetchOpenOrders`** and will compare currently fetched open orders with the orders stored in cache previously. The ccxt library will check each cached order and will try to match it with a corresponding fetched open order. When the cached order isn't present in the open orders fetched from the exchange anymore, the library marks the cached order as `closed` (filled). The call to a `fetchOrder`, `fetchOrders`, `fetchClosedOrders` will then return the updated orders from `.orders` cache to the user.
-
-The same logic can be put shortly: *if a cached order is not found in fetched open orders it isn't open anymore, therefore, closed*. This makes the library capable of tracking the order status and order history even with exchanges that don't have that functionality in their API natively. This is true for all methods that query orders or manipulate (place, cancel or edit) orders in any way.
-
-In most cases the `.orders` cache will work transparently for the user. Most often the exchanges themselves have a sufficient set of methods. However, with some exchanges not having a complete API, the `.orders` cache has the following known limitations:
-
-- If the user does not save the `.orders` cache between program runs and does not restore it upon launching a new run, the `.orders` cache will be lost, for obvious reasons. Therefore upon a call to fetchClosedOrders later on a different run, the exchange instance will return an empty list of orders. Without a properly restored cache a fresh new instance of the exchange won't be able to know anything about the orders that were closed and canceled (no history of orders).
-- If the API keypair is shared across multiple exchange instances (e.g. when the user accesses the same exchange account in a multithreaded environment or in simultaneously launched separate scripts). Each particular instance would not be able to know anything about the orders created or canceled by other instances. This means that the order cache is not shared, and, in general, the same API keypair should not be shared across multiple instances accessing the private API. Otherwise it will cause side-effects with nonces and cached data falling out of sync.
-- If the order was placed or canceled from outside of ccxt (on the exchange's website or by other means), the new order status won't arrive to the cache and ccxt won't be able to return it properly later.
-- If an order's cancelation request bypasses ccxt then the library will not be able to find the order in the list of open orders returned from a subsequent call to `fetchOpenOrders()`. Thus the library will mark the cached order with a `'closed'` status.
-- When `fetchOrder(id)` is emulated, the library will not be able to return a specific order, if it was not cached previously or if a change of the order' status was done bypassing ccxt. In that case the library will throw an `OrderNotFound` exception.
-- If an unhandled error leads to a crash of the application and the `.orders` cache isn't saved and restored upon restart, the cache will be lost. Handling the exceptions properly is the responsibility of the user. One has to pay **extra care** when implementing proper [error handling](#error-handling), otherwise the `.orders` cache may fall out of sync.
-
-*Note: the order cache functionality is to be reworked soon to obtain the order statuses from private trades history, where available. This is a work in progress, aimed at adding full-featured support for order fees, costs and other info. More about it here: https://github.com/ccxt/ccxt/issues/569*.
-
-#### Purging Cached Orders
-
-With some long-running instances it might be critical to free up used resources when they aren't needed anymore. Because in active trading the `.orders` cache can grow pretty big, the ccxt library offers the `purgeCachedOrders/purge_cached_orders` method for clearing old non-open orders from cache where `(order['timestamp'] < before) && (order['status'] != 'open')` and freeing used memory for other purposes. The purging method accepts one single argument named `before`:
-
-```JavaScript
-// JavaScript
-
-// keep last 24 hours of history in cache
-before = exchange.milliseconds () - 24 * 60 * 60 * 1000
-
-// purge all closed and canceled orders "older" or issued "before" that time
-exchange.purgeCachedOrders (before)
-```
-
-```Python
-# Python
-
-# keep last hour of history in cache
-before = exchange.milliseconds () - 1 * 60 * 60 * 1000
-
-# purge all closed and canceled orders "older" or issued "before" that time
-exchange.purge_cached_orders (before)
-```
-
-```PHP
-// PHP
-
-// keep last 24 hours of history in cache
-$before = $exchange->milliseconds () - 24 * 60 * 60 * 1000;
-
-// purge all closed and canceled orders "older" or issued "before" that time
-$exchange->purge_cached_orders ($before);
-
-```
+Some exchanges do not have a method for fetching closed orders or all orders. They will offer just the `fetchOpenOrders()` endpoint, and sometimes also a `fetchOrder` endpoint as well. Those exchanges don't have any methods for fetching the order history. To maintain the order history for those exchanges the user has to store a dictionary or a database of orders in the userland and update the orders in the database after calling methods like `createOrder()`, `fetchOpenOrders()`, `cancelOrder()`, `cancelAllOrders()`.
 
 #### By Order Id
 
-To get the details of a particular order by its id, use the fetchOrder / fetch_order method. Some exchanges also require a symbol even when fetching a particular order by id.
+To get the details of a particular order by its id, use the `fetchOrder()` / `fetch_order()` method. Some exchanges also require a symbol even when fetching a particular order by id.
 
 The signature of the fetchOrder/fetch_order method is as follows:
 
@@ -3766,12 +3709,12 @@ This exception is raised when the connection with the exchange fails or data is 
 Thus it's advised to handle this type of exception in the following manner:
 
 - for fetching requests it is safe to retry the call
-- for a request to `cancelOrder` a user is required to retry the same call the second time. If instead of a retry a user calls a `fetchOrder`, `fetchOrders`, `fetchOpenOrders` or `fetchClosedOrders` right away without a retry to call `cancelOrder`, this may cause the [`.orders` cache](#orders-cache) to fall out of sync. A subsequent retry to `cancelOrder` will return one of the following possible results:
+- for a request to `cancelOrder()` a user is required to retry the same call the second time. A subsequent retry to `cancelOrder()` will return one of the following possible results:
   - a request is completed successfully, meaning the order has been properly canceled now
-  - an `OrderNotFound` exception is raised, which means the order was either already canceled on the first attempt or has been executed (filled and closed) in the meantime between the two attempts. Note, that the order will still have an `'open'` status in the `.orders` cache. To determine the actual order status you'll need to call `fetchOrder` to update the cache properly (where available from the exchange). If the `fetchOrder` method is `'emulated'` the ccxt library will mark the order as `'closed'`. The user has to call `fetchBalance` and set the order status to `'canceled'` manually if the balance hasn't changed (a trade didn't not occur).
-- if a request to `createOrder` fails with a `RequestTimeout` the user should:
-  - update the `.orders` cache with a call to `fetchOrders`, `fetchOpenOrders`, `fetchClosedOrders` to check if the request to place the order has succeeded and the order is now open
-  - if the order is not `'open'` the user should `fetchBalance` to check if the balance has changed since the order was created on the first run and then was filled and closed by the time of the second check. Note that `fetchBalance` relies on the `.orders` cache for [balance inference](#balance-inference) and thus should only be called after updating the cache!
+  - an `OrderNotFound` exception is raised, which means the order was either already canceled on the first attempt or has been executed (filled and closed) in the meantime between the two attempts.
+- if a request to `createOrder()` fails with a `RequestTimeout` the user should:
+  - call `fetchOrders()`, `fetchOpenOrders()`, `fetchClosedOrders()` to check if the request to place the order has succeeded and the order is now open
+  - if the order is not `'open'` the user should `fetchBalance()` to check if the balance has changed since the order was created on the first run and then was filled and closed by the time of the second check. 
 
 ### ExchangeNotAvailable
 

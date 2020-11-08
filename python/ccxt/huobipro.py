@@ -229,11 +229,11 @@ class huobipro(Exchange):
                     'api-signature-check-failed': AuthenticationError,
                     'api-signature-not-valid': AuthenticationError,  # {"status":"error","err-code":"api-signature-not-valid","err-msg":"Signature not valid: Incorrect Access key [Access key错误]","data":null}
                     'base-record-invalid': OrderNotFound,  # https://github.com/ccxt/ccxt/issues/5750
-                    # err-msg
-                    'invalid symbol': BadSymbol,  # {"ts":1568813334794,"status":"error","err-code":"invalid-parameter","err-msg":"invalid symbol"}
-                    'invalid-parameter': BadRequest,  # {"ts":1576210479343,"status":"error","err-code":"invalid-parameter","err-msg":"symbol trade not open now"}
                     'base-symbol-trade-disabled': BadSymbol,  # {"status":"error","err-code":"base-symbol-trade-disabled","err-msg":"Trading is disabled for self symbol","data":null}
                     'system-maintenance': OnMaintenance,  # {"status": "error", "err-code": "system-maintenance", "err-msg": "System is in maintenance!", "data": null}
+                    # err-msg
+                    'invalid symbol': BadSymbol,  # {"ts":1568813334794,"status":"error","err-code":"invalid-parameter","err-msg":"invalid symbol"}
+                    'symbol trade not open now': BadSymbol,  # {"ts":1576210479343,"status":"error","err-code":"invalid-parameter","err-msg":"symbol trade not open now"}
                 },
             },
             'options': {
@@ -554,14 +554,12 @@ class huobipro(Exchange):
         result = {}
         for i in range(0, len(tickers)):
             marketId = self.safe_string(tickers[i], 'symbol')
-            market = self.safe_value(self.markets_by_id, marketId)
-            symbol = marketId
-            if market is not None:
-                symbol = market['symbol']
-                ticker = self.parse_ticker(tickers[i], market)
-                ticker['timestamp'] = timestamp
-                ticker['datetime'] = self.iso8601(timestamp)
-                result[symbol] = ticker
+            market = self.safe_market(marketId)
+            symbol = market['symbol']
+            ticker = self.parse_ticker(tickers[i], market)
+            ticker['timestamp'] = timestamp
+            ticker['datetime'] = self.iso8601(timestamp)
+            result[symbol] = ticker
         return self.filter_by_array(result, 'symbol', symbols)
 
     def parse_trade(self, trade, market=None):
@@ -597,13 +595,8 @@ class huobipro(Exchange):
         #          'trade-id': 100050305348
         #     },
         #
-        symbol = None
-        if market is None:
-            marketId = self.safe_string(trade, 'symbol')
-            if marketId in self.markets_by_id:
-                market = self.markets_by_id[marketId]
-        if market is not None:
-            symbol = market['symbol']
+        marketId = self.safe_string(trade, 'symbol')
+        symbol = self.safe_symbol(marketId, market)
         timestamp = self.safe_integer_2(trade, 'ts', 'created-at')
         order = self.safe_string(trade, 'order-id')
         side = self.safe_string(trade, 'direction')
@@ -1012,14 +1005,8 @@ class huobipro(Exchange):
             side = orderType[0]
             type = orderType[1]
             status = self.parse_order_status(self.safe_string(order, 'state'))
-        symbol = None
-        if market is None:
-            if 'symbol' in order:
-                if order['symbol'] in self.markets_by_id:
-                    marketId = order['symbol']
-                    market = self.markets_by_id[marketId]
-        if market is not None:
-            symbol = market['symbol']
+        marketId = self.safe_string(order, 'symbol')
+        symbol = self.safe_symbol(marketId, market)
         timestamp = self.safe_integer(order, 'created-at')
         amount = self.safe_float(order, 'amount')
         filled = self.safe_float_2(order, 'filled-amount', 'field-amount')  # typo in their API, filled amount
@@ -1088,7 +1075,7 @@ class huobipro(Exchange):
                     # https://github.com/ccxt/ccxt/pull/4395
                     # https://github.com/ccxt/ccxt/issues/7611
                     # we use amountToPrecision here because the exchange requires cost in base precision
-                    request['amount'] = self.costtToPrecision(symbol, float(amount) * float(price))
+                    request['amount'] = self.cost_to_precision(symbol, float(amount) * float(price))
             else:
                 request['amount'] = self.cost_to_precision(symbol, amount)
         else:

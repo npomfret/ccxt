@@ -175,8 +175,10 @@ class gateio(Exchange):
                 },
             },
             'commonCurrencies': {
+                'BOX': 'DefiBox',
                 'BTCBEAR': 'BEAR',
                 'BTCBULL': 'BULL',
+                'TNC': 'Trinity Network Credit',
             },
         })
 
@@ -456,10 +458,8 @@ class gateio(Exchange):
         ids = list(response.keys())
         for i in range(0, len(ids)):
             id = ids[i]
-            symbol = self.safe_symbol(id, None, '_')
-            market = None
-            if symbol in self.markets:
-                market = self.markets[symbol]
+            market = self.safe_market(id, None, '_')
+            symbol = market['symbol']
             result[symbol] = self.parse_ticker(response[id], market)
         return self.filter_by_array(result, 'symbol', symbols)
 
@@ -784,26 +784,6 @@ class gateio(Exchange):
             'id': None,
         }
 
-    def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        prefix = (api + '/') if (api == 'private') else ''
-        url = self.urls['api'][api] + self.version + '/1/' + prefix + self.implode_params(path, params)
-        query = self.omit(params, self.extract_params(path))
-        if api == 'public':
-            if query:
-                url += '?' + self.urlencode(query)
-        else:
-            self.check_required_credentials()
-            nonce = self.nonce()
-            request = {'nonce': nonce}
-            body = self.urlencode(self.extend(request, query))
-            signature = self.hmac(self.encode(body), self.encode(self.secret), hashlib.sha512)
-            headers = {
-                'Key': self.apiKey,
-                'Sign': signature,
-                'Content-Type': 'application/x-www-form-urlencoded',
-            }
-        return {'url': url, 'method': method, 'body': body, 'headers': headers}
-
     async def fetch_transactions_by_type(self, type=None, code=None, since=None, limit=None, params={}):
         await self.load_markets()
         request = {}
@@ -913,3 +893,26 @@ class gateio(Exchange):
         if errorCode is not None:
             feedback = self.safe_string(self.exceptions['errorCodeNames'], errorCode, message)
             self.throw_exactly_matched_exception(self.exceptions['exact'], errorCode, feedback)
+
+    def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
+        prefix = (api + '/') if (api == 'private') else ''
+        url = self.urls['api'][api] + self.version + '/1/' + prefix + self.implode_params(path, params)
+        query = self.omit(params, self.extract_params(path))
+        if api == 'public':
+            if query:
+                url += '?' + self.urlencode(query)
+        else:
+            self.check_required_credentials()
+            nonce = self.nonce()
+            request = {'nonce': nonce}
+            body = self.rawencode(self.extend(request, query))
+            # gateio does not like the plus sign in the URL query
+            # https://github.com/ccxt/ccxt/issues/4529
+            body = body.replace('+', ' ')
+            signature = self.hmac(self.encode(body), self.encode(self.secret), hashlib.sha512)
+            headers = {
+                'Key': self.apiKey,
+                'Sign': signature,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        return {'url': url, 'method': method, 'body': body, 'headers': headers}

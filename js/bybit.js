@@ -90,6 +90,7 @@ module.exports = class bybit extends Exchange {
                         'position/list',
                         'wallet/balance',
                         'execution/list',
+                        'trade/closed-pnl/list',
                     ],
                     'post': [
                         'order/create',
@@ -270,11 +271,12 @@ module.exports = class bybit extends Exchange {
             'options': {
                 'marketTypes': {
                     'BTC/USDT': 'linear',
+                    'ETH/USDT': 'linear',
+                    'LTC/USDT': 'linear',
+                    'XTZ/USDT': 'linear',
+                    'LINK/USDT': 'linear',
                 },
                 'code': 'BTC',
-                'fetchBalance': {
-                    'code': 'BTC',
-                },
                 'cancelAllOrders': {
                     'method': 'privatePostOrderCancelAll', // privatePostStopOrderCancelAll
                 },
@@ -413,15 +415,15 @@ module.exports = class bybit extends Exchange {
 
     async fetchBalance (params = {}) {
         await this.loadMarkets ();
-        const defaultCode = this.safeValue (this.options, 'code', 'BTC');
-        const options = this.safeValue (this.options, 'fetchBalance', {});
-        let code = this.safeValue (options, 'code', defaultCode);
-        code = this.safeString (params, 'code', code);
-        params = this.omit (params, 'code');
-        const currency = this.currency (code);
-        const request = {
-            'coin': currency['id'],
-        };
+        const request = {};
+        const coin = this.safeString (params, 'coin');
+        const code = this.safeString (params, 'code');
+        if (coin !== undefined) {
+            request['coin'] = coin;
+        } else if (code !== undefined) {
+            const currency = this.currency (code);
+            request['coin'] = currency['id'];
+        }
         const response = await this.privateGetWalletBalance (this.extend (request, params));
         //
         //     {
@@ -1064,8 +1066,9 @@ module.exports = class bybit extends Exchange {
         }
         const timestamp = this.parse8601 (this.safeString (order, 'created_at'));
         const id = this.safeString2 (order, 'order_id', 'stop_order_id');
-        const price = this.safeFloat (order, 'price');
-        const average = this.safeFloat (order, 'average_price');
+        const type = this.safeStringLower (order, 'order_type');
+        let price = this.safeFloat (order, 'price');
+        let average = this.safeFloat (order, 'average_price');
         const amount = this.safeFloat (order, 'qty');
         let cost = this.safeFloat (order, 'cum_exec_value');
         let filled = this.safeFloat (order, 'cum_exec_qty');
@@ -1090,6 +1093,12 @@ module.exports = class bybit extends Exchange {
                     cost = price * filled;
                 }
             }
+            if ((type === 'market') && (cost !== undefined) && (cost > 0)) {
+                price = undefined;
+                if (average === undefined) {
+                    average = filled / cost;
+                }
+            }
         }
         const status = this.parseOrderStatus (this.safeString2 (order, 'order_status', 'stop_order_status'));
         const side = this.safeStringLower (order, 'side');
@@ -1102,7 +1111,6 @@ module.exports = class bybit extends Exchange {
                 'currency': base,
             };
         }
-        const type = this.safeStringLower (order, 'order_type');
         let clientOrderId = this.safeString (order, 'order_link_id');
         if ((clientOrderId !== undefined) && (clientOrderId.length < 1)) {
             clientOrderId = undefined;
@@ -1244,10 +1252,10 @@ module.exports = class bybit extends Exchange {
             'time_in_force': 'GoodTillCancel', // ImmediateOrCancel, FillOrKill, PostOnly
             // 'take_profit': 123.45, // take profit price, only take effect upon opening the position
             // 'stop_loss': 123.45, // stop loss price, only take effect upon opening the position
-            // 'reduce_only': false, // reduce only
+            // 'reduce_only': false, // reduce only, required for linear orders
             // when creating a closing order, bybit recommends a True value for
             // close_on_trigger to avoid failing due to insufficient available margin
-            // 'close_on_trigger': false,
+            // 'close_on_trigger': false, required for linear orders
             // 'order_link_id': 'string', // unique client order id, max 36 characters
             // conditional orders ---------------------------------------------
             // base_price is used to compare with the value of stop_px, to decide
@@ -1274,6 +1282,11 @@ module.exports = class bybit extends Exchange {
         const marketTypes = this.safeValue (this.options, 'marketTypes', {});
         const marketType = this.safeString (marketTypes, symbol);
         let method = (marketType === 'linear') ? 'privateLinearPostOrderCreate' : 'privatePostOrderCreate';
+        if (marketType === 'linear') {
+            method = 'privateLinearPostOrderCreate';
+            request['reduce_only'] = false;
+            request['close_on_trigger'] = false;
+        }
         if (stopPx !== undefined) {
             if (basePrice === undefined) {
                 throw new ArgumentsRequired (this.id + ' createOrder requires both the stop_px and base_price params for a conditional ' + type + ' order');
@@ -2108,7 +2121,13 @@ module.exports = class bybit extends Exchange {
                 'recv_window': this.options['recvWindow'],
                 'timestamp': timestamp,
             });
-            const auth = this.rawencode (this.keysort (query));
+            let auth = this.rawencode (this.keysort (query));
+            // https://github.com/ccxt/ccxt/issues/7377
+            // https://github.com/ccxt/ccxt/issues/7515
+            // bybit encodes whole floats as integers without .0 for conditional stop-orders only
+            if (path.indexOf ('stop-order') >= 0) {
+                auth = auth.replace ('.0&', '&');
+            }
             const signature = this.hmac (this.encode (auth), this.encode (this.secret));
             if (method === 'POST') {
                 body = this.json (this.extend (query, {

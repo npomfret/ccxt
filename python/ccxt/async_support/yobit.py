@@ -158,7 +158,7 @@ class yobit(Exchange):
                 'PLAY': 'PlayCoin',
                 'PIVX': 'Darknet',
                 'PRS': 'PRE',
-                'PUTIN': 'PUT',
+                'PUTIN': 'PutinCoin',
                 'STK': 'StakeCoin',
                 'SUB': 'Subscriptio',
                 'PAY': 'EPAY',
@@ -167,8 +167,10 @@ class yobit(Exchange):
                 'REP': 'Republicoin',
                 'RUR': 'RUB',
                 'TTC': 'TittieCoin',
+                'UNI': 'Universe',
                 'VOL': 'VolumeCoin',
                 'XIN': 'XINCoin',
+                'XRA': 'Ratecoin',
             },
             'options': {
                 # 'fetchTickersMaxLength': 2048,
@@ -581,18 +583,6 @@ class yobit(Exchange):
             'trades': None,
         }
         return result
-
-    def parse_orders(self, orders, market=None, since=None, limit=None, params={}):
-        result = []
-        ids = list(orders.keys())
-        symbol = None
-        if market is not None:
-            symbol = market['symbol']
-        for i in range(0, len(ids)):
-            id = ids[i]
-            order = self.extend({'id': id}, orders[id])
-            result.append(self.extend(self.parse_order(order, market), params))
-        return self.filter_by_symbol_since_limit(result, symbol, since, limit)
 
     async def fetch_order(self, id, symbol=None, params={}):
         await self.load_markets()

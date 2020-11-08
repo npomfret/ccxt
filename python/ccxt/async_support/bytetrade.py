@@ -69,11 +69,11 @@ class bytetrade(Exchange):
                 },
                 'logo': 'https://user-images.githubusercontent.com/1294454/67288762-2f04a600-f4e6-11e9-9fd6-c60641919491.jpg',
                 'api': {
-                    'market': 'https://api-v2.bytetrade.com',
-                    'public': 'https://api-v2.bytetrade.com',
+                    'market': 'https://api-v2.byte-trade.com',
+                    'public': 'https://api-v2.byte-trade.com',
                 },
                 'www': 'https://www.byte-trade.com',
-                'doc': 'https://github.com/Bytetrade/bytetrade-official-api-docs/wiki',
+                'doc': 'https://docs.byte-trade.com/#description',
             },
             'api': {
                 'market': {
@@ -597,6 +597,8 @@ class bytetrade(Exchange):
         defaultDappId = 'Sagittarius'
         dappId = self.safe_string(params, 'dappId', defaultDappId)
         defaultFee = self.safe_string(self.options, 'fee', '300000000000000')
+        totalFeeRate = self.safe_string(params, 'totalFeeRate', 8)
+        chainFeeRate = self.safe_string(params, 'chainFeeRate', 1)
         fee = self.safe_string(params, 'fee', defaultFee)
         eightBytes = self.integer_pow('2', '64')
         allByteStringArray = [
@@ -621,7 +623,10 @@ class bytetrade(Exchange):
             self.number_to_le(0, 2),
             self.number_to_le(int(math.floor(now / 1000)), 4),
             self.number_to_le(int(math.floor(expiration / 1000)), 4),
-            self.number_to_le(0, 2),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(chainFeeRate), 2),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(totalFeeRate), 2),
             self.number_to_le(int(quoteId), 4),
             self.number_to_le(int(baseId), 4),
             self.number_to_le(0, 1),
@@ -651,7 +656,10 @@ class bytetrade(Exchange):
             self.number_to_le(0, 2),
             self.number_to_le(int(math.floor(now / 1000)), 4),
             self.number_to_le(int(math.floor(expiration / 1000)), 4),
-            self.number_to_le(0, 2),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(chainFeeRate), 2),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(totalFeeRate), 2),
             self.number_to_le(int(quoteId), 4),
             self.number_to_le(int(baseId), 4),
             self.number_to_le(0, 1),
@@ -689,6 +697,8 @@ class bytetrade(Exchange):
             'use_btt_as_fee': False,
             'money_id': int(quoteId),
             'stock_id': int(baseId),
+            'custom_no_btt_fee_rate': int(totalFeeRate),
+            'custom_btt_fee_rate': int(chainFeeRate),
         }
         fatty = {
             'timestamp': datetime,

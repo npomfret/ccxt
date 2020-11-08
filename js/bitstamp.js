@@ -109,6 +109,12 @@ module.exports = class bitstamp extends Exchange {
                         'xlm_address/',
                         'pax_withdrawal/',
                         'pax_address/',
+                        'link_withdrawal/',
+                        'link_address/',
+                        'usdc_withdrawal/',
+                        'usdc_address/',
+                        'omg_withdrawal/',
+                        'omg_address/',
                         'transfer-to-main/',
                         'transfer-from-main/',
                         'withdrawal-requests/',
@@ -1404,18 +1410,10 @@ module.exports = class bitstamp extends Exchange {
         //         }
         //     ]
         //
-        const result = [];
-        for (let i = 0; i < response.length; i++) {
-            const order = this.parseOrder (response[i], market);
-            result.push (this.extend (order, {
-                'status': 'open',
-                'type': 'limit',
-            }));
-        }
-        if (symbol === undefined) {
-            return this.filterBySinceLimit (result, since, limit);
-        }
-        return this.filterBySymbolSinceLimit (result, symbol, since, limit);
+        return this.parseOrders (response, market, since, limit, {
+            'status': 'open',
+            'type': 'limit',
+        });
     }
 
     getCurrencyName (code) {
@@ -1444,7 +1442,7 @@ module.exports = class bitstamp extends Exchange {
             response = JSON.parse (response);
         }
         const address = v1 ? response : this.safeString (response, 'address');
-        const tag = v1 ? undefined : this.safeString (response, 'destination_tag');
+        const tag = v1 ? undefined : this.safeString2 (response, 'memo_id', 'destination_tag');
         this.checkAddress (address);
         return {
             'currency': code,

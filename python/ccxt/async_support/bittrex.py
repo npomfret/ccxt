@@ -373,7 +373,7 @@ class bittrex(Exchange):
         }
         if limit is not None:
             if (limit != 1) and (limit != 25) and (limit != 500):
-                raise BadRequest(self.id + ' fetchOrderBook() limit argument must be None, 1, 25 or 100, default is 25')
+                raise BadRequest(self.id + ' fetchOrderBook() limit argument must be None, 1, 25 or 500, default is 25')
             request['depth'] = limit
         response = await self.publicGetMarketsMarketSymbolOrderbook(self.extend(request, params))
         #
@@ -514,7 +514,9 @@ class bittrex(Exchange):
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
         options = self.safe_value(self.options, 'fetchTickers', {})
-        method = self.safe_string(options, 'method', 'publicGetMarketsTickers')
+        defaultMethod = self.safe_string(options, 'method', 'publicGetMarketsTickers')
+        method = self.safe_string(params, 'method', defaultMethod)
+        params = self.omit(params, 'method')
         response = await getattr(self, method)(params)
         #
         # publicGetMarketsTickers
@@ -555,7 +557,9 @@ class bittrex(Exchange):
             'marketSymbol': market['id'],
         }
         options = self.safe_value(self.options, 'fetchTicker', {})
-        method = self.safe_string(options, 'method', 'publicGetMarketsMarketSymbolTicker')
+        defaultMethod = self.safe_string(options, 'method', 'publicGetMarketsMarketSymbolTicker')
+        method = self.safe_string(params, 'method', defaultMethod)
+        params = self.omit(params, 'method')
         response = await getattr(self, method)(self.extend(request, params))
         #
         # publicGetMarketsMarketSymbolTicker
@@ -611,17 +615,7 @@ class bittrex(Exchange):
         id = self.safe_string(trade, 'id')
         order = self.safe_string(trade, 'orderId')
         marketId = self.safe_string(trade, 'marketSymbol')
-        symbol = self.safe_symbol(marketId, market, '-')
-        quote = None
-        if marketId is not None:
-            if symbol in self.markets:
-                market = self.safe_value(self.markets, symbol, market)
-                quote = market['quote']
-            else:
-                baseId, quoteId = marketId.split('-')
-                base = self.safe_currency_code(baseId)
-                quote = self.safe_currency_code(quoteId)
-                symbol = base + '/' + quote
+        market = self.safe_market(marketId, market, '-')
         cost = None
         price = self.safe_float(trade, 'rate')
         amount = self.safe_float(trade, 'quantity')
@@ -637,14 +631,14 @@ class bittrex(Exchange):
         if feeCost is not None:
             fee = {
                 'cost': feeCost,
-                'currency': quote,
+                'currency': market['quote'],
             }
         side = self.safe_string_lower(trade, 'takerSide')
         return {
             'info': trade,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'symbol': symbol,
+            'symbol': market['symbol'],
             'id': id,
             'order': order,
             'takerOrMaker': takerOrMaker,
@@ -760,8 +754,7 @@ class bittrex(Exchange):
             market = self.market(symbol)
             request['marketSymbol'] = market['id']
         response = await self.privateGetOrdersOpen(self.extend(request, params))
-        orders = self.parse_orders(response, market, since, limit)
-        return self.filter_by_symbol(orders, symbol)
+        return self.parse_orders(response, market, since, limit)
 
     async def fetch_order_trades(self, id, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -965,6 +958,8 @@ class bittrex(Exchange):
                 status = 'canceled'
             elif responseStatus == 'PENDING':
                 status = 'pending'
+            elif responseStatus == 'COMPLETED':
+                status = 'ok'
             elif responseStatus == 'AUTHORIZED' and (txid is not None):
                 status = 'ok'
         feeCost = self.safe_float(transaction, 'txCost')
@@ -1156,10 +1151,7 @@ class bittrex(Exchange):
         response = await self.privateGetOrdersClosed(self.extend(request, params))
         orders = self.parse_orders(response, market)
         trades = self.orders_to_trades(orders)
-        if symbol is not None:
-            return self.filter_by_since_limit(trades, since, limit)
-        else:
-            return self.filter_by_symbol_since_limit(trades, symbol, since, limit)
+        return self.filter_by_symbol_since_limit(trades, symbol, since, limit)
 
     async def fetch_closed_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -1180,10 +1172,7 @@ class bittrex(Exchange):
             # https://github.com/ccxt/ccxt/pull/5219#issuecomment-499646209
             request['marketSymbol'] = market['base'] + '-' + market['quote']
         response = await self.privateGetOrdersClosed(self.extend(request, params))
-        orders = self.parse_orders(response, market, since, limit)
-        if symbol is not None:
-            return self.filter_by_symbol(orders, symbol)
-        return orders
+        return self.parse_orders(response, market, since, limit)
 
     async def fetch_deposit_address(self, code, params={}):
         await self.load_markets()

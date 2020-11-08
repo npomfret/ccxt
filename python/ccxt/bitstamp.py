@@ -129,6 +129,12 @@ class bitstamp(Exchange):
                         'xlm_address/',
                         'pax_withdrawal/',
                         'pax_address/',
+                        'link_withdrawal/',
+                        'link_address/',
+                        'usdc_withdrawal/',
+                        'usdc_address/',
+                        'omg_withdrawal/',
+                        'omg_address/',
                         'transfer-to-main/',
                         'transfer-from-main/',
                         'withdrawal-requests/',
@@ -1307,16 +1313,10 @@ class bitstamp(Exchange):
         #         }
         #     ]
         #
-        result = []
-        for i in range(0, len(response)):
-            order = self.parse_order(response[i], market)
-            result.append(self.extend(order, {
-                'status': 'open',
-                'type': 'limit',
-            }))
-        if symbol is None:
-            return self.filter_by_since_limit(result, since, limit)
-        return self.filter_by_symbol_since_limit(result, symbol, since, limit)
+        return self.parse_orders(response, market, since, limit, {
+            'status': 'open',
+            'type': 'limit',
+        })
 
     def get_currency_name(self, code):
         if code == 'BTC':
@@ -1339,7 +1339,7 @@ class bitstamp(Exchange):
         if v1:
             response = json.loads(response)
         address = response if v1 else self.safe_string(response, 'address')
-        tag = None if v1 else self.safe_string(response, 'destination_tag')
+        tag = None if v1 else self.safe_string_2(response, 'memo_id', 'destination_tag')
         self.check_address(address)
         return {
             'currency': code,

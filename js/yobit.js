@@ -140,7 +140,7 @@ module.exports = class yobit extends Exchange {
                 'PLAY': 'PlayCoin',
                 'PIVX': 'Darknet',
                 'PRS': 'PRE',
-                'PUTIN': 'PUT',
+                'PUTIN': 'PutinCoin',
                 'STK': 'StakeCoin',
                 'SUB': 'Subscriptio',
                 'PAY': 'EPAY',
@@ -149,8 +149,10 @@ module.exports = class yobit extends Exchange {
                 'REP': 'Republicoin',
                 'RUR': 'RUB',
                 'TTC': 'TittieCoin',
+                'UNI': 'Universe',
                 'VOL': 'VolumeCoin',
                 'XIN': 'XINCoin',
+                'XRA': 'Ratecoin',
             },
             'options': {
                 // 'fetchTickersMaxLength': 2048,
@@ -602,21 +604,6 @@ module.exports = class yobit extends Exchange {
             'trades': undefined,
         };
         return result;
-    }
-
-    parseOrders (orders, market = undefined, since = undefined, limit = undefined, params = {}) {
-        const result = [];
-        const ids = Object.keys (orders);
-        let symbol = undefined;
-        if (market !== undefined) {
-            symbol = market['symbol'];
-        }
-        for (let i = 0; i < ids.length; i++) {
-            const id = ids[i];
-            const order = this.extend ({ 'id': id }, orders[id]);
-            result.push (this.extend (this.parseOrder (order, market), params));
-        }
-        return this.filterBySymbolSinceLimit (result, symbol, since, limit);
     }
 
     async fetchOrder (id, symbol = undefined, params = {}) {

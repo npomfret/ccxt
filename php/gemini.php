@@ -59,7 +59,11 @@ class gemini extends Exchange {
                 'test' => array(
                     'public' => 'https://api.sandbox.gemini.com',
                     'private' => 'https://api.sandbox.gemini.com',
-                    'web' => 'https://docs.sandbox.gemini.com',
+                    // use the true doc instead of the sandbox doc
+                    // since they differ in parsing
+                    // https://github.com/ccxt/ccxt/issues/7874
+                    // https://github.com/ccxt/ccxt/issues/7894
+                    'web' => 'https://docs.gemini.com',
                 ),
                 'fees' => array(
                     'https://gemini.com/api-fee-schedule',
@@ -106,6 +110,7 @@ class gemini extends Exchange {
                     ),
                 ),
             ),
+            'precisionMode' => TICK_SIZE,
             'fees' => array(
                 'trading' => array(
                     'taker' => 0.0035,
@@ -199,84 +204,68 @@ class gemini extends Exchange {
         if ($numRows < 2) {
             throw new NotSupported($error);
         }
-        $apiSymbols = $this->fetch_markets_from_api($params);
-        $indexedSymbols = $this->index_by($apiSymbols, 'symbol');
         $result = array();
         // skip the first element (empty string)
         for ($i = 1; $i < $numRows; $i++) {
             $row = $rows[$i];
             $cells = explode("</td>\n", $row); // eslint-disable-line quotes
             $numCells = is_array($cells) ? count($cells) : 0;
-            if ($numCells < 9) {
+            if ($numCells < 5) {
                 throw new NotSupported($error);
             }
             //     array(
-            //         '<td>BTC', // currency
+            //         '<td>btcusd', // currency
             //         '<td>0.00001 BTC (1e-5)', // min order size
             //         '<td>0.00000001 BTC (1e-8)', // tick size
-            //         '<td>0.01 USD', // usd price increment
-            //         '<td>N/A', // btc price increment
-            //         '<td>0.0001 ETH (1e-4)', // eth price increment
-            //         '<td>0.0001 BCH (1e-4)', // bch price increment
-            //         '<td>0.001 LTC (1e-3)', // ltc price increment
+            //         '<td>0.01 USD', // $quote currency price increment
             //         '</tr>'
             //     )
-            //
-            $uppercaseBaseId = str_replace('<td>', '', $cells[0]);
-            $baseId = strtolower($uppercaseBaseId);
-            $base = $this->safe_currency_code($baseId);
-            $quoteIds = array( 'usd', 'btc', 'eth', 'bch', 'ltc' );
+            $marketId = str_replace('<td>', '', $cells[0]);
+            // $base = $this->safe_currency_code($baseId);
             $minAmountString = str_replace('<td>', '', $cells[1]);
             $minAmountParts = explode(' ', $minAmountString);
             $minAmount = $this->safe_float($minAmountParts, 0);
             $amountPrecisionString = str_replace('<td>', '', $cells[2]);
             $amountPrecisionParts = explode(' ', $amountPrecisionString);
-            $amountPrecision = $this->precision_from_string($amountPrecisionParts[0]);
-            for ($j = 0; $j < count($quoteIds); $j++) {
-                $quoteId = $quoteIds[$j];
-                $quote = $this->safe_currency_code($quoteId);
-                $pricePrecisionIndex = $this->sum(3, $j);
-                $pricePrecisionString = str_replace('<td>', '', $cells[$pricePrecisionIndex]);
-                if ($pricePrecisionString === 'N/A') {
-                    continue;
-                }
-                $pricePrecisionParts = explode(' ', $pricePrecisionString);
-                $pricePrecision = $this->precision_from_string($pricePrecisionParts[0]);
-                $symbol = $base . '/' . $quote;
-                if (!(is_array($indexedSymbols) && array_key_exists($symbol, $indexedSymbols))) {
-                    continue;
-                }
-                $marketId = $baseId . $quoteId;
-                $active = null;
-                $result[] = array(
-                    'id' => $marketId,
-                    'info' => $row,
-                    'symbol' => $symbol,
-                    'base' => $base,
-                    'quote' => $quote,
-                    'baseId' => $baseId,
-                    'quoteId' => $quoteId,
-                    'active' => $active,
-                    'precision' => array(
-                        'amount' => $amountPrecision,
-                        'price' => $pricePrecision,
+            $amountPrecision = $this->safe_float($amountPrecisionParts, 0);
+            $idLength = strlen($marketId) - 0;
+            $quoteId = mb_substr($marketId, $idLength - 3, $idLength - $idLength - 3);
+            $quote = $this->safe_currency_code($quoteId);
+            $pricePrecisionString = str_replace('<td>', '', $cells[3]);
+            $pricePrecisionParts = explode(' ', $pricePrecisionString);
+            $pricePrecision = $this->safe_float($pricePrecisionParts, 0);
+            $baseId = str_replace($quoteId, '', $marketId);
+            $base = $this->safe_currency_code($baseId);
+            $symbol = $base . '/' . $quote;
+            $active = null;
+            $result[] = array(
+                'id' => $marketId,
+                'info' => $row,
+                'symbol' => $symbol,
+                'base' => $base,
+                'quote' => $quote,
+                'baseId' => $baseId,
+                'quoteId' => $quoteId,
+                'active' => $active,
+                'precision' => array(
+                    'amount' => $amountPrecision,
+                    'price' => $pricePrecision,
+                ),
+                'limits' => array(
+                    'amount' => array(
+                        'min' => $minAmount,
+                        'max' => null,
                     ),
-                    'limits' => array(
-                        'amount' => array(
-                            'min' => $minAmount,
-                            'max' => null,
-                        ),
-                        'price' => array(
-                            'min' => null,
-                            'max' => null,
-                        ),
-                        'cost' => array(
-                            'min' => null,
-                            'max' => null,
-                        ),
+                    'price' => array(
+                        'min' => null,
+                        'max' => null,
                     ),
-                );
-            }
+                    'cost' => array(
+                        'min' => null,
+                        'max' => null,
+                    ),
+                ),
+            );
         }
         return $result;
     }
@@ -285,11 +274,11 @@ class gemini extends Exchange {
         $response = $this->publicGetV1Symbols ($params);
         $result = array();
         for ($i = 0; $i < count($response); $i++) {
-            $id = $response[$i];
-            $market = $id;
-            $idLength = strlen($id) - 0;
-            $baseId = mb_substr($id, 0, $idLength - 3 - 0);
-            $quoteId = mb_substr($id, $idLength - 3, $idLength - $idLength - 3);
+            $marketId = $response[$i];
+            $market = $marketId;
+            $idLength = strlen($marketId) - 0;
+            $baseId = mb_substr($marketId, 0, $idLength - 3 - 0);
+            $quoteId = mb_substr($marketId, $idLength - 3, $idLength - $idLength - 3);
             $base = $this->safe_currency_code($baseId);
             $quote = $this->safe_currency_code($quoteId);
             $symbol = $base . '/' . $quote;
@@ -298,7 +287,7 @@ class gemini extends Exchange {
                 'price' => null,
             );
             $result[] = array(
-                'id' => $id,
+                'id' => $marketId,
                 'info' => $market,
                 'symbol' => $symbol,
                 'base' => $base,
@@ -706,12 +695,11 @@ class gemini extends Exchange {
     public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
         $response = $this->privatePostV1Orders ($params);
-        $orders = $this->parse_orders($response, null, $since, $limit);
+        $market = null;
         if ($symbol !== null) {
             $market = $this->market($symbol); // throws on non-existent $symbol
-            $orders = $this->filter_by_symbol($orders, $market['symbol']);
         }
-        return $orders;
+        return $this->parse_orders($response, $market, $since, $limit);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {

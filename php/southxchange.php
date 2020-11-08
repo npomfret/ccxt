@@ -174,12 +174,8 @@ class southxchange extends Exchange {
         $result = array();
         for ($i = 0; $i < count($ids); $i++) {
             $id = $ids[$i];
-            $symbol = $id;
-            $market = null;
-            if (is_array($this->markets_by_id) && array_key_exists($id, $this->markets_by_id)) {
-                $market = $this->markets_by_id[$id];
-                $symbol = $market['symbol'];
-            }
+            $market = $this->safe_market($id);
+            $symbol = $market['symbol'];
             $ticker = $tickers[$id];
             $result[$symbol] = $this->parse_ticker($ticker, $market);
         }
@@ -306,9 +302,10 @@ class southxchange extends Exchange {
             $request['limitPrice'] = $price;
         }
         $response = $this->privatePostPlaceOrder (array_merge($request, $params));
+        $id = json_decode($response, $as_associative_array = true);
         return array(
             'info' => $response,
-            'id' => (string) $response,
+            'id' => $id,
         );
     }
 

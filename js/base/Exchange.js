@@ -556,10 +556,7 @@ module.exports = class Exchange {
         // override me
     }
 
-    defaultErrorHandler (code, reason, url, method, headers, body, response) {
-        if ((code >= 200) && (code <= 299)) {
-            return
-        }
+    handleHttpStatusCode (code, reason, url, method, body) {
         const codeAsString = code.toString ()
         if (codeAsString in this.httpExceptions) {
             const ErrorClass = this.httpExceptions[codeAsString]
@@ -601,7 +598,7 @@ module.exports = class Exchange {
             }
 
             this.handleErrors (response.status, response.statusText, url, method, responseHeaders, responseBody, json, requestHeaders, requestBody)
-            this.defaultErrorHandler (response.status, response.statusText, url, method, responseHeaders, responseBody, json)
+            this.handleHttpStatusCode (response.status, response.statusText, url, method, responseBody)
 
             return json || responseBody
         })
@@ -765,16 +762,6 @@ module.exports = class Exchange {
 
     fetchTickers (symbols = undefined, params = {}) {
         throw new NotSupported (this.id + ' fetchTickers not supported yet')
-    }
-
-    purgeCachedOrders (before) {
-        if (this.orders) {
-            const orders = Object
-                .values (this.orders)
-                .filter ((order) => (order.status === 'open') || (order.timestamp >= before))
-            this.orders = indexBy (orders, 'id')
-        }
-        return this.orders
     }
 
     fetchOrder (id, symbol = undefined, params = {}) {
@@ -1141,11 +1128,30 @@ module.exports = class Exchange {
     }
 
     parseOrders (orders, market = undefined, since = undefined, limit = undefined, params = {}) {
-        // this code is commented out temporarily to catch for exchange-specific errors
-        // if (!this.isArray (orders)) {
-        //     throw new ExchangeError (this.id + ' parseOrders expected an array in the orders argument, but got ' + typeof orders);
-        // }
-        let result = Object.values (orders).map ((order) => this.extend (this.parseOrder (order, market), params))
+        //
+        // the value of orders is either a dict or a list
+        //
+        // dict
+        //
+        //     {
+        //         'id1': { ... },
+        //         'id2': { ... },
+        //         'id3': { ... },
+        //         ...
+        //     }
+        //
+        // list
+        //
+        //     [
+        //         { 'id': 'id1', ... },
+        //         { 'id': 'id2', ... },
+        //         { 'id': 'id3', ... },
+        //         ...
+        //     ]
+        //
+        let result = Array.isArray (orders) ?
+            Object.values (orders).map ((order) => this.extend (this.parseOrder (order, market), params)) :
+            Object.entries (orders).map (([ id, order ]) => this.extend (this.parseOrder (this.extend ({ 'id': id }, order), market), params))
         result = sortBy (result, 'timestamp')
         const symbol = (market !== undefined) ? market['symbol'] : undefined
         return this.filterBySymbolSinceLimit (result, symbol, since, limit)
@@ -1183,6 +1189,8 @@ module.exports = class Exchange {
                     'symbol': symbol,
                     'base': base,
                     'quote': quote,
+                    'baseId': baseId,
+                    'quoteId': quoteId,
                 }
             }
         }
@@ -1194,6 +1202,8 @@ module.exports = class Exchange {
             'symbol': marketId,
             'base': undefined,
             'quote': undefined,
+            'baseId': undefined,
+            'quoteId': undefined,
         }
     }
 
