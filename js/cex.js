@@ -134,6 +134,7 @@ module.exports = class cex extends Exchange {
                     'Invalid Order': InvalidOrder,
                     'Order not found': OrderNotFound,
                     'Rate limit exceeded': RateLimitExceeded,
+                    'rate limit exceeded': RateLimitExceeded,
                     'Invalid API key': AuthenticationError,
                     'There was an error while placing your order': InvalidOrder,
                     'Sorry, too many clients already': DDoSProtection,
