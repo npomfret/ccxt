@@ -133,8 +133,7 @@ module.exports = class cex extends Exchange {
                     'Nonce must be incremented': InvalidNonce,
                     'Invalid Order': InvalidOrder,
                     'Order not found': OrderNotFound,
-                    'Rate limit exceeded': RateLimitExceeded,
-                    'rate limit exceeded': RateLimitExceeded,
+                    'limit exceeded': RateLimitExceeded, // {"error":"rate limit exceeded"}
                     'Invalid API key': AuthenticationError,
                     'There was an error while placing your order': InvalidOrder,
                     'Sorry, too many clients already': DDoSProtection,
@@ -926,9 +925,6 @@ module.exports = class cex extends Exchange {
     }
 
     async fetchOrder (id, symbol = undefined, params = {}) {
-        if (id === undefined) {
-            throw new ArgumentsRequired (this.id + ' fetchOrder requires an id argument');
-        }
         await this.loadMarkets ();
         const request = {
             'id': id.toString (),
