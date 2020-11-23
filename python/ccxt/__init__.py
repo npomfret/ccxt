@@ -22,7 +22,7 @@
 
 # ----------------------------------------------------------------------------
 
-__version__ = '1.37.59'
+__version__ = '1.38.13'
 
 # ----------------------------------------------------------------------------
 
@@ -124,7 +124,6 @@ from ccxt.coinmarketcap import coinmarketcap                # noqa: F401
 from ccxt.coinmate import coinmate                          # noqa: F401
 from ccxt.coinone import coinone                            # noqa: F401
 from ccxt.coinspot import coinspot                          # noqa: F401
-from ccxt.coss import coss                                  # noqa: F401
 from ccxt.crex24 import crex24                              # noqa: F401
 from ccxt.currencycom import currencycom                    # noqa: F401
 from ccxt.deribit import deribit                            # noqa: F401
@@ -176,7 +175,6 @@ from ccxt.rightbtc import rightbtc                          # noqa: F401
 from ccxt.ripio import ripio                                # noqa: F401
 from ccxt.southxchange import southxchange                  # noqa: F401
 from ccxt.stex import stex                                  # noqa: F401
-from ccxt.stronghold import stronghold                      # noqa: F401
 from ccxt.surbitcoin import surbitcoin                      # noqa: F401
 from ccxt.therock import therock                            # noqa: F401
 from ccxt.tidebit import tidebit                            # noqa: F401
@@ -250,7 +248,6 @@ exchanges = [
     'coinmate',
     'coinone',
     'coinspot',
-    'coss',
     'crex24',
     'currencycom',
     'deribit',
@@ -302,7 +299,6 @@ exchanges = [
     'ripio',
     'southxchange',
     'stex',
-    'stronghold',
     'surbitcoin',
     'therock',
     'tidebit',

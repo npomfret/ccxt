@@ -36,7 +36,7 @@ use Elliptic\EC;
 use Elliptic\EdDSA;
 use BN\BN;
 
-$version = '1.37.59';
+$version = '1.38.13';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -55,7 +55,7 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.37.59';
+    const VERSION = '1.38.13';
 
     private static $base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     private static $base58_encoder = null;
@@ -118,7 +118,6 @@ class Exchange {
         'coinmate',
         'coinone',
         'coinspot',
-        'coss',
         'crex24',
         'currencycom',
         'deribit',
@@ -170,7 +169,6 @@ class Exchange {
         'ripio',
         'southxchange',
         'stex',
-        'stronghold',
         'surbitcoin',
         'therock',
         'tidebit',
@@ -2245,7 +2243,7 @@ class Exchange {
         throw new NotSupported($this->id . ' cancel_order() not supported or not supported yet');
     }
 
-    public function edit_order($id, $symbol, $type, $side, $amount, $price, $params = array()) {
+    public function edit_order($id, $symbol, $type, $side, $amount, $price = null, $params = array()) {
         if (!$this->enableRateLimit) {
             throw new ExchangeError($this->id . ' edit_order() requires enableRateLimit = true');
         }
@@ -2277,7 +2275,7 @@ class Exchange {
         return $this->edit_limit_order($id, $symbol, $side, $amount, $price, $params);
     }
 
-    public function editOrder($id, $symbol, $type, $side, $amount, $price, $params = array()) {
+    public function editOrder($id, $symbol, $type, $side, $amount, $price = null, $params = array()) {
         return $this->edit_order($id, $symbol, $type, $side, $amount, $price, $params);
     }
 
@@ -2732,14 +2730,16 @@ class Exchange {
     }
 
     public static function from_wei($amount, $decimals = 18) {
-        $exponential = sprintf('%.' . $decimals . 'e', $amount);
+        $format_decimals = $decimals + floor(log($amount, 10));
+        $exponential = sprintf('%.' . $format_decimals . 'e', $amount);
         list($n, $exponent) = explode('e', $exponential);
         $new_exponent = intval($exponent) - $decimals;
         return floatval($n . 'e' . strval($new_exponent));
     }
 
     public static function to_wei($amount, $decimals = 18) {
-        $exponential = sprintf('%.' . $decimals . 'e', $amount);
+        $format_decimals = $decimals + floor(log($amount, 10));
+        $exponential = sprintf('%.' . $format_decimals . 'e', $amount);
         list($n, $exponent) = explode('e', $exponential);
         $new_exponent = intval($exponent) + $decimals;
         return static::number_to_string(floatval($n . 'e' . strval($new_exponent)));
