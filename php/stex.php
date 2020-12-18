@@ -186,6 +186,8 @@ class stex extends Exchange {
             ),
             'commonCurrencies' => array(
                 'BC' => 'Bitcoin Confidential',
+                'BITS' => 'Bitcoinus',
+                'BITSW' => 'BITS',
                 'BHD' => 'Bithold',
             ),
             'options' => array(
@@ -917,6 +919,7 @@ class stex extends Exchange {
                 'order' => $id,
             ));
         }
+        $stopPrice = $this->safe_float($order, 'trigger_price');
         $result = array(
             'info' => $order,
             'id' => $id,
@@ -927,8 +930,10 @@ class stex extends Exchange {
             'symbol' => $symbol,
             'type' => $type,
             'timeInForce' => null,
+            'postOnly' => null,
             'side' => $side,
             'price' => $price,
+            'stopPrice' => $stopPrice,
             'amount' => $amount,
             'cost' => $cost,
             'average' => null,

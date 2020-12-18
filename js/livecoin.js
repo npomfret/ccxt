@@ -98,6 +98,7 @@ module.exports = class livecoin extends Exchange {
                 },
             },
             'commonCurrencies': {
+                'BIT': 'First Bitcoin',
                 'BTCH': 'Bithash',
                 'CPC': 'Capricoin',
                 'CBC': 'CryptoBossCoin', // conflict with CBC (CashBet Coin)
@@ -112,6 +113,7 @@ module.exports = class livecoin extends Exchange {
                 'PLN': 'Plutaneum', // conflict with Polish Zloty
                 'RUR': 'RUB',
                 'SCT': 'SpaceCoin',
+                'TCT': 'Twecrypto',
                 'TPI': 'ThaneCoin',
                 'UNUS': 'LEO', // https://github.com/ccxt/ccxt/issues/7496
                 'WAX': 'WAXP',
@@ -626,8 +628,10 @@ module.exports = class livecoin extends Exchange {
             'symbol': symbol,
             'type': type,
             'timeInForce': undefined,
+            'postOnly': undefined,
             'side': side,
             'price': price,
+            'stopPrice': undefined,
             'amount': amount,
             'cost': cost,
             'filled': filled,

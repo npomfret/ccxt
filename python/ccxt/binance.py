@@ -350,6 +350,7 @@ class binance(Exchange):
                         'ticker/bookTicker',
                         'allForceOrders',
                         'openInterest',
+                        'indexInfo',
                     ],
                 },
                 'fapiData': {
@@ -484,6 +485,7 @@ class binance(Exchange):
             'exceptions': {
                 'API key does not exist': AuthenticationError,
                 'Order would trigger immediately.': OrderImmediatelyFillable,
+                'Stop price would trigger immediately.': OrderImmediatelyFillable,  # {"code":-2010,"msg":"Stop price would trigger immediately."}
                 'Order would immediately match and take.': OrderImmediatelyFillable,  # {"code":-2010,"msg":"Order would immediately match and take."}
                 'Account has insufficient balance for requested action.': InsufficientFunds,
                 'Rest API trading is not enabled.': ExchangeNotAvailable,
@@ -717,21 +719,19 @@ class binance(Exchange):
         result = []
         for i in range(0, len(markets)):
             market = markets[i]
-            marketType = 'spot'
-            future = False
-            delivery = False
-            if 'maintMarginPercent' in market:
-                delivery = ('deliveryDate' in market)
-                future = not delivery
-                marketType = 'delivery' if delivery else 'future'
-            spot = not (future or delivery)
+            spot = (type == 'spot')
+            future = (type == 'future')
+            delivery = (type == 'delivery')
             id = self.safe_string(market, 'symbol')
             lowercaseId = self.safe_string_lower(market, 'symbol')
             baseId = self.safe_string(market, 'baseAsset')
             quoteId = self.safe_string(market, 'quoteAsset')
             base = self.safe_currency_code(baseId)
             quote = self.safe_currency_code(quoteId)
-            symbol = id if delivery else (base + '/' + quote)
+            parts = id.split('_')
+            lastPart = self.safe_string(parts, 1)
+            idSymbol = (delivery) and (lastPart != 'PERP')
+            symbol = id if idSymbol else (base + '/' + quote)
             filters = self.safe_value(market, 'filters', [])
             filtersByType = self.index_by(filters, 'filterType')
             precision = {
@@ -752,7 +752,7 @@ class binance(Exchange):
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'info': market,
-                'type': marketType,
+                'type': type,
                 'spot': spot,
                 'margin': margin,
                 'future': future,
@@ -1510,6 +1510,7 @@ class binance(Exchange):
                 cost = float(self.cost_to_precision(symbol, cost))
         clientOrderId = self.safe_string(order, 'clientOrderId')
         timeInForce = self.safe_string(order, 'timeInForce')
+        postOnly = (type == 'limit_maker') or (timeInForce == 'GTX')
         return {
             'info': order,
             'id': id,
@@ -1520,6 +1521,7 @@ class binance(Exchange):
             'symbol': symbol,
             'type': type,
             'timeInForce': timeInForce,
+            'postOnly': postOnly,
             'side': side,
             'price': price,
             'amount': amount,
@@ -1674,7 +1676,7 @@ class binance(Exchange):
         if clientOrderId is not None:
             request['origClientOrderId'] = clientOrderId
         else:
-            request['orderId'] = int(id)
+            request['orderId'] = id
         query = self.omit(params, ['type', 'clientOrderId', 'origClientOrderId'])
         response = getattr(self, method)(self.extend(request, query))
         return self.parse_order(response, market)
@@ -1794,11 +1796,11 @@ class binance(Exchange):
         origClientOrderId = self.safe_value_2(params, 'origClientOrderId', 'clientOrderId')
         request = {
             'symbol': market['id'],
-            # 'orderId': int(id),
+            # 'orderId': id,
             # 'origClientOrderId': id,
         }
         if origClientOrderId is None:
-            request['orderId'] = int(id)
+            request['orderId'] = id
         else:
             request['origClientOrderId'] = origClientOrderId
         method = 'privateDeleteOrder'
@@ -2181,6 +2183,7 @@ class binance(Exchange):
         fee = None
         if feeCost is not None:
             fee = {'currency': code, 'cost': feeCost}
+        updated = self.safe_integer(transaction, 'successTime')
         return {
             'info': transaction,
             'id': id,
@@ -2188,12 +2191,16 @@ class binance(Exchange):
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'address': address,
+            'addressTo': address,
+            'addressFrom': None,
             'tag': tag,
+            'tagTo': tag,
+            'tagFrom': None,
             'type': type,
             'amount': amount,
             'currency': code,
             'status': status,
-            'updated': None,
+            'updated': updated,
             'fee': fee,
         }
 

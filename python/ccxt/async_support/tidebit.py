@@ -389,6 +389,7 @@ class tidebit(Exchange):
         if price is not None:
             if filled is not None:
                 cost = price * filled
+        average = self.safe_float(order, 'avg_price')
         return {
             'id': id,
             'clientOrderId': None,
@@ -399,8 +400,10 @@ class tidebit(Exchange):
             'symbol': symbol,
             'type': type,
             'timeInForce': None,
+            'postOnly': None,
             'side': side,
             'price': price,
+            'stopPrice': None,
             'amount': amount,
             'filled': filled,
             'remaining': remaining,
@@ -408,7 +411,7 @@ class tidebit(Exchange):
             'trades': None,
             'fee': None,
             'info': order,
-            'average': None,
+            'average': average,
         }
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):

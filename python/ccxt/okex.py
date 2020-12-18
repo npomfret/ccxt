@@ -990,7 +990,7 @@ class okex(Exchange):
             currency = response[i]
             id = self.safe_string(currency, 'currency')
             code = self.safe_currency_code(id)
-            precision = 8  # default precision, todo: fix "magic constants"
+            precision = 0.00000001  # default precision, todo: fix "magic constants"
             name = self.safe_string(currency, 'name')
             canDeposit = self.safe_integer(currency, 'can_deposit')
             canWithdraw = self.safe_integer(currency, 'can_withdraw')
@@ -2086,6 +2086,7 @@ class okex(Exchange):
         clientOrderId = self.safe_string(order, 'client_oid')
         if (clientOrderId is not None) and (len(clientOrderId) < 1):
             clientOrderId = None  # fix empty clientOrderId string
+        stopPrice = self.safe_float(order, 'trigger_price')
         return {
             'info': order,
             'id': id,
@@ -2096,8 +2097,10 @@ class okex(Exchange):
             'symbol': symbol,
             'type': type,
             'timeInForce': None,
+            'postOnly': None,
             'side': side,
             'price': price,
+            'stopPrice': stopPrice,
             'average': average,
             'cost': cost,
             'amount': amount,

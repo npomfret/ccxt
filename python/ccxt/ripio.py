@@ -792,6 +792,7 @@ class ripio(Exchange):
                 remaining = max(0, amount - filled)
         marketId = self.safe_string(order, 'pair')
         symbol = self.safe_symbol(marketId, market, '_')
+        stopPrice = self.safe_float(order, 'stop_price')
         return {
             'id': id,
             'clientOrderId': None,
@@ -802,8 +803,10 @@ class ripio(Exchange):
             'symbol': symbol,
             'type': type,
             'timeInForce': None,
+            'postOnly': None,
             'side': side,
             'price': price,
+            'stopPrice': stopPrice,
             'amount': amount,
             'cost': cost,
             'average': average,

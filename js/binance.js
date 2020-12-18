@@ -330,6 +330,7 @@ module.exports = class binance extends Exchange {
                         'ticker/bookTicker',
                         'allForceOrders',
                         'openInterest',
+                        'indexInfo',
                     ],
                 },
                 'fapiData': {
@@ -464,6 +465,7 @@ module.exports = class binance extends Exchange {
             'exceptions': {
                 'API key does not exist': AuthenticationError,
                 'Order would trigger immediately.': OrderImmediatelyFillable,
+                'Stop price would trigger immediately.': OrderImmediatelyFillable, // {"code":-2010,"msg":"Stop price would trigger immediately."}
                 'Order would immediately match and take.': OrderImmediatelyFillable, // {"code":-2010,"msg":"Order would immediately match and take."}
                 'Account has insufficient balance for requested action.': InsufficientFunds,
                 'Rest API trading is not enabled.': ExchangeNotAvailable,
@@ -826,22 +828,19 @@ module.exports = class binance extends Exchange {
         const result = [];
         for (let i = 0; i < markets.length; i++) {
             const market = markets[i];
-            let marketType = 'spot';
-            let future = false;
-            let delivery = false;
-            if ('maintMarginPercent' in market) {
-                delivery = ('deliveryDate' in market);
-                future = !delivery;
-                marketType = delivery ? 'delivery' : 'future';
-            }
-            const spot = !(future || delivery);
+            const spot = (type === 'spot');
+            const future = (type === 'future');
+            const delivery = (type === 'delivery');
             const id = this.safeString (market, 'symbol');
             const lowercaseId = this.safeStringLower (market, 'symbol');
             const baseId = this.safeString (market, 'baseAsset');
             const quoteId = this.safeString (market, 'quoteAsset');
             const base = this.safeCurrencyCode (baseId);
             const quote = this.safeCurrencyCode (quoteId);
-            const symbol = delivery ? id : (base + '/' + quote);
+            const parts = id.split ('_');
+            const lastPart = this.safeString (parts, 1);
+            const idSymbol = (delivery) && (lastPart !== 'PERP');
+            const symbol = idSymbol ? id : (base + '/' + quote);
             const filters = this.safeValue (market, 'filters', []);
             const filtersByType = this.indexBy (filters, 'filterType');
             const precision = {
@@ -862,7 +861,7 @@ module.exports = class binance extends Exchange {
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'info': market,
-                'type': marketType,
+                'type': type,
                 'spot': spot,
                 'margin': margin,
                 'future': future,
@@ -1688,6 +1687,7 @@ module.exports = class binance extends Exchange {
         }
         const clientOrderId = this.safeString (order, 'clientOrderId');
         const timeInForce = this.safeString (order, 'timeInForce');
+        const postOnly = (type === 'limit_maker') || (timeInForce === 'GTX');
         return {
             'info': order,
             'id': id,
@@ -1698,6 +1698,7 @@ module.exports = class binance extends Exchange {
             'symbol': symbol,
             'type': type,
             'timeInForce': timeInForce,
+            'postOnly': postOnly,
             'side': side,
             'price': price,
             'amount': amount,
@@ -1874,7 +1875,7 @@ module.exports = class binance extends Exchange {
         if (clientOrderId !== undefined) {
             request['origClientOrderId'] = clientOrderId;
         } else {
-            request['orderId'] = parseInt (id);
+            request['orderId'] = id;
         }
         const query = this.omit (params, [ 'type', 'clientOrderId', 'origClientOrderId' ]);
         const response = await this[method] (this.extend (request, query));
@@ -2006,11 +2007,11 @@ module.exports = class binance extends Exchange {
         const origClientOrderId = this.safeValue2 (params, 'origClientOrderId', 'clientOrderId');
         const request = {
             'symbol': market['id'],
-            // 'orderId': parseInt (id),
+            // 'orderId': id,
             // 'origClientOrderId': id,
         };
         if (origClientOrderId === undefined) {
-            request['orderId'] = parseInt (id);
+            request['orderId'] = id;
         } else {
             request['origClientOrderId'] = origClientOrderId;
         }
@@ -2426,6 +2427,7 @@ module.exports = class binance extends Exchange {
         if (feeCost !== undefined) {
             fee = { 'currency': code, 'cost': feeCost };
         }
+        const updated = this.safeInteger (transaction, 'successTime');
         return {
             'info': transaction,
             'id': id,
@@ -2433,12 +2435,16 @@ module.exports = class binance extends Exchange {
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'address': address,
+            'addressTo': address,
+            'addressFrom': undefined,
             'tag': tag,
+            'tagTo': tag,
+            'tagFrom': undefined,
             'type': type,
             'amount': amount,
             'currency': code,
             'status': status,
-            'updated': undefined,
+            'updated': updated,
             'fee': fee,
         };
     }

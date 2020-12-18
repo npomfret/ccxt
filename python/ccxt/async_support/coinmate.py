@@ -604,6 +604,7 @@ class coinmate(Exchange):
         marketId = self.safe_string(order, 'currencyPair')
         symbol = self.safe_symbol(marketId, market, '_')
         clientOrderId = self.safe_string(order, 'clientOrderId')
+        stopPrice = self.safe_float(order, 'stopPrice')
         return {
             'id': id,
             'clientOrderId': clientOrderId,
@@ -613,8 +614,10 @@ class coinmate(Exchange):
             'symbol': symbol,
             'type': type,
             'timeInForce': None,
+            'postOnly': None,
             'side': side,
             'price': price,
+            'stopPrice': stopPrice,
             'amount': amount,
             'cost': cost,
             'average': average,

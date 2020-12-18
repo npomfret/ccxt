@@ -600,6 +600,8 @@ class coinbasepro(Exchange):
         request = {
             'id': market['id'],  # fixes issue  #2
         }
+        if limit is not None:
+            request['limit'] = limit  # default 100
         response = await self.publicGetProductsIdTrades(self.extend(request, params))
         return self.parse_trades(response, market, since, limit)
 
@@ -706,8 +708,10 @@ class coinbasepro(Exchange):
             'symbol': market['symbol'],
             'type': type,
             'timeInForce': None,
+            'postOnly': None,
             'side': side,
             'price': price,
+            'stopPrice': None,
             'cost': cost,
             'amount': amount,
             'filled': filled,
@@ -737,16 +741,10 @@ class coinbasepro(Exchange):
         return self.parse_trades(response, market, since, limit)
 
     async def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
-        await self.load_markets()
         request = {
             'status': 'all',
         }
-        market = None
-        if symbol is not None:
-            market = self.market(symbol)
-            request['product_id'] = market['id']
-        response = await self.privateGetOrders(self.extend(request, params))
-        return self.parse_orders(response, market, since, limit)
+        return await self.fetch_open_orders(symbol, since, limit, self.extend(request, params))
 
     async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -755,20 +753,16 @@ class coinbasepro(Exchange):
         if symbol is not None:
             market = self.market(symbol)
             request['product_id'] = market['id']
+        if limit is not None:
+            request['limit'] = limit  # default 100
         response = await self.privateGetOrders(self.extend(request, params))
         return self.parse_orders(response, market, since, limit)
 
     async def fetch_closed_orders(self, symbol=None, since=None, limit=None, params={}):
-        await self.load_markets()
         request = {
             'status': 'done',
         }
-        market = None
-        if symbol is not None:
-            market = self.market(symbol)
-            request['product_id'] = market['id']
-        response = await self.privateGetOrders(self.extend(request, params))
-        return self.parse_orders(response, market, since, limit)
+        return await self.fetch_open_orders(symbol, since, limit, self.extend(request, params))
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()

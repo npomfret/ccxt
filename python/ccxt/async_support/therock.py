@@ -918,6 +918,7 @@ class therock(Exchange):
                 lastTradeTimestamp = trades[numTrades - 1]['timestamp']
             else:
                 cost = 0
+        stopPrice = self.safe_float(order, 'conditional_price')
         return {
             'id': id,
             'clientOrderId': None,
@@ -929,8 +930,10 @@ class therock(Exchange):
             'symbol': symbol,
             'type': type,
             'timeInForce': None,
+            'postOnly': None,
             'side': side,
             'price': price,
+            'stopPrice': stopPrice,
             'cost': cost,
             'amount': amount,
             'filled': filled,

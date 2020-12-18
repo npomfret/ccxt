@@ -182,6 +182,8 @@ module.exports = class stex extends Exchange {
             },
             'commonCurrencies': {
                 'BC': 'Bitcoin Confidential',
+                'BITS': 'Bitcoinus',
+                'BITSW': 'BITS',
                 'BHD': 'Bithold',
             },
             'options': {
@@ -913,6 +915,7 @@ module.exports = class stex extends Exchange {
                 'order': id,
             });
         }
+        const stopPrice = this.safeFloat (order, 'trigger_price');
         const result = {
             'info': order,
             'id': id,
@@ -923,8 +926,10 @@ module.exports = class stex extends Exchange {
             'symbol': symbol,
             'type': type,
             'timeInForce': undefined,
+            'postOnly': undefined,
             'side': side,
             'price': price,
+            'stopPrice': stopPrice,
             'amount': amount,
             'cost': cost,
             'average': undefined,

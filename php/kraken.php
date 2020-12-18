@@ -13,6 +13,7 @@ use \ccxt\InvalidAddress;
 use \ccxt\InvalidOrder;
 use \ccxt\OrderNotFound;
 use \ccxt\CancelPending;
+use \ccxt\RateLimitExceeded;
 use \ccxt\ExchangeNotAvailable;
 use \ccxt\InvalidNonce;
 
@@ -216,6 +217,8 @@ class kraken extends Exchange {
             'commonCurrencies' => array(
                 'XBT' => 'BTC',
                 'XDG' => 'DOGE',
+                'REPV2' => 'REP',
+                'REP' => 'REPV1',
             ),
             'options' => array(
                 'cacheDepositMethodsOnFetchDepositAddress' => true, // will issue up to two calls in fetchDepositAddress
@@ -1128,6 +1131,7 @@ class kraken extends Exchange {
         if ($rawTrades !== null) {
             $trades = $this->parse_trades($rawTrades, $market, null, null, array( 'order' => $id ));
         }
+        $stopPrice = $this->safe_float($order, 'stopprice');
         return array(
             'id' => $id,
             'clientOrderId' => $clientOrderId,
@@ -1139,8 +1143,10 @@ class kraken extends Exchange {
             'symbol' => $symbol,
             'type' => $type,
             'timeInForce' => null,
+            'postOnly' => null,
             'side' => $side,
             'price' => $price,
+            'stopPrice' => $stopPrice,
             'cost' => $cost,
             'amount' => $amount,
             'filled' => $filled,
@@ -1721,6 +1727,9 @@ class kraken extends Exchange {
         }
         if (mb_strpos($body, 'Invalid arguments:volume') !== false) {
             throw new InvalidOrder($this->id . ' ' . $body);
+        }
+        if (mb_strpos($body, 'Rate limit exceeded') !== false) {
+            throw new RateLimitExceeded($this->id . ' ' . $body);
         }
         if ($body[0] === '{') {
             if (gettype($response) !== 'string') {

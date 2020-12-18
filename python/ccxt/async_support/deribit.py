@@ -1073,6 +1073,8 @@ class deribit(Exchange):
         if trades is not None:
             trades = self.parse_trades(trades, market)
         timeInForce = self.parse_time_in_force(self.safe_string(order, 'time_in_force'))
+        stopPrice = None
+        postOnly = self.safe_value(order, 'post_only')
         return {
             'info': order,
             'id': id,
@@ -1083,8 +1085,10 @@ class deribit(Exchange):
             'symbol': market['symbol'],
             'type': type,
             'timeInForce': timeInForce,
+            'postOnly': postOnly,
             'side': side,
             'price': price,
+            'stopPrice': stopPrice,
             'amount': amount,
             'cost': cost,
             'average': average,
@@ -1170,6 +1174,7 @@ class deribit(Exchange):
                 raise ArgumentsRequired(self.id + ' createOrder requires a stop_price or stopPrice param for a ' + type + ' order')
             else:
                 request['stop_price'] = self.price_to_precision(symbol, stopPrice)
+            params = self.omit(params, ['stop_price', 'stopPrice'])
         method = 'privateGet' + self.capitalize(side)
         response = await getattr(self, method)(self.extend(request, params))
         #

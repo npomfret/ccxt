@@ -976,7 +976,7 @@ module.exports = class okex extends Exchange {
             const currency = response[i];
             const id = this.safeString (currency, 'currency');
             const code = this.safeCurrencyCode (id);
-            const precision = 8; // default precision, todo: fix "magic constants"
+            const precision = 0.00000001; // default precision, todo: fix "magic constants"
             const name = this.safeString (currency, 'name');
             const canDeposit = this.safeInteger (currency, 'can_deposit');
             const canWithdraw = this.safeInteger (currency, 'can_withdraw');
@@ -2154,6 +2154,7 @@ module.exports = class okex extends Exchange {
         if ((clientOrderId !== undefined) && (clientOrderId.length < 1)) {
             clientOrderId = undefined; // fix empty clientOrderId string
         }
+        const stopPrice = this.safeFloat (order, 'trigger_price');
         return {
             'info': order,
             'id': id,
@@ -2164,8 +2165,10 @@ module.exports = class okex extends Exchange {
             'symbol': symbol,
             'type': type,
             'timeInForce': undefined,
+            'postOnly': undefined,
             'side': side,
             'price': price,
+            'stopPrice': stopPrice,
             'average': average,
             'cost': cost,
             'amount': amount,

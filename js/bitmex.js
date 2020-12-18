@@ -1247,6 +1247,7 @@ module.exports = class bitmex extends Exchange {
         const side = this.safeStringLower (order, 'side');
         const clientOrderId = this.safeString (order, 'clOrdID');
         const timeInForce = this.parseTimeInForce (this.safeString (order, 'timeInForce'));
+        const stopPrice = this.safeFloat (order, 'stopPx');
         return {
             'info': order,
             'id': id,
@@ -1257,8 +1258,10 @@ module.exports = class bitmex extends Exchange {
             'symbol': symbol,
             'type': type,
             'timeInForce': timeInForce,
+            'postOnly': undefined,
             'side': side,
             'price': price,
+            'stopPrice': stopPrice,
             'amount': amount,
             'cost': cost,
             'average': average,
@@ -1329,7 +1332,9 @@ module.exports = class bitmex extends Exchange {
         };
         if (price !== undefined) {
             if (orderType === 'Stop') {
-                request['stopPx'] = price;
+                const stopPrice = this.safeFloat2 (params, 'stopPx', 'stopPrice');
+                request['stopPx'] = stopPrice;
+                params = this.omit (params, [ 'stopPx', 'stopPrice' ]);
             } else {
                 request['price'] = price;
             }

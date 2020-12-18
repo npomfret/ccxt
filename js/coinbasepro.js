@@ -600,6 +600,9 @@ module.exports = class coinbasepro extends Exchange {
         const request = {
             'id': market['id'], // fixes issue #2
         };
+        if (limit !== undefined) {
+            request['limit'] = limit; // default 100
+        }
         const response = await this.publicGetProductsIdTrades (this.extend (request, params));
         return this.parseTrades (response, market, since, limit);
     }
@@ -717,8 +720,10 @@ module.exports = class coinbasepro extends Exchange {
             'symbol': market['symbol'],
             'type': type,
             'timeInForce': undefined,
+            'postOnly': undefined,
             'side': side,
             'price': price,
+            'stopPrice': undefined,
             'cost': cost,
             'amount': amount,
             'filled': filled,
@@ -752,17 +757,10 @@ module.exports = class coinbasepro extends Exchange {
     }
 
     async fetchOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
-        await this.loadMarkets ();
         const request = {
             'status': 'all',
         };
-        let market = undefined;
-        if (symbol !== undefined) {
-            market = this.market (symbol);
-            request['product_id'] = market['id'];
-        }
-        const response = await this.privateGetOrders (this.extend (request, params));
-        return this.parseOrders (response, market, since, limit);
+        return await this.fetchOpenOrders (symbol, since, limit, this.extend (request, params));
     }
 
     async fetchOpenOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -773,22 +771,18 @@ module.exports = class coinbasepro extends Exchange {
             market = this.market (symbol);
             request['product_id'] = market['id'];
         }
+        if (limit !== undefined) {
+            request['limit'] = limit; // default 100
+        }
         const response = await this.privateGetOrders (this.extend (request, params));
         return this.parseOrders (response, market, since, limit);
     }
 
     async fetchClosedOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
-        await this.loadMarkets ();
         const request = {
             'status': 'done',
         };
-        let market = undefined;
-        if (symbol !== undefined) {
-            market = this.market (symbol);
-            request['product_id'] = market['id'];
-        }
-        const response = await this.privateGetOrders (this.extend (request, params));
-        return this.parseOrders (response, market, since, limit);
+        return await this.fetchOpenOrders (symbol, since, limit, this.extend (request, params));
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {

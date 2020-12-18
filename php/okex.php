@@ -982,7 +982,7 @@ class okex extends Exchange {
             $currency = $response[$i];
             $id = $this->safe_string($currency, 'currency');
             $code = $this->safe_currency_code($id);
-            $precision = 8; // default $precision, todo => fix "magic constants"
+            $precision = 0.00000001; // default $precision, todo => fix "magic constants"
             $name = $this->safe_string($currency, 'name');
             $canDeposit = $this->safe_integer($currency, 'can_deposit');
             $canWithdraw = $this->safe_integer($currency, 'can_withdraw');
@@ -2160,6 +2160,7 @@ class okex extends Exchange {
         if (($clientOrderId !== null) && (strlen($clientOrderId) < 1)) {
             $clientOrderId = null; // fix empty $clientOrderId string
         }
+        $stopPrice = $this->safe_float($order, 'trigger_price');
         return array(
             'info' => $order,
             'id' => $id,
@@ -2170,8 +2171,10 @@ class okex extends Exchange {
             'symbol' => $symbol,
             'type' => $type,
             'timeInForce' => null,
+            'postOnly' => null,
             'side' => $side,
             'price' => $price,
+            'stopPrice' => $stopPrice,
             'average' => $average,
             'cost' => $cost,
             'amount' => $amount,

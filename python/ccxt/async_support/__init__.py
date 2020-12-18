@@ -4,7 +4,7 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '1.38.13'
+__version__ = '1.39.48'
 
 # -----------------------------------------------------------------------------
 
@@ -91,6 +91,7 @@ from ccxt.async_support.buda import buda                                  # noqa
 from ccxt.async_support.bw import bw                                      # noqa: F401
 from ccxt.async_support.bybit import bybit                                # noqa: F401
 from ccxt.async_support.bytetrade import bytetrade                        # noqa: F401
+from ccxt.async_support.cdax import cdax                                  # noqa: F401
 from ccxt.async_support.cex import cex                                    # noqa: F401
 from ccxt.async_support.chilebit import chilebit                          # noqa: F401
 from ccxt.async_support.coinbase import coinbase                          # noqa: F401
@@ -108,6 +109,7 @@ from ccxt.async_support.coinone import coinone                            # noqa
 from ccxt.async_support.coinspot import coinspot                          # noqa: F401
 from ccxt.async_support.crex24 import crex24                              # noqa: F401
 from ccxt.async_support.currencycom import currencycom                    # noqa: F401
+from ccxt.async_support.delta import delta                                # noqa: F401
 from ccxt.async_support.deribit import deribit                            # noqa: F401
 from ccxt.async_support.digifinex import digifinex                        # noqa: F401
 from ccxt.async_support.dsx import dsx                                    # noqa: F401
@@ -126,7 +128,6 @@ from ccxt.async_support.hitbtc import hitbtc                              # noqa
 from ccxt.async_support.hollaex import hollaex                            # noqa: F401
 from ccxt.async_support.huobijp import huobijp                            # noqa: F401
 from ccxt.async_support.huobipro import huobipro                          # noqa: F401
-from ccxt.async_support.huobiru import huobiru                            # noqa: F401
 from ccxt.async_support.ice3x import ice3x                                # noqa: F401
 from ccxt.async_support.idex import idex                                  # noqa: F401
 from ccxt.async_support.independentreserve import independentreserve      # noqa: F401
@@ -165,6 +166,7 @@ from ccxt.async_support.timex import timex                                # noqa
 from ccxt.async_support.upbit import upbit                                # noqa: F401
 from ccxt.async_support.vaultoro import vaultoro                          # noqa: F401
 from ccxt.async_support.vbtc import vbtc                                  # noqa: F401
+from ccxt.async_support.vcc import vcc                                    # noqa: F401
 from ccxt.async_support.wavesexchange import wavesexchange                # noqa: F401
 from ccxt.async_support.whitebit import whitebit                          # noqa: F401
 from ccxt.async_support.xbtce import xbtce                                # noqa: F401
@@ -215,6 +217,7 @@ exchanges = [
     'bw',
     'bybit',
     'bytetrade',
+    'cdax',
     'cex',
     'chilebit',
     'coinbase',
@@ -232,6 +235,7 @@ exchanges = [
     'coinspot',
     'crex24',
     'currencycom',
+    'delta',
     'deribit',
     'digifinex',
     'dsx',
@@ -250,7 +254,6 @@ exchanges = [
     'hollaex',
     'huobijp',
     'huobipro',
-    'huobiru',
     'ice3x',
     'idex',
     'independentreserve',
@@ -289,6 +292,7 @@ exchanges = [
     'upbit',
     'vaultoro',
     'vbtc',
+    'vcc',
     'wavesexchange',
     'whitebit',
     'xbtce',

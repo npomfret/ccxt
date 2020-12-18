@@ -3,7 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { BadSymbol, ExchangeNotAvailable, ArgumentsRequired, PermissionDenied, AuthenticationError, ExchangeError, OrderNotFound, DDoSProtection, InvalidNonce, InsufficientFunds, CancelPending, InvalidOrder, InvalidAddress } = require ('./base/errors');
+const { BadSymbol, ExchangeNotAvailable, ArgumentsRequired, PermissionDenied, AuthenticationError, ExchangeError, OrderNotFound, DDoSProtection, InvalidNonce, InsufficientFunds, CancelPending, InvalidOrder, InvalidAddress, RateLimitExceeded } = require ('./base/errors');
 const { TRUNCATE, DECIMAL_PLACES } = require ('./base/functions/number');
 
 //  ---------------------------------------------------------------------------
@@ -207,6 +207,8 @@ module.exports = class kraken extends Exchange {
             'commonCurrencies': {
                 'XBT': 'BTC',
                 'XDG': 'DOGE',
+                'REPV2': 'REP',
+                'REP': 'REPV1',
             },
             'options': {
                 'cacheDepositMethodsOnFetchDepositAddress': true, // will issue up to two calls in fetchDepositAddress
@@ -1119,6 +1121,7 @@ module.exports = class kraken extends Exchange {
         if (rawTrades !== undefined) {
             trades = this.parseTrades (rawTrades, market, undefined, undefined, { 'order': id });
         }
+        const stopPrice = this.safeFloat (order, 'stopprice');
         return {
             'id': id,
             'clientOrderId': clientOrderId,
@@ -1130,8 +1133,10 @@ module.exports = class kraken extends Exchange {
             'symbol': symbol,
             'type': type,
             'timeInForce': undefined,
+            'postOnly': undefined,
             'side': side,
             'price': price,
+            'stopPrice': stopPrice,
             'cost': cost,
             'amount': amount,
             'filled': filled,
@@ -1712,6 +1717,9 @@ module.exports = class kraken extends Exchange {
         }
         if (body.indexOf ('Invalid arguments:volume') >= 0) {
             throw new InvalidOrder (this.id + ' ' + body);
+        }
+        if (body.indexOf ('Rate limit exceeded') >= 0) {
+            throw new RateLimitExceeded (this.id + ' ' + body);
         }
         if (body[0] === '{') {
             if (typeof response !== 'string') {

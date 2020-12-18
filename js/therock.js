@@ -953,6 +953,7 @@ module.exports = class therock extends Exchange {
                 cost = 0;
             }
         }
+        const stopPrice = this.safeFloat (order, 'conditional_price');
         return {
             'id': id,
             'clientOrderId': undefined,
@@ -964,8 +965,10 @@ module.exports = class therock extends Exchange {
             'symbol': symbol,
             'type': type,
             'timeInForce': undefined,
+            'postOnly': undefined,
             'side': side,
             'price': price,
+            'stopPrice': stopPrice,
             'cost': cost,
             'amount': amount,
             'filled': filled,

@@ -53,7 +53,7 @@ class liquid(Exchange):
                     'https://developers.liquid.com',
                 ],
                 'fees': 'https://help.liquid.com/getting-started-with-liquid/the-platform/fee-structure',
-                'referral': 'https://www.liquid.com?affiliate=SbzC62lt30976',
+                'referral': 'https://www.liquid.com/sign-up/?affiliate=SbzC62lt30976',
             },
             'api': {
                 'public': {
@@ -822,10 +822,12 @@ class liquid(Exchange):
             'lastTradeTimestamp': lastTradeTimestamp,
             'type': type,
             'timeInForce': None,
+            'postOnly': None,
             'status': status,
             'symbol': symbol,
             'side': side,
             'price': price,
+            'stopPrice': None,
             'amount': amount,
             'filled': filled,
             'cost': cost,
