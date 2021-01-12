@@ -207,6 +207,7 @@ class ftx extends Exchange {
                     'Order already closed' => '\\ccxt\\InvalidOrder', // array("error":"Order already closed","success":false)
                 ),
                 'broad' => array(
+                    'Account does not have enough margin for order' => '\\ccxt\\InsufficientFunds',
                     'Invalid parameter' => '\\ccxt\\BadRequest', // array("error":"Invalid parameter start_time","success":false)
                     'The requested URL was not found on the server' => '\\ccxt\\BadRequest',
                     'No such coin' => '\\ccxt\\BadRequest',
@@ -214,6 +215,7 @@ class ftx extends Exchange {
                     'Do not send more than' => '\\ccxt\\RateLimitExceeded',
                     'An unexpected error occurred' => '\\ccxt\\ExchangeError', // array("error":"An unexpected error occurred, please try again later (58BC21C795).","success":false)
                     'Please retry request' => '\\ccxt\\ExchangeNotAvailable', // array("error":"Please retry request","success":false)
+                    'Please try again' => '\\ccxt\\ExchangeNotAvailable', // array("error":"Please try again","success":false)
                 ),
             ),
             'precisionMode' => TICK_SIZE,
@@ -1255,11 +1257,17 @@ class ftx extends Exchange {
 
     public function cancel_all_orders($symbol = null, $params = array ()) {
         $this->load_markets();
+        $conditionalOrdersOnly = $this->safe_value($params, 'conditionalOrdersOnly');
         $request = array(
             // 'market' => market['id'], // optional
-            'conditionalOrdersOnly' => false, // cancel conditional orders only
-            'limitOrdersOnly' => false, // cancel existing limit orders (non-conditional orders) only
+            // 'conditionalOrdersOnly' => false, // cancel conditional orders only
+            // 'limitOrdersOnly' => false, // cancel existing limit orders (non-conditional orders) only
         );
+        if ($conditionalOrdersOnly) {
+            $request['conditionalOrdersOnly'] = $conditionalOrdersOnly;
+        } else {
+            $request['limitOrdersOnly'] = true;
+        }
         $marketId = $this->get_market_id($symbol, 'market', $params);
         if ($marketId !== null) {
             $request['market'] = $marketId;

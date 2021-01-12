@@ -221,6 +221,7 @@ class ftx(Exchange):
                     'Order already closed': InvalidOrder,  # {"error":"Order already closed","success":false}
                 },
                 'broad': {
+                    'Account does not have enough margin for order': InsufficientFunds,
                     'Invalid parameter': BadRequest,  # {"error":"Invalid parameter start_time","success":false}
                     'The requested URL was not found on the server': BadRequest,
                     'No such coin': BadRequest,
@@ -228,6 +229,7 @@ class ftx(Exchange):
                     'Do not send more than': RateLimitExceeded,
                     'An unexpected error occurred': ExchangeError,  # {"error":"An unexpected error occurred, please try again later(58BC21C795).","success":false}
                     'Please retry request': ExchangeNotAvailable,  # {"error":"Please retry request","success":false}
+                    'Please try again': ExchangeNotAvailable,  # {"error":"Please try again","success":false}
                 },
             },
             'precisionMode': TICK_SIZE,
@@ -1211,11 +1213,16 @@ class ftx(Exchange):
 
     async def cancel_all_orders(self, symbol=None, params={}):
         await self.load_markets()
+        conditionalOrdersOnly = self.safe_value(params, 'conditionalOrdersOnly')
         request = {
             # 'market': market['id'],  # optional
-            'conditionalOrdersOnly': False,  # cancel conditional orders only
-            'limitOrdersOnly': False,  # cancel existing limit orders(non-conditional orders) only
+            # 'conditionalOrdersOnly': False,  # cancel conditional orders only
+            # 'limitOrdersOnly': False,  # cancel existing limit orders(non-conditional orders) only
         }
+        if conditionalOrdersOnly:
+            request['conditionalOrdersOnly'] = conditionalOrdersOnly
+        else:
+            request['limitOrdersOnly'] = True
         marketId = self.get_market_id(symbol, 'market', params)
         if marketId is not None:
             request['market'] = marketId
