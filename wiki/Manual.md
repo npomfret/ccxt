@@ -3141,7 +3141,7 @@ Returns ordered array `[]` of trades (most recent trade last).
     'takerOrMaker': 'taker',                    // string, 'taker' or 'maker'
     'price':        0.06917684,                 // float price in quote currency
     'amount':       1.5,                        // amount of base currency
-    'cost':         0.10376526,                 // total cost (including fees), `price * amount`
+    'cost':         0.10376526,                 // total cost, `price * amount`,
     'fee':          {                           // provided by exchange or calculated by ccxt
         'cost':  0.0015,                        // float
         'currency': 'ETH',                      // usually base currency for buys, quote currency for sells
@@ -3153,6 +3153,7 @@ Returns ordered array `[]` of trades (most recent trade last).
 - The work on `'fee'` info is still in progress, fee info may be missing partially or entirely, depending on the exchange capabilities.
 - The `fee` currency may be different from both traded currencies (for example, an ETH/BTC order with fees in USD).
 - The `cost` of the trade means `amount * price`. It is the total *quote* volume of the trade (whereas `amount` is the *base* volume). The cost field itself is there mostly for convenience and can be deduced from other fields.
+- The `cost` of the trade is a _"gross"_ value. That is the value pre-fee, and the fee has to be applied afterwards.
 
 ### Trades By Order Id
 
@@ -3200,8 +3201,8 @@ We present a unified structure for the positions returned by exchanges.
    'id': '1234323',             // string, position id to reference the position, similar to an order id
    'symbol': 'BTC/USD',         // uppercase string literal of a pair of currencies
    'timestamp': 1607723554607,  // integer unix time since 1st Jan 1970 in milliseconds
-   'datetime': '2020-12-11T21:52:34.607Z',  // iso8601 representation of the unix time above
-   'isolated': true,            // boolean, whether or not the position is isolated, as oppose to cross where margin is added automatically
+   'datetime': '2020-12-11T21:52:34.607Z',  // ISO8601 representation of the unix time above
+   'isolated': true,            // boolean, whether or not the position is isolated, as opposed to cross where margin is added automatically
    'hedged': false,             // boolean, whether or not the position is hedged, i.e. if trading in the opposite direction will close this position or make a new one
    'side': 'long',              // string, long or short
    'contracts': 5,              // float, number of contracts bought, aka the amount or size of the position
