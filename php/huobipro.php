@@ -103,6 +103,7 @@ class huobipro extends Exchange {
                         'user/api-key', // 母子用户API key信息查询
                     ),
                     'post' => array(
+                        'account/transfer',
                         'point/transfer', // 点卡划转
                         'sub-user/management', // 冻结/解冻子用户
                         'sub-user/creation', // 子用户创建
@@ -203,6 +204,7 @@ class huobipro extends Exchange {
                 'exact' => array(
                     // err-code
                     'bad-request' => '\\ccxt\\BadRequest',
+                    'base-date-limit-error' => '\\ccxt\\BadRequest', // array("status":"error","err-code":"base-date-limit-error","err-msg":"date less than system limit","data":null)
                     'api-not-support-temp-addr' => '\\ccxt\\PermissionDenied', // array("status":"error","err-code":"api-not-support-temp-addr","err-msg":"API withdrawal does not support temporary addresses","data":null)
                     'timeout' => '\\ccxt\\RequestTimeout', // array("ts":1571653730865,"status":"error","err-code":"timeout","err-msg":"Request Timeout")
                     'gateway-internal-error' => '\\ccxt\\ExchangeNotAvailable', // array("status":"error","err-code":"gateway-internal-error","err-msg":"Failed to load data. Try again later.","data":null)
@@ -250,6 +252,7 @@ class huobipro extends Exchange {
                 // https://coinmarketcap.com/currencies/penta/markets/
                 // https://en.cryptonomist.ch/blog/eidoo/the-edo-to-pnt-upgrade-what-you-need-to-know-updated/
                 'PNT' => 'Penta',
+                'SBTC' => 'Super Bitcoin',
             ),
         ));
     }
@@ -682,7 +685,8 @@ class huobipro extends Exchange {
             $request['size'] = $limit; // 1-100 orders, default is 100
         }
         if ($since !== null) {
-            $request['start-date'] = $this->ymd($since); // maximum query window size is 2 days, query window shift should be within past 120 days
+            $request['start-date'] = $this->ymd($since); // a date within 61 days from today
+            $request['end-date'] = $this->ymd($this->sum($since, 86400000));
         }
         $response = $this->privateGetOrderMatchresults (array_merge($request, $params));
         $trades = $this->parse_trades($response['data'], $market, $since, $limit);
