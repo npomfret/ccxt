@@ -4,6 +4,7 @@
 
 const Exchange = require ('./base/Exchange');
 const { BadRequest, ExchangeError, ArgumentsRequired, AuthenticationError, InsufficientFunds, OrderNotFound, ExchangeNotAvailable, DDoSProtection, InvalidOrder, InvalidAddress } = require ('./base/errors');
+const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -30,6 +31,7 @@ module.exports = class zb extends Exchange {
                 'fetchOrder': true,
                 'fetchOrderBook': true,
                 'fetchOrders': true,
+                'fetchClosedOrders': true,
                 'fetchTicker': true,
                 'fetchTickers': true,
                 'fetchTrades': true,
@@ -88,8 +90,8 @@ module.exports = class zb extends Exchange {
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/32859187-cd5214f0-ca5e-11e7-967d-96568e2e2bd1.jpg',
                 'api': {
-                    'public': 'http://api.zb.cn/data', // no https for public API
-                    'private': 'https://trade.zb.cn/api',
+                    'public': 'https://api.zb.today/data',
+                    'private': 'https://trade.zb.today/api',
                 },
                 'www': 'https://www.zb.com',
                 'doc': 'https://www.zb.com/i/developer',
@@ -110,12 +112,14 @@ module.exports = class zb extends Exchange {
                     'get': [
                         // spot API
                         'order',
+                        'orderMoreV2',
                         'cancelOrder',
                         'getOrder',
                         'getOrders',
                         'getOrdersNew',
                         'getOrdersIgnoreTradeType',
                         'getUnfinishedOrdersIgnoreTradeType',
+                        'getFinishedAndPartialOrders',
                         'getAccountInfo',
                         'getUserAddress',
                         'getPayinAddress',
@@ -125,6 +129,11 @@ module.exports = class zb extends Exchange {
                         'getCnyWithdrawRecord',
                         'getCnyChargeRecord',
                         'withdraw',
+                        // sub accounts
+                        'addSubUser',
+                        'getSubUserList',
+                        'doTransferFunds',
+                        'createSubUserKey',
                         // leverage API
                         'getLeverAssetsInfo',
                         'getLeverBills',
@@ -135,8 +144,21 @@ module.exports = class zb extends Exchange {
                         'getLoans',
                         'getLoanRecords',
                         'borrow',
+                        'autoBorrow',
                         'repay',
+                        'doAllRepay',
                         'getRepayments',
+                        'getFinanceRecords',
+                        'changeInvestMark',
+                        'changeLoop',
+                        // cross API
+                        'getCrossAssets',
+                        'getCrossBills',
+                        'transferInCross',
+                        'transferOutCross',
+                        'doCrossLoan',
+                        'doCrossRepay',
+                        'getCrossRepayRecords',
                     ],
                 },
             },
@@ -184,6 +206,16 @@ module.exports = class zb extends Exchange {
 
     async fetchMarkets (params = {}) {
         const markets = await this.publicGetMarkets (params);
+        //
+        //     {
+        //         "zb_qc":{
+        //             "amountScale":2,
+        //             "minAmount":0.01,
+        //             "minSize":5,
+        //             "priceScale":4,
+        //         },
+        //     }
+        //
         const keys = Object.keys (markets);
         const result = [];
         for (let i = 0; i < keys.length; i++) {
@@ -247,11 +279,11 @@ module.exports = class zb extends Exchange {
             const account = this.account ();
             const currencyId = this.safeString (balance, 'key');
             const code = this.safeCurrencyCode (currencyId);
-            account['free'] = this.safeFloat (balance, 'available');
-            account['used'] = this.safeFloat (balance, 'freez');
+            account['free'] = this.safeString (balance, 'available');
+            account['used'] = this.safeString (balance, 'freez');
             result[code] = account;
         }
-        return this.parseBalance (result);
+        return this.parseBalance (result, false);
     }
 
     parseDepositAddress (depositAddress, currency = undefined) {
@@ -298,18 +330,6 @@ module.exports = class zb extends Exchange {
             'tag': tag,
             'info': depositAddress,
         };
-    }
-
-    parseDepositAddresses (addresses, codes = undefined) {
-        let result = [];
-        for (let i = 0; i < addresses.length; i++) {
-            const address = this.parseDepositAddress (addresses[i]);
-            result.push (address);
-        }
-        if (codes) {
-            result = this.filterByArray (result, 'currency', codes);
-        }
-        return this.indexBy (result, 'currency');
     }
 
     async fetchDepositAddresses (codes = undefined, params = {}) {
@@ -418,16 +438,16 @@ module.exports = class zb extends Exchange {
         if (market !== undefined) {
             symbol = market['symbol'];
         }
-        const last = this.safeFloat (ticker, 'last');
+        const last = this.safeNumber (ticker, 'last');
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeFloat (ticker, 'high'),
-            'low': this.safeFloat (ticker, 'low'),
-            'bid': this.safeFloat (ticker, 'buy'),
+            'high': this.safeNumber (ticker, 'high'),
+            'low': this.safeNumber (ticker, 'low'),
+            'bid': this.safeNumber (ticker, 'buy'),
             'bidVolume': undefined,
-            'ask': this.safeFloat (ticker, 'sell'),
+            'ask': this.safeNumber (ticker, 'sell'),
             'askVolume': undefined,
             'vwap': undefined,
             'open': undefined,
@@ -437,10 +457,21 @@ module.exports = class zb extends Exchange {
             'change': undefined,
             'percentage': undefined,
             'average': undefined,
-            'baseVolume': this.safeFloat (ticker, 'vol'),
+            'baseVolume': this.safeNumber (ticker, 'vol'),
             'quoteVolume': undefined,
             'info': ticker,
         };
+    }
+
+    parseOHLCV (ohlcv, market = undefined) {
+        return [
+            this.safeInteger (ohlcv, 0),
+            this.safeNumber (ohlcv, 1),
+            this.safeNumber (ohlcv, 2),
+            this.safeNumber (ohlcv, 3),
+            this.safeNumber (ohlcv, 4),
+            this.safeNumber (ohlcv, 5),
+        ];
     }
 
     async fetchOHLCV (symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
@@ -467,14 +498,12 @@ module.exports = class zb extends Exchange {
         let side = this.safeString (trade, 'trade_type');
         side = (side === 'bid') ? 'buy' : 'sell';
         const id = this.safeString (trade, 'tid');
-        const price = this.safeFloat (trade, 'price');
-        const amount = this.safeFloat (trade, 'amount');
-        let cost = undefined;
-        if (price !== undefined) {
-            if (amount !== undefined) {
-                cost = price * amount;
-            }
-        }
+        const priceString = this.safeString (trade, 'price');
+        const amountString = this.safeString (trade, 'amount');
+        const costString = Precise.stringMul (priceString, amountString);
+        const price = this.parseNumber (priceString);
+        const amount = this.parseNumber (amountString);
+        const cost = this.parseNumber (costString);
         let symbol = undefined;
         if (market !== undefined) {
             symbol = market['symbol'];
@@ -587,6 +616,21 @@ module.exports = class zb extends Exchange {
         return this.parseOrders (response, market, since, limit);
     }
 
+    async fetchClosedOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + 'fetchClosedOrders() requires a symbol argument');
+        }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'currency': market['id'],
+            'pageIndex': 1, // default pageIndex is 1
+            'pageSize': 10, // default pageSize is 10, doesn't work with other values now
+        };
+        const response = await this.privateGetGetFinishedAndPartialOrders (this.extend (request, params));
+        return this.parseOrders (response, market, since, limit);
+    }
+
     async fetchOpenOrders (symbol = undefined, since = undefined, limit = 10, params = {}) {
         if (symbol === undefined) {
             throw new ArgumentsRequired (this.id + 'fetchOpenOrders() requires a symbol argument');
@@ -617,19 +661,20 @@ module.exports = class zb extends Exchange {
 
     parseOrder (order, market = undefined) {
         //
-        // fetchOrder
-        //
         //     {
-        //         'total_amount': 0.01,
-        //         'id': '20180910244276459',
-        //         'price': 180.0,
-        //         'trade_date': 1536576744960,
-        //         'status': 2,
-        //         'trade_money': '1.96742',
-        //         'trade_amount': 0.01,
-        //         'type': 0,
-        //         'currency': 'eth_usdt'
-        //     }
+        //         acctType: 0,
+        //         currency: 'btc_usdt',
+        //         fees: 3.6e-7,
+        //         id: '202102282829772463',
+        //         price: 45177.5,
+        //         status: 2,
+        //         total_amount: 0.0002,
+        //         trade_amount: 0.0002,
+        //         trade_date: 1614515104998,
+        //         trade_money: 8.983712,
+        //         type: 1,
+        //         useZbFee: false
+        //     },
         //
         let side = this.safeInteger (order, 'type');
         side = (side === 1) ? 'buy' : 'sell';
@@ -637,23 +682,28 @@ module.exports = class zb extends Exchange {
         const timestamp = this.safeInteger (order, 'trade_date');
         const marketId = this.safeString (order, 'currency');
         const symbol = this.safeSymbol (marketId, market, '_');
-        const price = this.safeFloat (order, 'price');
-        const filled = this.safeFloat (order, 'trade_amount');
-        const amount = this.safeFloat (order, 'total_amount');
-        let remaining = undefined;
-        if (amount !== undefined) {
-            if (filled !== undefined) {
-                remaining = amount - filled;
-            }
-        }
-        const cost = this.safeFloat (order, 'trade_money');
-        let average = undefined;
+        const price = this.safeNumber (order, 'price');
+        const filled = this.safeNumber (order, 'trade_amount');
+        const amount = this.safeNumber (order, 'total_amount');
+        const cost = this.safeNumber (order, 'trade_money');
         const status = this.parseOrderStatus (this.safeString (order, 'status'));
-        if ((cost !== undefined) && (filled !== undefined) && (filled > 0)) {
-            average = cost / filled;
-        }
         const id = this.safeString (order, 'id');
-        return {
+        const feeCost = this.safeNumber (order, 'fees');
+        let fee = undefined;
+        if (feeCost !== undefined) {
+            let feeCurrency = undefined;
+            const zbFees = this.safeValue (order, 'useZbFee');
+            if (zbFees === true) {
+                feeCurrency = 'ZB';
+            } else if (market !== undefined) {
+                feeCurrency = (side === 'sell') ? market['quote'] : market['base'];
+            }
+            fee = {
+                'cost': feeCost,
+                'currency': feeCurrency,
+            };
+        }
+        return this.safeOrder ({
             'info': order,
             'id': id,
             'clientOrderId': undefined,
@@ -667,15 +717,15 @@ module.exports = class zb extends Exchange {
             'side': side,
             'price': price,
             'stopPrice': undefined,
-            'average': average,
+            'average': undefined,
             'cost': cost,
             'amount': amount,
             'filled': filled,
-            'remaining': remaining,
+            'remaining': undefined,
             'status': status,
-            'fee': undefined,
+            'fee': fee,
             'trades': undefined,
-        };
+        });
     }
 
     parseOrderStatus (status) {
@@ -738,7 +788,7 @@ module.exports = class zb extends Exchange {
         //
         const id = this.safeString (transaction, 'id');
         const txid = this.safeString (transaction, 'hash');
-        const amount = this.safeFloat (transaction, 'amount');
+        const amount = this.safeNumber (transaction, 'amount');
         let timestamp = this.parse8601 (this.safeString (transaction, 'submit_time'));
         timestamp = this.safeInteger (transaction, 'submitTime', timestamp);
         let address = this.safeString2 (transaction, 'toAddress', 'address');
@@ -758,7 +808,7 @@ module.exports = class zb extends Exchange {
         }
         const status = this.parseTransactionStatus (this.safeString (transaction, 'status'));
         let fee = undefined;
-        const feeCost = this.safeFloat (transaction, 'fees');
+        const feeCost = this.safeNumber (transaction, 'fees');
         if (feeCost !== undefined) {
             fee = {
                 'cost': feeCost,
@@ -791,7 +841,7 @@ module.exports = class zb extends Exchange {
         if (password === undefined) {
             throw new ArgumentsRequired (this.id + ' withdraw() requires exchange.password or a safePwd parameter');
         }
-        const fees = this.safeFloat (params, 'fees');
+        const fees = this.safeNumber (params, 'fees');
         if (fees === undefined) {
             throw new ArgumentsRequired (this.id + ' withdraw() requires a fees parameter');
         }

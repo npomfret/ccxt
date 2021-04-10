@@ -7,6 +7,7 @@ namespace ccxt\async;
 
 use Exception; // a common import
 use \ccxt\ExchangeError;
+use \ccxt\Precise;
 
 class paymium extends Exchange {
 
@@ -98,12 +99,12 @@ class paymium extends Exchange {
             if (is_array($response) && array_key_exists($free, $response)) {
                 $account = $this->account();
                 $used = 'locked_' . $currencyId;
-                $account['free'] = $this->safe_float($response, $free);
-                $account['used'] = $this->safe_float($response, $used);
+                $account['free'] = $this->safe_string($response, $free);
+                $account['used'] = $this->safe_string($response, $used);
                 $result[$code] = $account;
             }
         }
-        return $this->parse_balance($result);
+        return $this->parse_balance($result, false);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -122,30 +123,30 @@ class paymium extends Exchange {
         );
         $ticker = yield $this->publicGetDataCurrencyTicker (array_merge($request, $params));
         $timestamp = $this->safe_timestamp($ticker, 'at');
-        $vwap = $this->safe_float($ticker, 'vwap');
-        $baseVolume = $this->safe_float($ticker, 'volume');
+        $vwap = $this->safe_number($ticker, 'vwap');
+        $baseVolume = $this->safe_number($ticker, 'volume');
         $quoteVolume = null;
         if ($baseVolume !== null && $vwap !== null) {
             $quoteVolume = $baseVolume * $vwap;
         }
-        $last = $this->safe_float($ticker, 'price');
+        $last = $this->safe_number($ticker, 'price');
         return array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_float($ticker, 'high'),
-            'low' => $this->safe_float($ticker, 'low'),
-            'bid' => $this->safe_float($ticker, 'bid'),
+            'high' => $this->safe_number($ticker, 'high'),
+            'low' => $this->safe_number($ticker, 'low'),
+            'bid' => $this->safe_number($ticker, 'bid'),
             'bidVolume' => null,
-            'ask' => $this->safe_float($ticker, 'ask'),
+            'ask' => $this->safe_number($ticker, 'ask'),
             'askVolume' => null,
             'vwap' => $vwap,
-            'open' => $this->safe_float($ticker, 'open'),
+            'open' => $this->safe_number($ticker, 'open'),
             'close' => $last,
             'last' => $last,
             'previousClose' => null,
             'change' => null,
-            'percentage' => $this->safe_float($ticker, 'variation'),
+            'percentage' => $this->safe_number($ticker, 'variation'),
             'average' => null,
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
@@ -161,15 +162,12 @@ class paymium extends Exchange {
             $symbol = $market['symbol'];
         }
         $side = $this->safe_string($trade, 'side');
-        $price = $this->safe_float($trade, 'price');
+        $priceString = $this->safe_string($trade, 'price');
         $amountField = 'traded_' . strtolower($market['base']);
-        $amount = $this->safe_float($trade, $amountField);
-        $cost = null;
-        if ($price !== null) {
-            if ($amount !== null) {
-                $cost = $amount * $price;
-            }
-        }
+        $amountString = $this->safe_string($trade, $amountField);
+        $price = $this->parse_number($priceString);
+        $amount = $this->parse_number($amountString);
+        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         return array(
             'info' => $trade,
             'id' => $id,

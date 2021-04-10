@@ -7,6 +7,7 @@ namespace ccxt\async;
 
 use Exception; // a common import
 use \ccxt\ExchangeError;
+use \ccxt\Precise;
 
 class foxbit extends Exchange {
 
@@ -91,11 +92,11 @@ class foxbit extends Exchange {
                 // otherwise we will lose the info if the currency balance has been funded or traded or not
                 if (is_array($balances) && array_key_exists($currencyId, $balances)) {
                     $account = $this->account();
-                    $used = $this->safe_float($balances, $currencyId . '_locked');
+                    $used = $this->safe_number($balances, $currencyId . '_locked');
                     if ($used !== null) {
                         $used *= 1e-8;
                     }
-                    $total = $this->safe_float($balances, $currencyId);
+                    $total = $this->safe_number($balances, $currencyId);
                     if ($total !== null) {
                         $total *= 1e-8;
                     }
@@ -130,16 +131,16 @@ class foxbit extends Exchange {
         $timestamp = $this->milliseconds();
         $lowercaseQuote = strtolower($market['quote']);
         $quoteVolume = 'vol_' . $lowercaseQuote;
-        $last = $this->safe_float($ticker, 'last');
+        $last = $this->safe_number($ticker, 'last');
         return array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_float($ticker, 'high'),
-            'low' => $this->safe_float($ticker, 'low'),
-            'bid' => $this->safe_float($ticker, 'buy'),
+            'high' => $this->safe_number($ticker, 'high'),
+            'low' => $this->safe_number($ticker, 'low'),
+            'bid' => $this->safe_number($ticker, 'buy'),
             'bidVolume' => null,
-            'ask' => $this->safe_float($ticker, 'sell'),
+            'ask' => $this->safe_number($ticker, 'sell'),
             'askVolume' => null,
             'vwap' => null,
             'open' => null,
@@ -149,8 +150,8 @@ class foxbit extends Exchange {
             'change' => null,
             'percentage' => null,
             'average' => null,
-            'baseVolume' => $this->safe_float($ticker, 'vol'),
-            'quoteVolume' => $this->safe_float($ticker, $quoteVolume),
+            'baseVolume' => $this->safe_number($ticker, 'vol'),
+            'quoteVolume' => $this->safe_number($ticker, $quoteVolume),
             'info' => $ticker,
         );
     }
@@ -163,14 +164,11 @@ class foxbit extends Exchange {
             $symbol = $market['symbol'];
         }
         $side = $this->safe_string($trade, 'side');
-        $price = $this->safe_float($trade, 'price');
-        $amount = $this->safe_float($trade, 'amount');
-        $cost = null;
-        if ($price !== null) {
-            if ($amount !== null) {
-                $cost = $amount * $price;
-            }
-        }
+        $priceString = $this->safe_string($trade, 'price');
+        $amountString = $this->safe_string($trade, 'amount');
+        $price = $this->parse_number($priceString);
+        $amount = $this->parse_number($amountString);
+        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         return array(
             'id' => $id,
             'info' => $trade,

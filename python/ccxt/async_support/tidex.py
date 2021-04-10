@@ -21,6 +21,7 @@ from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import DDoSProtection
 from ccxt.base.errors import ExchangeNotAvailable
+from ccxt.base.precise import Precise
 
 
 class tidex(Exchange):
@@ -104,6 +105,7 @@ class tidex(Exchange):
             },
             'fees': {
                 'trading': {
+                    'feeSide': 'get',
                     'tierBased': False,
                     'percentage': True,
                     'taker': 0.1 / 100,
@@ -147,18 +149,47 @@ class tidex(Exchange):
 
     async def fetch_currencies(self, params={}):
         response = await self.webGetCurrency(params)
+        #
+        #     [
+        #         {
+        #             "id":2,
+        #             "symbol":"BTC",
+        #             "type":2,
+        #             "name":"Bitcoin",
+        #             "amountPoint":8,
+        #             "depositEnable":true,
+        #             "depositMinAmount":0.0005,
+        #             "withdrawEnable":true,
+        #             "withdrawFee":0.0004,
+        #             "withdrawMinAmount":0.0005,
+        #             "settings":{
+        #                 "Blockchain":"https://blockchair.com/bitcoin/",
+        #                 "TxUrl":"https://blockchair.com/bitcoin/transaction/{0}",
+        #                 "AddrUrl":"https://blockchair.com/bitcoin/address/{0}",
+        #                 "ConfirmationCount":3,
+        #                 "NeedMemo":false
+        #             },
+        #             "visible":true,
+        #             "isDelisted":false
+        #         }
+        #     ]
+        #
         result = {}
         for i in range(0, len(response)):
             currency = response[i]
             id = self.safe_string(currency, 'symbol')
-            precision = currency['amountPoint']
+            precision = self.safe_integer(currency, 'amountPoint')
             code = self.safe_currency_code(id)
-            active = currency['visible'] is True
-            canWithdraw = currency['withdrawEnable'] is True
-            canDeposit = currency['depositEnable'] is True
+            visible = self.safe_value(currency, 'visible')
+            active = visible is True
+            withdrawEnable = self.safe_value(currency, 'withdrawEnable')
+            depositEnable = self.safe_value(currency, 'depositEnable')
+            canWithdraw = withdrawEnable is True
+            canDeposit = depositEnable is True
             if not canWithdraw or not canDeposit:
                 active = False
             name = self.safe_string(currency, 'name')
+            fee = self.safe_number(currency, 'withdrawFee')
             result[code] = {
                 'id': id,
                 'code': code,
@@ -168,7 +199,7 @@ class tidex(Exchange):
                 'funding': {
                     'withdraw': {
                         'active': canWithdraw,
-                        'fee': currency['withdrawFee'],
+                        'fee': fee,
                     },
                     'deposit': {
                         'active': canDeposit,
@@ -189,11 +220,11 @@ class tidex(Exchange):
                         'max': None,
                     },
                     'withdraw': {
-                        'min': self.safe_float(currency, 'withdrawMinAmount'),
+                        'min': self.safe_number(currency, 'withdrawMinAmount'),
                         'max': None,
                     },
                     'deposit': {
-                        'min': self.safe_float(currency, 'depositMinAmount'),
+                        'min': self.safe_number(currency, 'depositMinAmount'),
                         'max': None,
                     },
                 },
@@ -201,24 +232,25 @@ class tidex(Exchange):
             }
         return result
 
-    def calculate_fee(self, symbol, type, side, amount, price, takerOrMaker='taker', params={}):
-        market = self.markets[symbol]
-        key = 'quote'
-        rate = market[takerOrMaker]
-        cost = float(self.cost_to_precision(symbol, amount * rate))
-        if side == 'sell':
-            cost *= price
-        else:
-            key = 'base'
-        return {
-            'type': takerOrMaker,
-            'currency': market[key],
-            'rate': rate,
-            'cost': cost,
-        }
-
     async def fetch_markets(self, params={}):
         response = await self.publicGetInfo(params)
+        #
+        #     {
+        #         "server_time":1615861869,
+        #         "pairs":{
+        #             "ltc_btc":{
+        #                 "decimal_places":8,
+        #                 "min_price":0.00000001,
+        #                 "max_price":3.0,
+        #                 "min_amount":0.001,
+        #                 "max_amount":1000000.0,
+        #                 "min_total":0.0001,
+        #                 "hidden":0,
+        #                 "fee":0.1,
+        #             },
+        #         },
+        #     }
+        #
         markets = response['pairs']
         keys = list(markets.keys())
         result = []
@@ -235,19 +267,20 @@ class tidex(Exchange):
             }
             limits = {
                 'amount': {
-                    'min': self.safe_float(market, 'min_amount'),
-                    'max': self.safe_float(market, 'max_amount'),
+                    'min': self.safe_number(market, 'min_amount'),
+                    'max': self.safe_number(market, 'max_amount'),
                 },
                 'price': {
-                    'min': self.safe_float(market, 'min_price'),
-                    'max': self.safe_float(market, 'max_price'),
+                    'min': self.safe_number(market, 'min_price'),
+                    'max': self.safe_number(market, 'max_price'),
                 },
                 'cost': {
-                    'min': self.safe_float(market, 'min_total'),
+                    'min': self.safe_number(market, 'min_total'),
                 },
             }
             hidden = self.safe_integer(market, 'hidden')
             active = (hidden == 0)
+            takerFee = self.safe_number(market, 'fee')
             result.append({
                 'id': id,
                 'symbol': symbol,
@@ -256,7 +289,7 @@ class tidex(Exchange):
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'active': active,
-                'taker': market['fee'] / 100,
+                'taker': takerFee / 100,
                 'precision': precision,
                 'limits': limits,
                 'info': market,
@@ -275,10 +308,10 @@ class tidex(Exchange):
             code = self.safe_currency_code(currencyId)
             balance = self.safe_value(funds, currencyId, {})
             account = self.account()
-            account['free'] = self.safe_float(balance, 'value')
-            account['used'] = self.safe_float(balance, 'inOrders')
+            account['free'] = self.safe_string(balance, 'value')
+            account['used'] = self.safe_string(balance, 'inOrders')
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -339,16 +372,16 @@ class tidex(Exchange):
             symbol = market['symbol']
             if not market['active']:
                 timestamp = None
-        last = self.safe_float(ticker, 'last')
+        last = self.safe_number(ticker, 'last')
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(ticker, 'buy'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'bid': self.safe_number(ticker, 'buy'),
             'bidVolume': None,
-            'ask': self.safe_float(ticker, 'sell'),
+            'ask': self.safe_number(ticker, 'sell'),
             'askVolume': None,
             'vwap': None,
             'open': None,
@@ -357,9 +390,9 @@ class tidex(Exchange):
             'previousClose': None,
             'change': None,
             'percentage': None,
-            'average': self.safe_float(ticker, 'avg'),
-            'baseVolume': self.safe_float(ticker, 'vol_cur'),
-            'quoteVolume': self.safe_float(ticker, 'vol'),
+            'average': self.safe_number(ticker, 'avg'),
+            'baseVolume': self.safe_number(ticker, 'vol_cur'),
+            'quoteVolume': self.safe_number(ticker, 'vol'),
             'info': ticker,
         }
 
@@ -400,16 +433,19 @@ class tidex(Exchange):
             side = 'sell'
         elif side == 'bid':
             side = 'buy'
-        price = self.safe_float_2(trade, 'rate', 'price')
+        priceString = self.safe_string_2(trade, 'rate', 'price')
         id = self.safe_string_2(trade, 'trade_id', 'tid')
         orderId = self.safe_string(trade, 'order_id')
         marketId = self.safe_string(trade, 'pair')
         symbol = self.safe_symbol(marketId, market)
-        amount = self.safe_float(trade, 'amount')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         type = 'limit'  # all trades are still limit trades
         takerOrMaker = None
         fee = None
-        feeCost = self.safe_float(trade, 'commission')
+        feeCost = self.safe_number(trade, 'commission')
         if feeCost is not None:
             feeCurrencyId = self.safe_string(trade, 'commissionCurrency')
             feeCurrencyCode = self.safe_currency_code(feeCurrencyId)
@@ -424,10 +460,6 @@ class tidex(Exchange):
                 takerOrMaker = 'maker'
             if fee is None:
                 fee = self.calculate_fee(symbol, type, side, amount, price, takerOrMaker)
-        cost = None
-        if amount is not None:
-            if price is not None:
-                cost = amount * price
         return {
             'id': id,
             'order': orderId,
@@ -477,15 +509,16 @@ class tidex(Exchange):
         status = 'open'
         filled = 0.0
         remaining = amount
-        if 'return' in response:
-            id = self.safe_string(response['return'], 'order_id')
+        returnResult = self.safe_value(response, 'return')
+        if returnResult is not None:
+            id = self.safe_string(returnResult, 'order_id')
             if id == '0':
-                id = self.safe_string(response['return'], 'init_order_id')
+                id = self.safe_string(returnResult, 'init_order_id')
                 status = 'closed'
-            filled = self.safe_float(response['return'], 'received', 0.0)
-            remaining = self.safe_float(response['return'], 'remains', amount)
+            filled = self.safe_number(returnResult, 'received', filled)
+            remaining = self.safe_number(returnResult, 'remains', amount)
         timestamp = self.milliseconds()
-        return {
+        return self.safe_order({
             'id': id,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -495,7 +528,7 @@ class tidex(Exchange):
             'type': type,
             'side': side,
             'price': price,
-            'cost': price * filled,
+            'cost': None,
             'amount': amount,
             'remaining': remaining,
             'filled': filled,
@@ -505,7 +538,7 @@ class tidex(Exchange):
             'clientOrderId': None,
             'average': None,
             'trades': None,
-        }
+        })
 
     async def cancel_order(self, id, symbol=None, params={}):
         await self.load_markets()
@@ -531,20 +564,14 @@ class tidex(Exchange):
         symbol = self.safe_symbol(marketId, market)
         remaining = None
         amount = None
-        price = self.safe_float(order, 'rate')
-        filled = None
-        cost = None
+        price = self.safe_number(order, 'rate')
         if 'start_amount' in order:
-            amount = self.safe_float(order, 'start_amount')
-            remaining = self.safe_float(order, 'amount')
+            amount = self.safe_number(order, 'start_amount')
+            remaining = self.safe_number(order, 'amount')
         else:
-            remaining = self.safe_float(order, 'amount')
-        if amount is not None:
-            if remaining is not None:
-                filled = amount - remaining
-                cost = price * filled
+            remaining = self.safe_number(order, 'amount')
         fee = None
-        return {
+        return self.safe_order({
             'info': order,
             'id': id,
             'clientOrderId': None,
@@ -558,15 +585,15 @@ class tidex(Exchange):
             'side': self.safe_string(order, 'type'),
             'price': price,
             'stopPrice': None,
-            'cost': cost,
+            'cost': None,
             'amount': amount,
             'remaining': remaining,
-            'filled': filled,
+            'filled': None,
             'status': status,
             'fee': fee,
             'average': None,
             'trades': None,
-        }
+        })
 
     async def fetch_order(self, id, symbol=None, params={}):
         await self.load_markets()

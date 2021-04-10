@@ -81,21 +81,23 @@ class bitbank extends Exchange {
                 ),
             ),
             'markets' => array(
+                'BAT/JPY' => array( 'id' => 'bat_jpy', 'symbol' => 'BAT/JPY', 'base' => 'BAT', 'quote' => 'JPY', 'baseId' => 'bat', 'quoteId' => 'jpy' ),
+                'BAT/BTC' => array( 'id' => 'bat_btc', 'symbol' => 'BAT/BTC', 'base' => 'BAT', 'quote' => 'BTC', 'baseId' => 'bat', 'quoteId' => 'btc' ),
                 'BCH/BTC' => array( 'id' => 'bcc_btc', 'symbol' => 'BCH/BTC', 'base' => 'BCH', 'quote' => 'BTC', 'baseId' => 'bcc', 'quoteId' => 'btc' ),
                 'BCH/JPY' => array( 'id' => 'bcc_jpy', 'symbol' => 'BCH/JPY', 'base' => 'BCH', 'quote' => 'JPY', 'baseId' => 'bcc', 'quoteId' => 'jpy' ),
+                'BTC/JPY' => array( 'id' => 'btc_jpy', 'symbol' => 'BTC/JPY', 'base' => 'BTC', 'quote' => 'JPY', 'baseId' => 'btc', 'quoteId' => 'jpy' ),
+                'ETH/BTC' => array( 'id' => 'eth_btc', 'symbol' => 'ETH/BTC', 'base' => 'ETH', 'quote' => 'BTC', 'baseId' => 'eth', 'quoteId' => 'btc' ),
+                'ETH/JPY' => array( 'id' => 'eth_jpy', 'symbol' => 'ETH/JPY', 'base' => 'ETH', 'quote' => 'JPY', 'baseId' => 'eth', 'quoteId' => 'jpy' ),
+                'LTC/BTC' => array( 'id' => 'ltc_btc', 'symbol' => 'LTC/BTC', 'base' => 'LTC', 'quote' => 'BTC', 'baseId' => 'ltc', 'quoteId' => 'btc' ),
+                'LTC/JPY' => array( 'id' => 'ltc_jpy', 'symbol' => 'LTC/JPY', 'base' => 'LTC', 'quote' => 'JPY', 'baseId' => 'ltc', 'quoteId' => 'jpy' ),
                 'MONA/BTC' => array( 'id' => 'mona_btc', 'symbol' => 'MONA/BTC', 'base' => 'MONA', 'quote' => 'BTC', 'baseId' => 'mona', 'quoteId' => 'btc' ),
                 'MONA/JPY' => array( 'id' => 'mona_jpy', 'symbol' => 'MONA/JPY', 'base' => 'MONA', 'quote' => 'JPY', 'baseId' => 'mona', 'quoteId' => 'jpy' ),
                 'QTUM/BTC' => array( 'id' => 'qtum_btc', 'symbol' => 'QTUM/BTC', 'base' => 'QTUM', 'quote' => 'BTC', 'baseId' => 'qtum', 'quoteId' => 'btc' ),
                 'QTUM/JPY' => array( 'id' => 'qtum_jpy', 'symbol' => 'QTUM/JPY', 'base' => 'QTUM', 'quote' => 'JPY', 'baseId' => 'qtum', 'quoteId' => 'jpy' ),
-                'ETH/BTC' => array( 'id' => 'eth_btc', 'symbol' => 'ETH/BTC', 'base' => 'ETH', 'quote' => 'BTC', 'baseId' => 'eth', 'quoteId' => 'btc' ),
-                'LTC/BTC' => array( 'id' => 'ltc_btc', 'symbol' => 'LTC/BTC', 'base' => 'LTC', 'quote' => 'BTC', 'baseId' => 'ltc', 'quoteId' => 'btc' ),
-                'XRP/JPY' => array( 'id' => 'xrp_jpy', 'symbol' => 'XRP/JPY', 'base' => 'XRP', 'quote' => 'JPY', 'baseId' => 'xrp', 'quoteId' => 'jpy' ),
-                'XLM/JPY' => array( 'id' => 'xlm_jpy', 'symbol' => 'XLM/JPY', 'base' => 'XLM', 'quote' => 'JPY', 'baseId' => 'xlm', 'quoteId' => 'jpy' ),
-                'BTC/JPY' => array( 'id' => 'btc_jpy', 'symbol' => 'BTC/JPY', 'base' => 'BTC', 'quote' => 'JPY', 'baseId' => 'btc', 'quoteId' => 'jpy' ),
-                'ETH/JPY' => array( 'id' => 'eth_jpy', 'symbol' => 'ETH/JPY', 'base' => 'ETH', 'quote' => 'JPY', 'baseId' => 'eth', 'quoteId' => 'jpy' ),
-                'LTC/JPY' => array( 'id' => 'ltc_jpy', 'symbol' => 'LTC/JPY', 'base' => 'LTC', 'quote' => 'JPY', 'baseId' => 'ltc', 'quoteId' => 'jpy' ),
-                'XRP/BTC' => array( 'id' => 'xrp_btc', 'symbol' => 'XRP/BTC', 'base' => 'XRP', 'quote' => 'BTC', 'baseId' => 'xrp', 'quoteId' => 'btc' ),
                 'XLM/BTC' => array( 'id' => 'xlm_btc', 'symbol' => 'XLM/BTC', 'base' => 'XLM', 'quote' => 'BTC', 'baseId' => 'xlm', 'quoteId' => 'btc' ),
+                'XLM/JPY' => array( 'id' => 'xlm_jpy', 'symbol' => 'XLM/JPY', 'base' => 'XLM', 'quote' => 'JPY', 'baseId' => 'xlm', 'quoteId' => 'jpy' ),
+                'XRP/BTC' => array( 'id' => 'xrp_btc', 'symbol' => 'XRP/BTC', 'base' => 'XRP', 'quote' => 'BTC', 'baseId' => 'xrp', 'quoteId' => 'btc' ),
+                'XRP/JPY' => array( 'id' => 'xrp_jpy', 'symbol' => 'XRP/JPY', 'base' => 'XRP', 'quote' => 'JPY', 'baseId' => 'xrp', 'quoteId' => 'jpy' ),
             ),
             'fees' => array(
                 'trading' => array(
@@ -144,16 +146,16 @@ class bitbank extends Exchange {
             $symbol = $market['symbol'];
         }
         $timestamp = $this->safe_integer($ticker, 'timestamp');
-        $last = $this->safe_float($ticker, 'last');
+        $last = $this->safe_number($ticker, 'last');
         return array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_float($ticker, 'high'),
-            'low' => $this->safe_float($ticker, 'low'),
-            'bid' => $this->safe_float($ticker, 'buy'),
+            'high' => $this->safe_number($ticker, 'high'),
+            'low' => $this->safe_number($ticker, 'low'),
+            'bid' => $this->safe_number($ticker, 'buy'),
             'bidVolume' => null,
-            'ask' => $this->safe_float($ticker, 'sell'),
+            'ask' => $this->safe_number($ticker, 'sell'),
             'askVolume' => null,
             'vwap' => null,
             'open' => null,
@@ -163,7 +165,7 @@ class bitbank extends Exchange {
             'change' => null,
             'percentage' => null,
             'average' => null,
-            'baseVolume' => $this->safe_float($ticker, 'vol'),
+            'baseVolume' => $this->safe_number($ticker, 'vol'),
             'quoteVolume' => null,
             'info' => $ticker,
         );
@@ -199,18 +201,15 @@ class bitbank extends Exchange {
             $symbol = $market['symbol'];
             $feeCurrency = $market['quote'];
         }
-        $price = $this->safe_float($trade, 'price');
-        $amount = $this->safe_float($trade, 'amount');
-        $cost = null;
-        if ($price !== null) {
-            if ($amount !== null) {
-                $cost = floatval($this->cost_to_precision($symbol, $price * $amount));
-            }
-        }
+        $priceString = $this->safe_string($trade, 'price');
+        $amountString = $this->safe_string($trade, 'amount');
+        $price = $this->parse_number($priceString);
+        $amount = $this->parse_number($amountString);
+        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         $id = $this->safe_string_2($trade, 'transaction_id', 'trade_id');
         $takerOrMaker = $this->safe_string($trade, 'maker_taker');
         $fee = null;
-        $feeCost = $this->safe_float($trade, 'fee_amount_quote');
+        $feeCost = $this->safe_number($trade, 'fee_amount_quote');
         if ($feeCost !== null) {
             $fee = array(
                 'currency' => $feeCurrency,
@@ -262,11 +261,11 @@ class bitbank extends Exchange {
         //
         return array(
             $this->safe_integer($ohlcv, 5),
-            $this->safe_float($ohlcv, 0),
-            $this->safe_float($ohlcv, 1),
-            $this->safe_float($ohlcv, 2),
-            $this->safe_float($ohlcv, 3),
-            $this->safe_float($ohlcv, 4),
+            $this->safe_number($ohlcv, 0),
+            $this->safe_number($ohlcv, 1),
+            $this->safe_number($ohlcv, 2),
+            $this->safe_number($ohlcv, 3),
+            $this->safe_number($ohlcv, 4),
         );
     }
 
@@ -317,14 +316,13 @@ class bitbank extends Exchange {
             $balance = $assets[$i];
             $currencyId = $this->safe_string($balance, 'asset');
             $code = $this->safe_currency_code($currencyId);
-            $account = array(
-                'free' => $this->safe_float($balance, 'free_amount'),
-                'used' => $this->safe_float($balance, 'locked_amount'),
-                'total' => $this->safe_float($balance, 'onhand_amount'),
-            );
+            $account = $this->account();
+            $account['free'] = $this->safe_string($balance, 'free_amount');
+            $account['used'] = $this->safe_string($balance, 'locked_amount');
+            $account['total'] = $this->safe_string($balance, 'onhand_amount');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result);
+        return $this->parse_balance($result, false);
     }
 
     public function parse_order_status($status) {
@@ -349,21 +347,15 @@ class bitbank extends Exchange {
             $symbol = $market['symbol'];
         }
         $timestamp = $this->safe_integer($order, 'ordered_at');
-        $price = $this->safe_float($order, 'price');
-        $amount = $this->safe_float($order, 'start_amount');
-        $filled = $this->safe_float($order, 'executed_amount');
-        $remaining = $this->safe_float($order, 'remaining_amount');
-        $average = $this->safe_float($order, 'average_price');
-        $cost = null;
-        if ($filled !== null) {
-            if ($average !== null) {
-                $cost = $filled * $average;
-            }
-        }
+        $price = $this->safe_number($order, 'price');
+        $amount = $this->safe_number($order, 'start_amount');
+        $filled = $this->safe_number($order, 'executed_amount');
+        $remaining = $this->safe_number($order, 'remaining_amount');
+        $average = $this->safe_number($order, 'average_price');
         $status = $this->parse_order_status($this->safe_string($order, 'status'));
         $type = $this->safe_string_lower($order, 'type');
         $side = $this->safe_string_lower($order, 'side');
-        return array(
+        return $this->safe_order(array(
             'id' => $id,
             'clientOrderId' => null,
             'datetime' => $this->iso8601($timestamp),
@@ -377,7 +369,7 @@ class bitbank extends Exchange {
             'side' => $side,
             'price' => $price,
             'stopPrice' => null,
-            'cost' => $cost,
+            'cost' => null,
             'average' => $average,
             'amount' => $amount,
             'filled' => $filled,
@@ -385,7 +377,7 @@ class bitbank extends Exchange {
             'trades' => null,
             'fee' => null,
             'info' => $order,
-        );
+        ));
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {

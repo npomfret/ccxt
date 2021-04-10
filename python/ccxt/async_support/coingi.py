@@ -13,6 +13,7 @@ except NameError:
     basestring = str  # Python 2
 import math
 from ccxt.base.errors import ExchangeError
+from ccxt.base.precise import Precise
 
 
 class coingi(Exchange):
@@ -170,10 +171,10 @@ class coingi(Exchange):
             currencyId = self.safe_string(balance['currency'], 'name')
             code = self.safe_currency_code(currencyId)
             account = self.account()
-            account['free'] = self.safe_float(balance, 'available')
-            blocked = self.safe_float(balance, 'blocked')
-            inOrders = self.safe_float(balance, 'inOrders')
-            withdrawing = self.safe_float(balance, 'withdrawing')
+            account['free'] = self.safe_number(balance, 'available')
+            blocked = self.safe_number(balance, 'blocked')
+            inOrders = self.safe_number(balance, 'inOrders')
+            withdrawing = self.safe_number(balance, 'withdrawing')
             account['used'] = self.sum(blocked, inOrders, withdrawing)
             result[code] = account
         return self.parse_balance(result)
@@ -199,11 +200,11 @@ class coingi(Exchange):
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(ticker, 'highestBid'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'bid': self.safe_number(ticker, 'highestBid'),
             'bidVolume': None,
-            'ask': self.safe_float(ticker, 'lowestAsk'),
+            'ask': self.safe_number(ticker, 'lowestAsk'),
             'askVolume': None,
             'vwap': None,
             'open': None,
@@ -213,8 +214,8 @@ class coingi(Exchange):
             'change': None,
             'percentage': None,
             'average': None,
-            'baseVolume': self.safe_float(ticker, 'baseVolume'),
-            'quoteVolume': self.safe_float(ticker, 'counterVolume'),
+            'baseVolume': self.safe_number(ticker, 'baseVolume'),
+            'quoteVolume': self.safe_number(ticker, 'counterVolume'),
             'info': ticker,
         }
 
@@ -241,12 +242,11 @@ class coingi(Exchange):
         raise ExchangeError(self.id + ' return did not contain ' + symbol)
 
     def parse_trade(self, trade, market=None):
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
-        cost = None
-        if price is not None:
-            if amount is not None:
-                cost = price * amount
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         timestamp = self.safe_integer(trade, 'timestamp')
         id = self.safe_string(trade, 'id')
         marketId = self.safe_string(trade, 'currencyPair')

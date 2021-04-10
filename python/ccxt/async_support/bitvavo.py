@@ -22,6 +22,7 @@ from ccxt.base.decimal_to_precision import ROUND
 from ccxt.base.decimal_to_precision import TRUNCATE
 from ccxt.base.decimal_to_precision import DECIMAL_PLACES
 from ccxt.base.decimal_to_precision import SIGNIFICANT_DIGITS
+from ccxt.base.precise import Precise
 
 
 class bitvavo(Exchange):
@@ -317,7 +318,7 @@ class bitvavo(Exchange):
                 'precision': precision,
                 'limits': {
                     'amount': {
-                        'min': self.safe_float(market, 'minOrderInBaseAsset'),
+                        'min': self.safe_number(market, 'minOrderInBaseAsset'),
                         'max': None,
                     },
                     'price': {
@@ -325,7 +326,7 @@ class bitvavo(Exchange):
                         'max': None,
                     },
                     'cost': {
-                        'min': self.safe_float(market, 'minOrderInQuoteAsset'),
+                        'min': self.safe_number(market, 'minOrderInQuoteAsset'),
                         'max': None,
                     },
                 },
@@ -384,7 +385,7 @@ class bitvavo(Exchange):
                 'code': code,
                 'name': name,
                 'active': active,
-                'fee': self.safe_float(currency, 'withdrawalFee'),
+                'fee': self.safe_number(currency, 'withdrawalFee'),
                 'precision': precision,
                 'limits': {
                     'amount': {
@@ -400,7 +401,7 @@ class bitvavo(Exchange):
                         'max': None,
                     },
                     'withdraw': {
-                        'min': self.safe_float(currency, 'withdrawalMinAmount'),
+                        'min': self.safe_number(currency, 'withdrawalMinAmount'),
                         'max': None,
                     },
                 },
@@ -454,14 +455,14 @@ class bitvavo(Exchange):
         marketId = self.safe_string(ticker, 'market')
         symbol = self.safe_symbol(marketId, market, '-')
         timestamp = self.safe_integer(ticker, 'timestamp')
-        last = self.safe_float(ticker, 'last')
-        baseVolume = self.safe_float(ticker, 'volume')
-        quoteVolume = self.safe_float(ticker, 'volumeQuote')
+        last = self.safe_number(ticker, 'last')
+        baseVolume = self.safe_number(ticker, 'volume')
+        quoteVolume = self.safe_number(ticker, 'volumeQuote')
         vwap = self.vwap(baseVolume, quoteVolume)
         change = None
         percentage = None
         average = None
-        open = self.safe_float(ticker, 'open')
+        open = self.safe_number(ticker, 'open')
         if (open is not None) and (last is not None):
             change = last - open
             if open > 0:
@@ -471,12 +472,12 @@ class bitvavo(Exchange):
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(ticker, 'bid'),
-            'bidVolume': self.safe_float(ticker, 'bidSize'),
-            'ask': self.safe_float(ticker, 'ask'),
-            'askVolume': self.safe_float(ticker, 'askSize'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'bid': self.safe_number(ticker, 'bid'),
+            'bidVolume': self.safe_number(ticker, 'bidSize'),
+            'ask': self.safe_number(ticker, 'ask'),
+            'askVolume': self.safe_number(ticker, 'askSize'),
             'vwap': vwap,
             'open': open,
             'close': last,
@@ -490,12 +491,6 @@ class bitvavo(Exchange):
             'info': ticker,
         }
         return result
-
-    def parse_tickers(self, tickers, symbols=None):
-        result = []
-        for i in range(0, len(tickers)):
-            result.append(self.parse_ticker(tickers[i]))
-        return self.filter_by_array(result, 'symbol', symbols)
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
@@ -606,11 +601,11 @@ class bitvavo(Exchange):
         #         feeCurrency: 'EUR'
         #     }
         #
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
-        cost = None
-        if (price is not None) and (amount is not None):
-            cost = price * amount
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         timestamp = self.safe_integer(trade, 'timestamp')
         side = self.safe_string(trade, 'side')
         id = self.safe_string_2(trade, 'id', 'fillId')
@@ -620,7 +615,7 @@ class bitvavo(Exchange):
         takerOrMaker = None
         if taker is not None:
             takerOrMaker = 'taker' if taker else 'maker'
-        feeCost = self.safe_float(trade, 'fee')
+        feeCost = self.safe_number(trade, 'fee')
         fee = None
         if feeCost is not None:
             feeCurrencyId = self.safe_string(trade, 'feeCurrency')
@@ -687,11 +682,11 @@ class bitvavo(Exchange):
         #
         return [
             self.safe_integer(ohlcv, 0),
-            self.safe_float(ohlcv, 1),
-            self.safe_float(ohlcv, 2),
-            self.safe_float(ohlcv, 3),
-            self.safe_float(ohlcv, 4),
-            self.safe_float(ohlcv, 5),
+            self.safe_number(ohlcv, 1),
+            self.safe_number(ohlcv, 2),
+            self.safe_number(ohlcv, 3),
+            self.safe_number(ohlcv, 4),
+            self.safe_number(ohlcv, 5),
         ]
 
     async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
@@ -735,12 +730,11 @@ class bitvavo(Exchange):
             balance = response[i]
             currencyId = self.safe_string(balance, 'symbol')
             code = self.safe_currency_code(currencyId)
-            account = {
-                'free': self.safe_float(balance, 'available'),
-                'used': self.safe_float(balance, 'inOrder'),
-            }
+            account = self.account()
+            account['free'] = self.safe_string(balance, 'available')
+            account['used'] = self.safe_string(balance, 'inOrder')
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     async def fetch_deposit_address(self, code, params={}):
         await self.load_markets()
@@ -788,7 +782,7 @@ class bitvavo(Exchange):
             if price is not None:
                 cost = amount * price
             else:
-                cost = self.safe_float_2(params, 'cost', 'amountQuote')
+                cost = self.safe_number_2(params, 'cost', 'amountQuote')
             if cost is not None:
                 precision = market['precision']['price']
                 request['amountQuote'] = self.decimal_to_precision(cost, TRUNCATE, precision, self.precisionMode)
@@ -799,7 +793,7 @@ class bitvavo(Exchange):
             request['price'] = self.price_to_precision(symbol, price)
             request['amount'] = self.amount_to_precision(symbol, amount)
         elif isStopMarket or isStopLimit:
-            stopPrice = self.safe_float_2(params, 'stopPrice', 'triggerAmount')
+            stopPrice = self.safe_number_2(params, 'stopPrice', 'triggerAmount')
             if stopPrice is None:
                 if isStopLimit:
                     raise ArgumentsRequired(self.id + ' createOrder requires a stopPrice parameter for a ' + type + ' order')
@@ -855,7 +849,7 @@ class bitvavo(Exchange):
         await self.load_markets()
         market = self.market(symbol)
         request = {}
-        amountRemaining = self.safe_float(params, 'amountRemaining')
+        amountRemaining = self.safe_number(params, 'amountRemaining')
         params = self.omit(params, 'amountRemaining')
         if price is not None:
             request['price'] = self.price_to_precision(symbol, price)
@@ -909,7 +903,6 @@ class bitvavo(Exchange):
     async def fetch_order(self, id, symbol=None, params={}):
         if symbol is None:
             raise ArgumentsRequired(self.id + ' fetchOrder() requires a symbol argument')
-        await self.load_markets()
         await self.load_markets()
         market = self.market(symbol)
         request = {
@@ -1128,22 +1121,13 @@ class bitvavo(Exchange):
         status = self.parse_order_status(self.safe_string(order, 'status'))
         side = self.safe_string(order, 'side')
         type = self.safe_string(order, 'orderType')
-        price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'amount')
-        remaining = self.safe_float(order, 'amountRemaining')
-        filled = self.safe_float(order, 'filledAmount')
-        remainingCost = self.safe_float(order, 'remainingCost')
-        if (remainingCost is not None) and (remainingCost == 0.0):
-            remaining = 0
-        if (amount is not None) and (remaining is not None):
-            filled = max(0, amount - remaining)
-        cost = self.safe_float(order, 'filledAmountQuote')
-        average = None
-        if cost is not None:
-            if filled:
-                average = cost / filled
+        price = self.safe_number(order, 'price')
+        amount = self.safe_number(order, 'amount')
+        remaining = self.safe_number(order, 'amountRemaining')
+        filled = self.safe_number(order, 'filledAmount')
+        cost = self.safe_number(order, 'filledAmountQuote')
         fee = None
-        feeCost = self.safe_float(order, 'feePaid')
+        feeCost = self.safe_number(order, 'feePaid')
         if feeCost is not None:
             feeCurrencyId = self.safe_string(order, 'feeCurrency')
             feeCurrencyCode = self.safe_currency_code(feeCurrencyId)
@@ -1151,30 +1135,24 @@ class bitvavo(Exchange):
                 'cost': feeCost,
                 'currency': feeCurrencyCode,
             }
-        lastTradeTimestamp = None
-        rawTrades = self.safe_value(order, 'fills')
-        trades = None
-        if rawTrades is not None:
-            trades = self.parse_trades(rawTrades, market, None, None, {
-                'symbol': symbol,
-                'order': id,
-                'side': side,
-            })
-            numTrades = len(trades)
-            if numTrades > 0:
-                lastTrade = self.safe_value(trades, numTrades - 1)
-                lastTradeTimestamp = lastTrade['timestamp']
+        rawTrades = self.safe_value(order, 'fills', [])
+        trades = self.parse_trades(rawTrades, market, None, None, {
+            'symbol': symbol,
+            'order': id,
+            'side': side,
+            'type': type,
+        })
         timeInForce = self.safe_string(order, 'timeInForce')
         postOnly = self.safe_value(order, 'postOnly')
         # https://github.com/ccxt/ccxt/issues/8489
-        stopPrice = self.safe_float(order, 'triggerPrice')
-        return {
+        stopPrice = self.safe_number(order, 'triggerPrice')
+        return self.safe_order({
             'info': order,
             'id': id,
             'clientOrderId': None,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'lastTradeTimestamp': lastTradeTimestamp,
+            'lastTradeTimestamp': None,
             'symbol': symbol,
             'type': type,
             'timeInForce': timeInForce,
@@ -1184,13 +1162,13 @@ class bitvavo(Exchange):
             'stopPrice': stopPrice,
             'amount': amount,
             'cost': cost,
-            'average': average,
+            'average': None,
             'filled': filled,
             'remaining': remaining,
             'status': status,
             'fee': fee,
             'trades': trades,
-        }
+        })
 
     async def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         if symbol is None:
@@ -1369,11 +1347,11 @@ class bitvavo(Exchange):
         currencyId = self.safe_string(transaction, 'symbol')
         code = self.safe_currency_code(currencyId, currency)
         status = self.parse_transaction_status(self.safe_string(transaction, 'status'))
-        amount = self.safe_float(transaction, 'amount')
+        amount = self.safe_number(transaction, 'amount')
         address = self.safe_string(transaction, 'address')
         txid = self.safe_string(transaction, 'txId')
         fee = None
-        feeCost = self.safe_float(transaction, 'fee')
+        feeCost = self.safe_number(transaction, 'fee')
         if feeCost is not None:
             fee = {
                 'cost': feeCost,

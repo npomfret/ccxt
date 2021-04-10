@@ -39,6 +39,7 @@ class aax extends Exchange {
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
                 'fetchOrders' => true,
+                'fetchStatus' => true,
                 'fetchTicker' => 'emulated',
                 'fetchTickers' => true,
                 'fetchTrades' => true,
@@ -237,6 +238,37 @@ class aax extends Exchange {
         ));
     }
 
+    public function fetch_status($params = array ()) {
+        $response = $this->publicGetAnnouncementMaintenance ($params);
+        //
+        //     {
+        //         "code" => 1,
+        //         "$data" => array(
+        //             "$startTime":"2020-06-25T02:15:00.000Z",
+        //             "$endTime":"2020-06-25T02:45:00.000Z"，
+        //             "description":"Spot Trading :UTC Jun 25, 2020 02:15 to 02:45 (HKT Jun 25 10:15 to 10:45),Futures Trading => UTC Jun 25, 2020 02:15 to 02:45 (HKT Jun 25 10:15 to 10:45).We apologize for any inconvenience caused. Thank you for your patience and understanding.Should you have any enquiries, please do not hesitate our live chat support or via email at cs@aax.com."
+        //         ),
+        //         "message":"success",
+        //         "ts":1593043237000
+        //     }
+        //
+        $data = $this->safe_value($response, 'data', array());
+        $timestamp = $this->milliseconds();
+        $startTime = $this->parse8601($this->safe_string($data, 'startTime'));
+        $endTime = $this->parse8601($this->safe_string($data, 'endTime'));
+        $update = array(
+            'updated' => $this->safe_integer($response, 'ts', $timestamp),
+        );
+        if ($endTime !== null) {
+            $startTimeIsOk = ($startTime === null) ? true : ($timestamp < $startTime);
+            $isOk = ($timestamp > $endTime) || $startTimeIsOk;
+            $update['eta'] = $endTime;
+            $update['status'] = $isOk ? 'ok' : 'maintenance';
+        }
+        $this->status = array_merge($this->status, $update);
+        return $this->status;
+    }
+
     public function fetch_markets($params = array ()) {
         $response = $this->publicGetInstruments ($params);
         //
@@ -322,8 +354,8 @@ class aax extends Exchange {
             $quote = $this->safe_currency_code($quoteId);
             $status = $this->safe_string($market, 'status');
             $active = ($status === 'enable');
-            $taker = $this->safe_float($market, 'takerFee');
-            $maker = $this->safe_float($market, 'makerFee');
+            $taker = $this->safe_number($market, 'takerFee');
+            $maker = $this->safe_number($market, 'makerFee');
             $type = $this->safe_string($market, 'type');
             $inverse = null;
             $linear = null;
@@ -341,8 +373,8 @@ class aax extends Exchange {
                 $symbol = $base . '/' . $quote;
             }
             $precision = array(
-                'amount' => $this->safe_float($market, 'lotSize'),
-                'price' => $this->safe_float($market, 'tickSize'),
+                'amount' => $this->safe_number($market, 'lotSize'),
+                'price' => $this->safe_number($market, 'tickSize'),
             );
             $result[] = array(
                 'id' => $id,
@@ -400,8 +432,8 @@ class aax extends Exchange {
         $timestamp = $this->safe_integer($ticker, 't');
         $marketId = $this->safe_string($ticker, 's');
         $symbol = $this->safe_symbol($marketId, $market);
-        $last = $this->safe_float($ticker, 'c');
-        $open = $this->safe_float($ticker, 'o');
+        $last = $this->safe_number($ticker, 'c');
+        $open = $this->safe_number($ticker, 'o');
         $change = null;
         $percentage = null;
         $average = null;
@@ -412,13 +444,13 @@ class aax extends Exchange {
             }
             $average = $this->sum($last, $open) / 2;
         }
-        $quoteVolume = $this->safe_float($ticker, 'v');
+        $quoteVolume = $this->safe_number($ticker, 'v');
         return array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_float($ticker, 'h'),
-            'low' => $this->safe_float($ticker, 'l'),
+            'high' => $this->safe_number($ticker, 'h'),
+            'low' => $this->safe_number($ticker, 'l'),
             'bid' => null,
             'bidVolume' => null,
             'ask' => null,
@@ -565,8 +597,8 @@ class aax extends Exchange {
         if ($market !== null) {
             $symbol = $market['symbol'];
         }
-        $price = $this->safe_float_2($trade, 'p', 'filledPrice');
-        $amount = $this->safe_float_2($trade, 'q', 'filledQty');
+        $priceString = $this->safe_string_2($trade, 'p', 'filledPrice');
+        $amountString = $this->safe_string_2($trade, 'q', 'filledQty');
         $orderId = $this->safe_string($trade, 'orderID');
         $isTaker = $this->safe_value($trade, 'taker');
         $takerOrMaker = null;
@@ -580,17 +612,15 @@ class aax extends Exchange {
             $side = 'sell';
         }
         if ($side === null) {
-            $side = ($price > 0) ? 'buy' : 'sell';
+            $side = ($priceString[0] === '-') ? 'sell' : 'buy';
         }
-        $side = ($price > 0) ? 'buy' : 'sell';
-        $price = abs($price);
-        $cost = null;
-        if (($price !== null) && ($amount !== null)) {
-            $cost = $price * $amount;
-        }
+        $priceString = ($priceString[0] === '-') ? mb_substr($priceString, 1) : $priceString;
+        $price = $this->parse_number($priceString);
+        $amount = $this->parse_number($amountString);
+        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         $orderType = $this->parse_order_type($this->safe_string($trade, 'orderType'));
         $fee = null;
-        $feeCost = $this->safe_float($trade, 'commission');
+        $feeCost = $this->safe_number($trade, 'commission');
         if ($feeCost !== null) {
             $feeCurrency = null;
             if ($market !== null) {
@@ -658,11 +688,11 @@ class aax extends Exchange {
         //
         return array(
             $this->safe_timestamp($ohlcv, 5),
-            $this->safe_float($ohlcv, 0),
-            $this->safe_float($ohlcv, 1),
-            $this->safe_float($ohlcv, 2),
-            $this->safe_float($ohlcv, 3),
-            $this->safe_float($ohlcv, 4),
+            $this->safe_number($ohlcv, 0),
+            $this->safe_number($ohlcv, 1),
+            $this->safe_number($ohlcv, 2),
+            $this->safe_number($ohlcv, 3),
+            $this->safe_number($ohlcv, 4),
         );
     }
 
@@ -747,12 +777,12 @@ class aax extends Exchange {
                 $currencyId = $this->safe_string($balance, 'currency');
                 $code = $this->safe_currency_code($currencyId);
                 $account = $this->account();
-                $account['free'] = $this->safe_float($balance, 'available');
-                $account['used'] = $this->safe_float($balance, 'unavailable');
+                $account['free'] = $this->safe_string($balance, 'available');
+                $account['used'] = $this->safe_string($balance, 'unavailable');
                 $result[$code] = $account;
             }
         }
-        return $this->parse_balance($result);
+        return $this->parse_balance($result, false);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -780,7 +810,7 @@ class aax extends Exchange {
             $request['clOrdID'] = $clientOrderId;
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId' ));
         }
-        $stopPrice = $this->safe_float($params, 'stopPrice');
+        $stopPrice = $this->safe_number($params, 'stopPrice');
         if ($stopPrice === null) {
             if (($orderType === 'STOP-LIMIT') || ($orderType === 'STOP')) {
                 throw new ArgumentsRequired($this->id . ' createOrder() requires a $stopPrice parameter for ' . $orderType . ' orders');
@@ -898,7 +928,7 @@ class aax extends Exchange {
             // 'price' => $this->price_to_precision($symbol, $price),
             // 'stopPrice' => $this->price_to_precision($symbol, $stopPrice),
         );
-        $stopPrice = $this->safe_float($params, 'stopPrice');
+        $stopPrice = $this->safe_number($params, 'stopPrice');
         if ($stopPrice !== null) {
             $request['stopPrice'] = $this->price_to_precision($symbol, $stopPrice);
             $params = $this->omit($params, 'stopPrice');
@@ -1535,15 +1565,18 @@ class aax extends Exchange {
         $marketId = $this->safe_string($order, 'symbol');
         $market = $this->safe_market($marketId, $market);
         $symbol = $market['symbol'];
-        $price = $this->safe_float($order, 'price');
-        $stopPrice = $this->safe_float($order, 'stopPrice');
+        $price = $this->safe_number($order, 'price');
+        $stopPrice = $this->safe_number($order, 'stopPrice');
         $timeInForce = $this->parse_time_in_force($this->safe_string($order, 'timeInForce'));
         $execInst = $this->safe_string($order, 'execInst');
         $postOnly = ($execInst === 'Post-Only');
-        $average = $this->safe_float($order, 'avgPrice');
-        $amount = $this->safe_float($order, 'orderQty');
-        $filled = $this->safe_float($order, 'cumQty');
-        $remaining = $this->safe_string($order, 'leavesQty');
+        $average = $this->safe_number($order, 'avgPrice');
+        $amount = $this->safe_number($order, 'orderQty');
+        $filled = $this->safe_number($order, 'cumQty');
+        $remaining = $this->safe_number($order, 'leavesQty');
+        if (($filled === 0) && ($remaining === 0)) {
+            $remaining = null;
+        }
         $cost = null;
         $lastTradeTimestamp = null;
         if ($filled !== null) {
@@ -1558,7 +1591,7 @@ class aax extends Exchange {
             }
         }
         $fee = null;
-        $feeCost = $this->safe_float($order, 'commission');
+        $feeCost = $this->safe_number($order, 'commission');
         if ($feeCost !== null) {
             $feeCurrency = null;
             if ($market !== null) {

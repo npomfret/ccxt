@@ -52,7 +52,7 @@ The CCXT Pro heavily relies on the transpiler of CCXT for [multilanguge support]
 
 # Exchanges
 
-The CCXT Pro library currently supports the following 27 cryptocurrency exchange markets and WebSocket trading APIs:
+The CCXT Pro library currently supports the following 28 cryptocurrency exchange markets and WebSocket trading APIs:
 
 | logo                                                                                                                                                                                         | id            | name                                                                                | ver | doc                                                                                | certified                                                                                                                   | pro                                                                          |
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|-------------------------------------------------------------------------------------|:---:|:----------------------------------------------------------------------------------:|-----------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
@@ -60,7 +60,7 @@ The CCXT Pro library currently supports the following 27 cryptocurrency exchange
 | [![binance](https://user-images.githubusercontent.com/1294454/29604020-d5483cdc-87ee-11e7-94c7-d1a8d9169293.jpg)](https://www.binance.com/?ref=10205187)                                     | binance       | [Binance](https://www.binance.com/?ref=10205187)                                    | *   | [API](https://binance-docs.github.io/apidocs/spot/en)                              | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![binanceus](https://user-images.githubusercontent.com/1294454/65177307-217b7c80-da5f-11e9-876e-0b748ba0a358.jpg)](https://www.binance.us/?ref=35005074)                                    | binanceus     | [Binance US](https://www.binance.us/?ref=35005074)                                  | *   | [API](https://github.com/binance-us/binance-official-api-docs)                     |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![bitcoincom](https://user-images.githubusercontent.com/1294454/97296144-514fa300-1861-11eb-952b-3d55d492200b.jpg)](https://exchange.bitcoin.com/referral/da948b21d6c92d69)                 | bitcoincom    | [bitcoin.com](https://exchange.bitcoin.com/referral/da948b21d6c92d69)               | 2   | [API](https://api.exchange.bitcoin.com/api/2/explore)                              |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
-| [![bitfinex](https://user-images.githubusercontent.com/1294454/27766244-e328a50c-5ed2-11e7-947b-041416579bb3.jpg)](https://www.bitfinex.com/?refcode=P61eYxFL)                               | bitfinex      | [Bitfinex](https://www.bitfinex.com/?refcode=P61eYxFL)                              | 1   | [API](https://docs.bitfinex.com/v1/docs)                                           | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
+| [![bitfinex](https://user-images.githubusercontent.com/1294454/27766244-e328a50c-5ed2-11e7-947b-041416579bb3.jpg)](https://www.bitfinex.com/?refcode=P61eYxFL)                               | bitfinex      | [Bitfinex](https://www.bitfinex.com/?refcode=P61eYxFL)                              | 1   | [API](https://docs.bitfinex.com/v1/docs)                                           |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![bitmex](https://user-images.githubusercontent.com/1294454/27766319-f653c6e6-5ed4-11e7-933d-f0bc3699ae8f.jpg)](https://www.bitmex.com/register/upZpOX)                                     | bitmex        | [BitMEX](https://www.bitmex.com/register/upZpOX)                                    | 1   | [API](https://www.bitmex.com/app/apiOverview)                                      |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![bitstamp](https://user-images.githubusercontent.com/1294454/27786377-8c8ab57e-5fe9-11e7-8ea4-2b05b6bcceec.jpg)](https://www.bitstamp.net)                                                 | bitstamp      | [Bitstamp](https://www.bitstamp.net)                                                | 2   | [API](https://www.bitstamp.net/api)                                                |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![bittrex](https://user-images.githubusercontent.com/51840849/87153921-edf53180-c2c0-11ea-96b9-f2a9a95a455b.jpg)](https://bittrex.com/Account/Register?referralCode=1ZE-G0G-M3B)            | bittrex       | [Bittrex](https://bittrex.com/Account/Register?referralCode=1ZE-G0G-M3B)            | 3   | [API](https://bittrex.github.io/api/v3)                                            | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
@@ -77,6 +77,7 @@ The CCXT Pro library currently supports the following 27 cryptocurrency exchange
 | [![idex](https://user-images.githubusercontent.com/51840849/94481303-2f222100-01e0-11eb-97dd-bc14c5943a86.jpg)](https://idex.io)                                                             | idex          | [IDEX](https://idex.io)                                                             | 2   | [API](https://docs.idex.io/)                                                       | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![kraken](https://user-images.githubusercontent.com/51840849/76173629-fc67fb00-61b1-11ea-84fe-f2de582f58a3.jpg)](https://www.kraken.com)                                                    | kraken        | [Kraken](https://www.kraken.com)                                                    | 0   | [API](https://www.kraken.com/features/api)                                         | [![CCXT Certified](https://img.shields.io/badge/CCXT-Certified-green.svg)](https://github.com/ccxt/ccxt/wiki/Certification) | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![kucoin](https://user-images.githubusercontent.com/51840849/87295558-132aaf80-c50e-11ea-9801-a2fb0c57c799.jpg)](https://www.kucoin.com/?rcode=E5wkqe)                                      | kucoin        | [KuCoin](https://www.kucoin.com/?rcode=E5wkqe)                                      | 2   | [API](https://docs.kucoin.com)                                                     |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
+| [![ndax](https://user-images.githubusercontent.com/1294454/108623144-67a3ef00-744e-11eb-8140-75c6b851e945.jpg)](https://one.ndax.io/bfQiSL)                                                  | ndax          | [NDAX](https://one.ndax.io/bfQiSL)                                                  | *   | [API](https://apidoc.ndax.io/)                                                     |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![okcoin](https://user-images.githubusercontent.com/51840849/87295551-102fbf00-c50e-11ea-90a9-462eebba5829.jpg)](https://www.okcoin.com/account/register?flag=activity&channelId=600001513) | okcoin        | [OKCoin](https://www.okcoin.com/account/register?flag=activity&channelId=600001513) | 3   | [API](https://www.okcoin.com/docs/en/)                                             |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![okex](https://user-images.githubusercontent.com/1294454/32552768-0d6dd3c6-c4a6-11e7-90f8-c043b64756a7.jpg)](https://www.okex.com/join/1888677)                                            | okex          | [OKEX](https://www.okex.com/join/1888677)                                           | 3   | [API](https://www.okex.com/docs/en/)                                               |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
 | [![phemex](https://user-images.githubusercontent.com/1294454/85225056-221eb600-b3d7-11ea-930d-564d2690e3f6.jpg)](https://phemex.com/register?referralCode=EDNVJ)                             | phemex        | [Phemex](https://phemex.com/register?referralCode=EDNVJ)                            | 1   | [API](https://github.com/phemex/phemex-api-docs)                                   |                                                                                                                             | [![CCXT Pro](https://img.shields.io/badge/CCXT-Pro-black)](https://ccxt.pro) |
@@ -319,23 +320,31 @@ limit = 2
 await exchange.watchTrades (symbol, since, limit)
 ```
 
-If you want to always get just the most recent trade, **you should set a cache limit to 1, instead of using the `limit=1` argument**.
+#### newUpdates mode
+
+If you want to always get just the most recent trade, **you should instantiate the exchange with the newUpdates flag set to true**.
 
 ```Python
-# this loop will properly print the most recent trade when it happens
-exchange.options['tradesLimit'] = 1
+exchange = ccxtpro.binance({'newUpdates': True})
 while True:
-    trade = await exchange.watchTrades (symbol)
-    print(trade)
+    trades = await exchange.watchTrades (symbol)
+    print(trades)
 ```
 
-The following loop will always print the first trade of up to 1000 most recent trades from the cache. It will print the same trade over and over again as the cache grows through the first 1000 iterations. When the cache size hits 1000, it will print the first trade from the beginning of the cache, that will slide with each new trade added to the end.
+The newUpdates mode continues to utilize the sliding cache in the background, but the user will only be given the new updates. This is because some exchanges use incremental structures, so we need to keep a cache of objects as the exchange may only provide partial information such as status updates.
 
-```Python
-while True:
-    trade = await exchange.watchTrades (symbol, since=None, limit=1)
-    print(trade)
+The result from the newUpdates mode will be one or more updates that have occurred since the last time `exchange.watchMethod` resolved. CCXT Pro can return one or more orders that were updated since the previous call. The result of calling `exchange.watchOrders` will look like shown below:
+
+```JavaScript
+[ 
+    order, // see https://github.com/ccxt/ccxt/wiki/Manual#order-structure
+    order,
+    order,
+    ...
+]
 ```
+
+*Deprecation Warning*: in the future `newUpdates: true` will be the default mode and you will have to set newUpdates to false to get the sliding cache.
 
 ## Linking
 
@@ -375,10 +384,10 @@ Creating a CCXT Pro exchange instance is pretty much identical to creating a CCX
 ```JavaScript
 // JavaScript
 const ccxtpro = require ('ccxt.pro')
-const exchange = new ccxtpro.binance ({ enableRateLimit: true })
+const exchange = new ccxtpro.binance ({ enableRateLimit: true, newUpdates: false })
 ```
 
-The Python implementation of CCXT Pro relies on builtin [asyncio](https://docs.python.org/3/library/asyncio.html) and [Event Loop](https://docs.python.org/3/library/asyncio-eventloop.html) in particular. In Python it is required to supply an asyncio's event loop instance in the constructor arguments as shown below (identical to `ccxt.async support`):
+The Python implementation of CCXT Pro relies on builtin [asyncio](https://docs.python.org/3/library/asyncio.html) and [Event Loop](https://docs.python.org/3/library/asyncio-eventloop.html) in particular. In Python it is possible to supply an asyncio's event loop instance in the constructor arguments as shown below (identical to `ccxt.async support`):
 
 ```Python
 # Python
@@ -386,7 +395,7 @@ import ccxtpro
 import asyncio
 
 async def main(loop):
-    exchange = ccxtpro.kraken({'enableRateLimit': True, 'asyncio_loop': loop})
+    exchange = ccxtpro.kraken({'enableRateLimit': True, 'asyncio_loop': loop, 'newUpdates': False })
     while True:
         orderbook = await exchange.watch_order_book('BTC/USD')
         print(orderbook['asks'][0], orderbook['bids'][0])
@@ -405,7 +414,7 @@ date_default_timezone_set('UTC');
 require_once 'vendor/autoload.php';
 
 $loop = \React\EventLoop\Factory::create(); // the event loop goes here ↓
-$exchange = new \ccxtpro\kucoin(array('enableRateLimit' => true, 'loop' => $loop));
+$exchange = new \ccxtpro\kucoin(array('enableRateLimit' => true, 'loop' => $loop, 'newUpdates': false ));
 ```
 
 ## Exchange Properties

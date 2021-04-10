@@ -14,6 +14,7 @@ from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import RateLimitExceeded
+from ccxt.base.precise import Precise
 
 
 class bigone(Exchange):
@@ -264,28 +265,28 @@ class bigone(Exchange):
         marketId = self.safe_string(ticker, 'asset_pair_name')
         symbol = self.safe_symbol(marketId, market, '-')
         timestamp = None
-        close = self.safe_float(ticker, 'close')
+        close = self.safe_number(ticker, 'close')
         bid = self.safe_value(ticker, 'bid', {})
         ask = self.safe_value(ticker, 'ask', {})
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(bid, 'price'),
-            'bidVolume': self.safe_float(bid, 'quantity'),
-            'ask': self.safe_float(ask, 'price'),
-            'askVolume': self.safe_float(ask, 'quantity'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'bid': self.safe_number(bid, 'price'),
+            'bidVolume': self.safe_number(bid, 'quantity'),
+            'ask': self.safe_number(ask, 'price'),
+            'askVolume': self.safe_number(ask, 'quantity'),
             'vwap': None,
-            'open': self.safe_float(ticker, 'open'),
+            'open': self.safe_number(ticker, 'open'),
             'close': close,
             'last': close,
             'previousClose': None,
-            'change': self.safe_float(ticker, 'daily_change'),
+            'change': self.safe_number(ticker, 'daily_change'),
             'percentage': None,
             'average': None,
-            'baseVolume': self.safe_float(ticker, 'volume'),
+            'baseVolume': self.safe_number(ticker, 'volume'),
             'quoteVolume': None,
             'info': ticker,
         }
@@ -442,14 +443,13 @@ class bigone(Exchange):
         #     }
         #
         timestamp = self.parse8601(self.safe_string_2(trade, 'created_at', 'inserted_at'))
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         marketId = self.safe_string(trade, 'asset_pair_name')
         symbol = self.safe_symbol(marketId, market, '-')
-        cost = None
-        if amount is not None:
-            if price is not None:
-                cost = self.cost_to_precision(symbol, price * amount)
         side = self.safe_string(trade, 'side')
         takerSide = self.safe_string(trade, 'taker_side')
         takerOrMaker = None
@@ -513,8 +513,8 @@ class bigone(Exchange):
             elif takerSide == 'ASK':
                 makerCurrencyCode = market['base']
                 takerCurrencyCode = market['quote']
-        makerFeeCost = self.safe_float(trade, 'maker_fee')
-        takerFeeCost = self.safe_float(trade, 'taker_fee')
+        makerFeeCost = self.safe_number(trade, 'maker_fee')
+        takerFeeCost = self.safe_number(trade, 'taker_fee')
         if makerFeeCost is not None:
             if takerFeeCost is not None:
                 result['fees'] = [
@@ -573,11 +573,11 @@ class bigone(Exchange):
         #
         return [
             self.parse8601(self.safe_string(ohlcv, 'time')),
-            self.safe_float(ohlcv, 'open'),
-            self.safe_float(ohlcv, 'high'),
-            self.safe_float(ohlcv, 'low'),
-            self.safe_float(ohlcv, 'close'),
-            self.safe_float(ohlcv, 'volume'),
+            self.safe_number(ohlcv, 'open'),
+            self.safe_number(ohlcv, 'high'),
+            self.safe_number(ohlcv, 'low'),
+            self.safe_number(ohlcv, 'close'),
+            self.safe_number(ohlcv, 'volume'),
         ]
 
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
@@ -644,10 +644,10 @@ class bigone(Exchange):
             symbol = self.safe_string(balance, 'asset_symbol')
             code = self.safe_currency_code(symbol)
             account = self.account()
-            account['total'] = self.safe_float(balance, 'balance')
-            account['used'] = self.safe_float(balance, 'locked_balance')
+            account['total'] = self.safe_string(balance, 'balance')
+            account['used'] = self.safe_string(balance, 'locked_balance')
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     def parse_order(self, order, market=None):
         #
@@ -668,25 +668,18 @@ class bigone(Exchange):
         marketId = self.safe_string(order, 'asset_pair_name')
         symbol = self.safe_symbol(marketId, market, '-')
         timestamp = self.parse8601(self.safe_string(order, 'created_at'))
-        price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'amount')
-        filled = self.safe_float(order, 'filled_amount')
-        remaining = None
-        if amount is not None and filled is not None:
-            remaining = max(0, amount - filled)
+        price = self.safe_number(order, 'price')
+        amount = self.safe_number(order, 'amount')
+        filled = self.safe_number(order, 'filled_amount')
         status = self.parse_order_status(self.safe_string(order, 'state'))
         side = self.safe_string(order, 'side')
         if side == 'BID':
             side = 'buy'
         else:
             side = 'sell'
-        cost = None
-        if filled is not None:
-            if price is not None:
-                cost = filled * price
         lastTradeTimestamp = self.parse8601(self.safe_string(order, 'updated_at'))
-        average = self.safe_float(order, 'avg_deal_price')
-        return {
+        average = self.safe_number(order, 'avg_deal_price')
+        return self.safe_order({
             'info': order,
             'id': id,
             'clientOrderId': None,
@@ -701,14 +694,14 @@ class bigone(Exchange):
             'price': price,
             'stopPrice': None,
             'amount': amount,
-            'cost': cost,
+            'cost': None,
             'average': average,
             'filled': filled,
-            'remaining': remaining,
+            'remaining': None,
             'status': status,
             'fee': None,
             'trades': None,
-        }
+        })
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         self.load_markets()
@@ -731,7 +724,7 @@ class bigone(Exchange):
             isStopLimit = (uppercaseType == 'STOP_LIMIT')
             isStopMarket = (uppercaseType == 'STOP_MARKET')
             if isStopLimit or isStopMarket:
-                stopPrice = self.safe_float_2(params, 'stop_price', 'stopPrice')
+                stopPrice = self.safe_number_2(params, 'stop_price', 'stopPrice')
                 if stopPrice is None:
                     raise ArgumentsRequired(self.id + ' createOrder() requires a stop_price parameter')
                 request['stop_price'] = self.price_to_precision(symbol, stopPrice)
@@ -1044,7 +1037,7 @@ class bigone(Exchange):
         currencyId = self.safe_string(transaction, 'asset_symbol')
         code = self.safe_currency_code(currencyId)
         id = self.safe_integer(transaction, 'id')
-        amount = self.safe_float(transaction, 'amount')
+        amount = self.safe_number(transaction, 'amount')
         status = self.parse_transaction_status(self.safe_string(transaction, 'state'))
         timestamp = self.parse8601(self.safe_string(transaction, 'inserted_at'))
         updated = self.parse8601(self.safe_string_2(transaction, 'updated_at', 'completed_at'))

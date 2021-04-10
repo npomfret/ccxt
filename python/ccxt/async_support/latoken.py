@@ -13,7 +13,7 @@ from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import DDoSProtection
 from ccxt.base.errors import InvalidNonce
-from ccxt.base.decimal_to_precision import ROUND
+from ccxt.base.precise import Precise
 
 
 class latoken(Exchange):
@@ -94,6 +94,7 @@ class latoken(Exchange):
             },
             'fees': {
                 'trading': {
+                    'feeSide': 'get',
                     'tierBased': False,
                     'percentage': True,
                     'maker': 0.1 / 100,
@@ -175,7 +176,7 @@ class latoken(Exchange):
             }
             limits = {
                 'amount': {
-                    'min': self.safe_float(market, 'minQty'),
+                    'min': self.safe_number(market, 'minQty'),
                     'max': None,
                 },
                 'price': {
@@ -223,7 +224,7 @@ class latoken(Exchange):
             numericId = self.safe_integer(currency, 'currencyId')
             code = self.safe_currency_code(id)
             precision = self.safe_integer(currency, 'precission')
-            fee = self.safe_float(currency, 'fee')
+            fee = self.safe_number(currency, 'fee')
             active = None
             result[code] = {
                 'id': id,
@@ -255,25 +256,6 @@ class latoken(Exchange):
             }
         return result
 
-    def calculate_fee(self, symbol, type, side, amount, price, takerOrMaker='taker', params={}):
-        market = self.markets[symbol]
-        key = 'quote'
-        rate = market[takerOrMaker]
-        cost = amount * rate
-        precision = market['precision']['price']
-        if side == 'sell':
-            cost *= price
-        else:
-            key = 'base'
-            precision = market['precision']['amount']
-        cost = self.decimal_to_precision(cost, ROUND, precision, self.precisionMode)
-        return {
-            'type': takerOrMaker,
-            'currency': market[key],
-            'rate': rate,
-            'cost': float(cost),
-        }
-
     async def fetch_balance(self, params={}):
         await self.load_markets()
         response = await self.privateGetAccountBalances(params)
@@ -297,13 +279,13 @@ class latoken(Exchange):
             balance = response[i]
             currencyId = self.safe_string(balance, 'symbol')
             code = self.safe_currency_code(currencyId)
-            frozen = self.safe_float(balance, 'frozen')
-            pending = self.safe_float(balance, 'pending')
+            frozen = self.safe_number(balance, 'frozen')
+            pending = self.safe_number(balance, 'pending')
             used = self.sum(frozen, pending)
             account = {
-                'free': self.safe_float(balance, 'available'),
+                'free': self.safe_number(balance, 'available'),
                 'used': used,
-                'total': self.safe_float(balance, 'amount'),
+                'total': self.safe_number(balance, 'amount'),
             }
             result[code] = account
         return self.parse_balance(result)
@@ -348,19 +330,19 @@ class latoken(Exchange):
         #
         marketId = self.safe_string(ticker, 'symbol')
         symbol = self.safe_symbol(marketId, market)
-        open = self.safe_float(ticker, 'open')
-        close = self.safe_float(ticker, 'close')
+        open = self.safe_number(ticker, 'open')
+        close = self.safe_number(ticker, 'close')
         change = None
         if open is not None and close is not None:
             change = close - open
-        percentage = self.safe_float(ticker, 'priceChange')
+        percentage = self.safe_number(ticker, 'priceChange')
         timestamp = self.nonce()
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'low': self.safe_float(ticker, 'low'),
-            'high': self.safe_float(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'high': self.safe_number(ticker, 'high'),
             'bid': None,
             'bidVolume': None,
             'ask': None,
@@ -374,7 +356,7 @@ class latoken(Exchange):
             'percentage': percentage,
             'average': None,
             'baseVolume': None,
-            'quoteVolume': self.safe_float(ticker, 'volume'),
+            'quoteVolume': self.safe_number(ticker, 'volume'),
             'info': ticker,
         }
 
@@ -452,19 +434,18 @@ class latoken(Exchange):
             # 03 Jan 2009 - first block
             if timestamp < 1230940800000:
                 timestamp *= 1000
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         side = self.safe_string(trade, 'side')
-        cost = None
-        if amount is not None:
-            if price is not None:
-                cost = amount * price
         symbol = None
         if market is not None:
             symbol = market['symbol']
         id = self.safe_string(trade, 'id')
         orderId = self.safe_string(trade, 'orderId')
-        feeCost = self.safe_float(trade, 'commission')
+        feeCost = self.safe_number(trade, 'commission')
         fee = None
         if feeCost is not None:
             fee = {
@@ -592,24 +573,16 @@ class latoken(Exchange):
         symbol = self.safe_symbol(marketId, market)
         side = self.safe_string(order, 'side')
         type = self.safe_string(order, 'orderType')
-        price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'amount')
-        filled = self.safe_float(order, 'executedAmount')
-        remaining = None
-        if amount is not None:
-            if filled is not None:
-                remaining = amount - filled
+        price = self.safe_number(order, 'price')
+        amount = self.safe_number(order, 'amount')
+        filled = self.safe_number(order, 'executedAmount')
         status = self.parse_order_status(self.safe_string(order, 'orderStatus'))
-        cost = None
-        if filled is not None:
-            if price is not None:
-                cost = filled * price
         timeFilled = self.safe_timestamp(order, 'timeFilled')
         lastTradeTimestamp = None
         if (timeFilled is not None) and (timeFilled > 0):
             lastTradeTimestamp = timeFilled
         clientOrderId = self.safe_string(order, 'cliOrdId')
-        return {
+        return self.safe_order({
             'id': id,
             'clientOrderId': clientOrderId,
             'info': order,
@@ -624,14 +597,14 @@ class latoken(Exchange):
             'side': side,
             'price': price,
             'stopPrice': None,
-            'cost': cost,
+            'cost': None,
             'amount': amount,
             'filled': filled,
             'average': None,
-            'remaining': remaining,
+            'remaining': None,
             'fee': None,
             'trades': None,
-        }
+        })
 
     async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         return self.fetch_orders_with_method('private_get_order_active', symbol, since, limit, params)

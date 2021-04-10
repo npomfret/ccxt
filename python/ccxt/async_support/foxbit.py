@@ -5,6 +5,7 @@
 
 from ccxt.async_support.base.exchange import Exchange
 from ccxt.base.errors import ExchangeError
+from ccxt.base.precise import Precise
 
 
 class foxbit(Exchange):
@@ -89,10 +90,10 @@ class foxbit(Exchange):
                 # otherwise we will lose the info if the currency balance has been funded or traded or not
                 if currencyId in balances:
                     account = self.account()
-                    used = self.safe_float(balances, currencyId + '_locked')
+                    used = self.safe_number(balances, currencyId + '_locked')
                     if used is not None:
                         used *= 1e-8
-                    total = self.safe_float(balances, currencyId)
+                    total = self.safe_number(balances, currencyId)
                     if total is not None:
                         total *= 1e-8
                     account['used'] = used
@@ -121,16 +122,16 @@ class foxbit(Exchange):
         timestamp = self.milliseconds()
         lowercaseQuote = market['quote'].lower()
         quoteVolume = 'vol_' + lowercaseQuote
-        last = self.safe_float(ticker, 'last')
+        last = self.safe_number(ticker, 'last')
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(ticker, 'buy'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'bid': self.safe_number(ticker, 'buy'),
             'bidVolume': None,
-            'ask': self.safe_float(ticker, 'sell'),
+            'ask': self.safe_number(ticker, 'sell'),
             'askVolume': None,
             'vwap': None,
             'open': None,
@@ -140,8 +141,8 @@ class foxbit(Exchange):
             'change': None,
             'percentage': None,
             'average': None,
-            'baseVolume': self.safe_float(ticker, 'vol'),
-            'quoteVolume': self.safe_float(ticker, quoteVolume),
+            'baseVolume': self.safe_number(ticker, 'vol'),
+            'quoteVolume': self.safe_number(ticker, quoteVolume),
             'info': ticker,
         }
 
@@ -152,12 +153,11 @@ class foxbit(Exchange):
         if market is not None:
             symbol = market['symbol']
         side = self.safe_string(trade, 'side')
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
-        cost = None
-        if price is not None:
-            if amount is not None:
-                cost = amount * price
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         return {
             'id': id,
             'info': trade,

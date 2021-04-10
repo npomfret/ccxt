@@ -12,6 +12,7 @@ from ccxt.base.errors import BadSymbol
 from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
+from ccxt.base.precise import Precise
 
 
 class indodax(Exchange):
@@ -168,7 +169,7 @@ class indodax(Exchange):
             base = self.safe_currency_code(baseId)
             quote = self.safe_currency_code(quoteId)
             symbol = base + '/' + quote
-            taker = self.safe_float(market, 'trade_fee_percent')
+            taker = self.safe_number(market, 'trade_fee_percent')
             isMaintenance = self.safe_integer(market, 'is_maintenance')
             active = False if (isMaintenance) else True
             pricePrecision = self.safe_integer(market, 'price_round')
@@ -178,11 +179,11 @@ class indodax(Exchange):
             }
             limits = {
                 'amount': {
-                    'min': self.safe_float(market, 'trade_min_traded_currency'),
+                    'min': self.safe_number(market, 'trade_min_traded_currency'),
                     'max': None,
                 },
                 'price': {
-                    'min': self.safe_float(market, 'trade_min_base_currency'),
+                    'min': self.safe_number(market, 'trade_min_base_currency'),
                     'max': None,
                 },
                 'cost': {
@@ -218,10 +219,10 @@ class indodax(Exchange):
             currencyId = currencyIds[i]
             code = self.safe_currency_code(currencyId)
             account = self.account()
-            account['free'] = self.safe_float(free, currencyId)
-            account['used'] = self.safe_float(used, currencyId)
+            account['free'] = self.safe_string(free, currencyId)
+            account['used'] = self.safe_string(used, currencyId)
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -256,16 +257,16 @@ class indodax(Exchange):
         timestamp = self.safe_timestamp(ticker, 'server_time')
         baseVolume = 'vol_' + market['baseId'].lower()
         quoteVolume = 'vol_' + market['quoteId'].lower()
-        last = self.safe_float(ticker, 'last')
+        last = self.safe_number(ticker, 'last')
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(ticker, 'buy'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'bid': self.safe_number(ticker, 'buy'),
             'bidVolume': None,
-            'ask': self.safe_float(ticker, 'sell'),
+            'ask': self.safe_number(ticker, 'sell'),
             'askVolume': None,
             'vwap': None,
             'open': None,
@@ -275,8 +276,8 @@ class indodax(Exchange):
             'change': None,
             'percentage': None,
             'average': None,
-            'baseVolume': self.safe_float(ticker, baseVolume),
-            'quoteVolume': self.safe_float(ticker, quoteVolume),
+            'baseVolume': self.safe_number(ticker, baseVolume),
+            'quoteVolume': self.safe_number(ticker, quoteVolume),
             'info': ticker,
         }
 
@@ -288,12 +289,11 @@ class indodax(Exchange):
             symbol = market['symbol']
         type = None
         side = self.safe_string(trade, 'type')
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
-        cost = None
-        if price is not None:
-            if amount is not None:
-                cost = price * amount
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         return {
             'id': id,
             'info': trade,
@@ -344,7 +344,7 @@ class indodax(Exchange):
         status = self.parse_order_status(self.safe_string(order, 'status', 'open'))
         symbol = None
         cost = None
-        price = self.safe_float(order, 'price')
+        price = self.safe_number(order, 'price')
         amount = None
         remaining = None
         filled = None
@@ -356,17 +356,17 @@ class indodax(Exchange):
                 quoteId = 'rp'
             if (market['baseId'] == 'idr') and ('remain_rp' in order):
                 baseId = 'rp'
-            cost = self.safe_float(order, 'order_' + quoteId)
+            cost = self.safe_number(order, 'order_' + quoteId)
             if cost:
                 amount = cost / price
-                remainingCost = self.safe_float(order, 'remain_' + quoteId)
+                remainingCost = self.safe_number(order, 'remain_' + quoteId)
                 if remainingCost is not None:
                     remaining = remainingCost / price
                     filled = amount - remaining
             else:
-                amount = self.safe_float(order, 'order_' + baseId)
+                amount = self.safe_number(order, 'order_' + baseId)
                 cost = price * amount
-                remaining = self.safe_float(order, 'remain_' + baseId)
+                remaining = self.safe_number(order, 'remain_' + baseId)
                 filled = amount - remaining
         average = None
         if filled:

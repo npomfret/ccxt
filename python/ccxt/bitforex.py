@@ -18,6 +18,7 @@ from ccxt.base.errors import BadSymbol
 from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import DDoSProtection
+from ccxt.base.precise import Precise
 
 
 class bitforex(Exchange):
@@ -272,7 +273,7 @@ class bitforex(Exchange):
             }
             limits = {
                 'amount': {
-                    'min': self.safe_float(market, 'minOrderAmount'),
+                    'min': self.safe_number(market, 'minOrderAmount'),
                     'max': None,
                 },
                 'price': {
@@ -305,12 +306,11 @@ class bitforex(Exchange):
         timestamp = self.safe_integer(trade, 'time')
         id = self.safe_string(trade, 'tid')
         orderId = None
-        amount = self.safe_float(trade, 'amount')
-        price = self.safe_float(trade, 'price')
-        cost = None
-        if price is not None:
-            if amount is not None:
-                cost = amount * price
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         sideId = self.safe_integer(trade, 'direction')
         side = self.parse_side(sideId)
         return {
@@ -350,11 +350,11 @@ class bitforex(Exchange):
             currencyId = self.safe_string(balance, 'currency')
             code = self.safe_currency_code(currencyId)
             account = self.account()
-            account['used'] = self.safe_float(balance, 'frozen')
-            account['free'] = self.safe_float(balance, 'active')
-            account['total'] = self.safe_float(balance, 'fix')
+            account['used'] = self.safe_string(balance, 'frozen')
+            account['free'] = self.safe_string(balance, 'active')
+            account['total'] = self.safe_string(balance, 'fix')
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
@@ -369,21 +369,21 @@ class bitforex(Exchange):
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(data, 'high'),
-            'low': self.safe_float(data, 'low'),
-            'bid': self.safe_float(data, 'buy'),
+            'high': self.safe_number(data, 'high'),
+            'low': self.safe_number(data, 'low'),
+            'bid': self.safe_number(data, 'buy'),
             'bidVolume': None,
-            'ask': self.safe_float(data, 'sell'),
+            'ask': self.safe_number(data, 'sell'),
             'askVolume': None,
             'vwap': None,
             'open': None,
-            'close': self.safe_float(data, 'last'),
-            'last': self.safe_float(data, 'last'),
+            'close': self.safe_number(data, 'last'),
+            'last': self.safe_number(data, 'last'),
             'previousClose': None,
             'change': None,
             'percentage': None,
             'average': None,
-            'baseVolume': self.safe_float(data, 'vol'),
+            'baseVolume': self.safe_number(data, 'vol'),
             'quoteVolume': None,
             'info': response,
         }
@@ -402,11 +402,11 @@ class bitforex(Exchange):
         #
         return [
             self.safe_integer(ohlcv, 'time'),
-            self.safe_float(ohlcv, 'open'),
-            self.safe_float(ohlcv, 'high'),
-            self.safe_float(ohlcv, 'low'),
-            self.safe_float(ohlcv, 'close'),
-            self.safe_float(ohlcv, 'vol'),
+            self.safe_number(ohlcv, 'open'),
+            self.safe_number(ohlcv, 'high'),
+            self.safe_number(ohlcv, 'low'),
+            self.safe_number(ohlcv, 'close'),
+            self.safe_number(ohlcv, 'vol'),
         ]
 
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
@@ -466,26 +466,24 @@ class bitforex(Exchange):
 
     def parse_order(self, order, market=None):
         id = self.safe_string(order, 'orderId')
-        timestamp = self.safe_float(order, 'createTime')
-        lastTradeTimestamp = self.safe_float(order, 'lastTime')
+        timestamp = self.safe_number(order, 'createTime')
+        lastTradeTimestamp = self.safe_number(order, 'lastTime')
         symbol = market['symbol']
         sideId = self.safe_integer(order, 'tradeType')
         side = self.parse_side(sideId)
         type = None
-        price = self.safe_float(order, 'orderPrice')
-        average = self.safe_float(order, 'avgPrice')
-        amount = self.safe_float(order, 'orderAmount')
-        filled = self.safe_float(order, 'dealAmount')
-        remaining = amount - filled
+        price = self.safe_number(order, 'orderPrice')
+        average = self.safe_number(order, 'avgPrice')
+        amount = self.safe_number(order, 'orderAmount')
+        filled = self.safe_number(order, 'dealAmount')
         status = self.parse_order_status(self.safe_string(order, 'orderState'))
-        cost = filled * price
         feeSide = 'base' if (side == 'buy') else 'quote'
         feeCurrency = market[feeSide]
         fee = {
-            'cost': self.safe_float(order, 'tradeFee'),
+            'cost': self.safe_number(order, 'tradeFee'),
             'currency': feeCurrency,
         }
-        result = {
+        return self.safe_order({
             'info': order,
             'id': id,
             'clientOrderId': None,
@@ -499,16 +497,15 @@ class bitforex(Exchange):
             'side': side,
             'price': price,
             'stopPrice': None,
-            'cost': cost,
+            'cost': None,
             'average': average,
             'amount': amount,
             'filled': filled,
-            'remaining': remaining,
+            'remaining': None,
             'status': status,
             'fee': fee,
             'trades': None,
-        }
-        return result
+        })
 
     def fetch_order(self, id, symbol=None, params={}):
         self.load_markets()

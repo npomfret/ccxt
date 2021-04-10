@@ -16,6 +16,7 @@ from ccxt.base.errors import OrderNotFound
 from ccxt.base.decimal_to_precision import ROUND
 from ccxt.base.decimal_to_precision import TRUNCATE
 from ccxt.base.decimal_to_precision import TICK_SIZE
+from ccxt.base.precise import Precise
 
 
 class gopax(Exchange):
@@ -227,8 +228,8 @@ class gopax(Exchange):
             minimums = self.safe_value(market, 'restApiOrderAmountMin', {})
             marketAsk = self.safe_value(minimums, 'marketAsk', {})
             marketBid = self.safe_value(minimums, 'marketBid', {})
-            takerFeePercent = self.safe_float(market, 'takerFeePercent')
-            makerFeePercent = self.safe_float(market, 'makerFeePercent')
+            takerFeePercent = self.safe_number(market, 'takerFeePercent')
+            makerFeePercent = self.safe_number(market, 'makerFeePercent')
             taker = float(self.decimal_to_precision(takerFeePercent / 100, ROUND, 0.00000001, TICK_SIZE))
             maker = float(self.decimal_to_precision(makerFeePercent / 100, ROUND, 0.00000001, TICK_SIZE))
             result.append({
@@ -246,15 +247,15 @@ class gopax(Exchange):
                 'precision': precision,
                 'limits': {
                     'amount': {
-                        'min': self.safe_float(marketAsk, 'amount'),
+                        'min': self.safe_number(marketAsk, 'amount'),
                         'max': None,
                     },
                     'price': {
-                        'min': self.safe_float(market, 'priceMin'),
+                        'min': self.safe_number(market, 'priceMin'),
                         'max': None,
                     },
                     'cost': {
-                        'min': self.safe_float(marketBid, 'amount'),
+                        'min': self.safe_number(marketBid, 'amount'),
                         'max': None,
                     },
                 },
@@ -287,8 +288,8 @@ class gopax(Exchange):
             id = self.safe_string(currency, 'id')
             code = self.safe_currency_code(id)
             name = self.safe_string(currency, 'name')
-            fee = self.safe_float(currency, 'withdrawalFee')
-            precision = self.safe_float(currency, 'scale')
+            fee = self.safe_number(currency, 'withdrawalFee')
+            precision = self.safe_number(currency, 'scale')
             result[code] = {
                 'id': id,
                 'info': currency,
@@ -311,7 +312,7 @@ class gopax(Exchange):
                         'max': None,
                     },
                     'withdraw': {
-                        'min': self.safe_float(currency, 'withdrawalAmountMin'),
+                        'min': self.safe_number(currency, 'withdrawalAmountMin'),
                         'max': None,
                     },
                 },
@@ -376,8 +377,8 @@ class gopax(Exchange):
         marketId = self.safe_string(ticker, 'name')
         symbol = self.safe_symbol(marketId, market, '-')
         timestamp = self.parse8601(self.safe_string(ticker, 'time'))
-        open = self.safe_float(ticker, 'open')
-        last = self.safe_float_2(ticker, 'price', 'close')
+        open = self.safe_number(ticker, 'open')
+        last = self.safe_number_2(ticker, 'price', 'close')
         change = None
         percentage = None
         average = None
@@ -386,20 +387,20 @@ class gopax(Exchange):
             change = last - open
             if open > 0:
                 percentage = change / open * 100
-        baseVolume = self.safe_float(ticker, 'volume')
-        quoteVolume = self.safe_float(ticker, 'quoteVolume')
+        baseVolume = self.safe_number(ticker, 'volume')
+        quoteVolume = self.safe_number(ticker, 'quoteVolume')
         vwap = self.vwap(baseVolume, quoteVolume)
         return {
             'symbol': symbol,
             'info': ticker,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(ticker, 'bid'),
-            'bidVolume': self.safe_float(ticker, 'bidVolume'),
-            'ask': self.safe_float(ticker, 'ask'),
-            'askVolume': self.safe_float(ticker, 'askVolume'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'bid': self.safe_number(ticker, 'bid'),
+            'bidVolume': self.safe_number(ticker, 'bidVolume'),
+            'ask': self.safe_number(ticker, 'ask'),
+            'askVolume': self.safe_number(ticker, 'askVolume'),
             'vwap': vwap,
             'open': open,
             'close': last,
@@ -433,12 +434,6 @@ class gopax(Exchange):
         #
         return self.parse_ticker(response, market)
 
-    def parse_tickers(self, rawTickers, symbols=None):
-        tickers = []
-        for i in range(0, len(rawTickers)):
-            tickers.append(self.parse_ticker(rawTickers[i]))
-        return self.filter_by_array(tickers, 'symbol', symbols)
-
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
         response = await self.publicGetTradingPairsStats(params)
@@ -459,8 +454,8 @@ class gopax(Exchange):
 
     def parse_public_trade(self, trade, market=None):
         timestamp = self.parse8601(self.safe_string(trade, 'time'))
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
+        price = self.safe_number(trade, 'price')
+        amount = self.safe_number(trade, 'amount')
         symbol = None
         if 'symbol' in market:
             symbol = self.safe_string(market, 'symbol')
@@ -484,13 +479,13 @@ class gopax(Exchange):
         timestamp = self.parse8601(self.safe_string(trade, 'timestamp'))
         symbol = self.safe_string(trade, 'tradingPairName').replace('-', '/')
         side = self.safe_string(trade, 'side')
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'baseAmount')
+        price = self.safe_number(trade, 'price')
+        amount = self.safe_number(trade, 'baseAmount')
         feeCurrency = symbol[0:3]
         if side == 'sell':
             feeCurrency = symbol[4:]
         fee = {
-            'cost': self.safe_float(trade, 'fee'),
+            'cost': self.safe_number(trade, 'fee'),
             'currency': feeCurrency,
             'rate': None,
         }
@@ -569,13 +564,14 @@ class gopax(Exchange):
             type = 'limit'
         elif type == '2':
             type = 'market'
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float_2(trade, 'amount', 'baseAmount')
-        cost = self.safe_float(trade, 'quoteAmount')
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string_2(trade, 'amount', 'baseAmount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.safe_number(trade, 'quoteAmount')
         if cost is None:
-            if (price is not None) and (amount is not None):
-                cost = price * amount
-        feeCost = self.safe_float(trade, 'fee')
+            cost = self.parse_number(Precise.string_mul(priceString, amountString))
+        feeCost = self.safe_number(trade, 'fee')
         fee = None
         if feeCost is not None:
             fee = {
@@ -637,11 +633,11 @@ class gopax(Exchange):
         #
         return [
             self.safe_integer(ohlcv, 0),
-            self.safe_float(ohlcv, 3),
-            self.safe_float(ohlcv, 2),
-            self.safe_float(ohlcv, 1),
-            self.safe_float(ohlcv, 4),
-            self.safe_float(ohlcv, 5),
+            self.safe_number(ohlcv, 3),
+            self.safe_number(ohlcv, 2),
+            self.safe_number(ohlcv, 1),
+            self.safe_number(ohlcv, 4),
+            self.safe_number(ohlcv, 5),
         ]
 
     async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
@@ -678,10 +674,10 @@ class gopax(Exchange):
             balance = response[i]
             currencyId = self.safe_string_2(balance, 'asset', 'isoAlpha3')
             code = self.safe_currency_code(currencyId)
-            hold = self.safe_float(balance, 'hold')
-            pendingWithdrawal = self.safe_float(balance, 'pendingWithdrawal')
+            hold = self.safe_number(balance, 'hold')
+            pendingWithdrawal = self.safe_number(balance, 'pendingWithdrawal')
             account = self.account()
-            account['free'] = self.safe_float(balance, 'avail')
+            account['free'] = self.safe_number(balance, 'avail')
             account['used'] = self.sum(hold, pendingWithdrawal)
             result[code] = account
         return self.parse_balance(result)
@@ -758,38 +754,34 @@ class gopax(Exchange):
         type = self.safe_string(order, 'type')
         side = self.safe_string(order, 'side')
         timeInForce = self.safe_string_upper(order, 'timeInForce')
-        price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'amount')
-        stopPrice = self.safe_float(order, 'stopPrice')
-        remaining = self.safe_float(order, 'remaining')
+        price = self.safe_number(order, 'price')
+        amount = self.safe_number(order, 'amount')
+        stopPrice = self.safe_number(order, 'stopPrice')
+        remaining = self.safe_number(order, 'remaining')
         marketId = self.safe_string(order, 'tradingPairName')
         market = self.safe_market(marketId, market, '-')
         status = self.parse_order_status(self.safe_string(order, 'status'))
         balanceChange = self.safe_value(order, 'balanceChange', {})
-        filled = self.safe_float(balanceChange, 'baseNet')
-        cost = self.safe_float(balanceChange, 'quoteNet')
+        filled = self.safe_number(balanceChange, 'baseNet')
+        cost = self.safe_number(balanceChange, 'quoteNet')
         if cost is not None:
             cost = abs(cost)
         updated = None
-        if (filled is None) and (amount is not None) and (remaining is not None):
-            filled = max(0, amount - remaining)
         if (filled is not None) and (filled > 0):
             updated = self.parse8601(self.safe_string(order, 'updatedAt'))
-        if (cost is None) and (price is not None) and (filled is not None):
-            cost = filled * price
         fee = None
         if side == 'buy':
             baseFee = self.safe_value(balanceChange, 'baseFee', {})
-            taking = self.safe_float(baseFee, 'taking')
-            making = self.safe_float(baseFee, 'making')
+            taking = self.safe_number(baseFee, 'taking')
+            making = self.safe_number(baseFee, 'making')
             fee = {
                 'currency': market['base'],
                 'cost': self.sum(taking, making),
             }
         else:
             quoteFee = self.safe_value(balanceChange, 'quoteFee', {})
-            taking = self.safe_float(quoteFee, 'taking')
-            making = self.safe_float(quoteFee, 'making')
+            taking = self.safe_number(quoteFee, 'taking')
+            making = self.safe_number(quoteFee, 'making')
             fee = {
                 'currency': market['quote'],
                 'cost': self.sum(taking, making),
@@ -797,7 +789,7 @@ class gopax(Exchange):
         postOnly = None
         if timeInForce is not None:
             postOnly = (timeInForce == 'PO')
-        return {
+        return self.safe_order({
             'id': id,
             'clientOrderId': clientOrderId,
             'datetime': self.iso8601(timestamp),
@@ -819,7 +811,7 @@ class gopax(Exchange):
             'trades': None,
             'fee': fee,
             'info': order,
-        }
+        })
 
     async def fetch_order(self, id, symbol=None, params={}):
         await self.load_markets()
@@ -956,7 +948,7 @@ class gopax(Exchange):
         if clientOrderId is not None:
             request['clientOrderId'] = clientOrderId
             params = self.omit(params, 'clientOrderId')
-        stopPrice = self.safe_float(params, 'stopPrice')
+        stopPrice = self.safe_number(params, 'stopPrice')
         if stopPrice is not None:
             request['stopPrice'] = self.price_to_precision(symbol, stopPrice)
             params = self.omit(params, 'stopPrice')
@@ -1075,15 +1067,6 @@ class gopax(Exchange):
             'info': depositAddress,
         }
 
-    def parse_deposit_addresses(self, addresses, codes=None):
-        result = []
-        for i in range(0, len(addresses)):
-            address = self.parse_deposit_address(addresses[i])
-            result.append(address)
-        if codes:
-            result = self.filter_by_array(result, 'currency', codes)
-        return self.index_by(result, 'currency')
-
     async def fetch_deposit_addresses(self, codes=None, params={}):
         await self.load_markets()
         response = await self.privateGetCryptoDepositAddresses(params)
@@ -1143,8 +1126,8 @@ class gopax(Exchange):
             type = 'withdrawal'
         elif (type == 'crypto_deposit' or type == 'fiat_deposit'):
             type = 'deposit'
-        amount = self.safe_float(transaction, 'netAmount')
-        feeCost = self.safe_float(transaction, 'feeAmount')
+        amount = self.safe_number(transaction, 'netAmount')
+        feeCost = self.safe_number(transaction, 'feeAmount')
         fee = None
         if feeCost is not None:
             fee = {

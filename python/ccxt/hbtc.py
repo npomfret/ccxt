@@ -23,6 +23,7 @@ from ccxt.base.errors import ExchangeNotAvailable
 from ccxt.base.errors import RequestTimeout
 from ccxt.base.decimal_to_precision import TRUNCATE
 from ccxt.base.decimal_to_precision import TICK_SIZE
+from ccxt.base.precise import Precise
 
 
 class hbtc(Exchange):
@@ -319,18 +320,18 @@ class hbtc(Exchange):
             filter = filters[j]
             filterType = self.safe_string(filter, 'filterType')
             if filterType == 'LOT_SIZE':
-                amountMin = self.safe_float(filter, 'minQty')
-                amountMax = self.safe_float(filter, 'maxQty')
+                amountMin = self.safe_number(filter, 'minQty')
+                amountMax = self.safe_number(filter, 'maxQty')
             if filterType == 'PRICE_FILTER':
-                priceMin = self.safe_float(filter, 'minPrice')
-                priceMax = self.safe_float(filter, 'maxPrice')
+                priceMin = self.safe_number(filter, 'minPrice')
+                priceMax = self.safe_number(filter, 'maxPrice')
             if filterType == 'MIN_NOTIONAL':
-                costMin = self.safe_float(filter, 'minNotional')
+                costMin = self.safe_number(filter, 'minNotional')
         if (costMin is None) and (amountMin is not None) and (priceMin is not None):
             costMin = amountMin * priceMin
         precision = {
-            'price': self.safe_float_2(market, 'quotePrecision', 'quoteAssetPrecision'),
-            'amount': self.safe_float(market, 'baseAssetPrecision'),
+            'price': self.safe_number_2(market, 'quotePrecision', 'quoteAssetPrecision'),
+            'amount': self.safe_number(market, 'baseAssetPrecision'),
         }
         limits = {
             'amount': {
@@ -560,12 +561,6 @@ class hbtc(Exchange):
         #
         return self.parse_ticker(response, market)
 
-    def parse_tickers(self, rawTickers, symbols=None):
-        tickers = []
-        for i in range(0, len(rawTickers)):
-            tickers.append(self.parse_ticker(rawTickers[i]))
-        return self.filter_by_array(tickers, 'symbol', symbols)
-
     def fetch_bid_ask(self, symbol, params={}):
         self.load_markets()
         market = self.market(symbol)
@@ -712,8 +707,8 @@ class hbtc(Exchange):
                 currencyId = self.safe_string_2(balance, 'asset', 'tokenName')
                 code = self.safe_currency_code(currencyId)
                 account = self.account()
-                account['free'] = self.safe_float(balance, 'free')
-                account['used'] = self.safe_float(balance, 'locked')
+                account['free'] = self.safe_string(balance, 'free')
+                account['used'] = self.safe_string(balance, 'locked')
                 result[code] = account
         else:
             currencyIds = list(response.keys())
@@ -722,10 +717,10 @@ class hbtc(Exchange):
                 code = self.safe_currency_code(currencyId)
                 balance = response[currencyId]
                 account = self.account()
-                account['free'] = self.safe_float(balance, 'availableMargin')
-                account['total'] = self.safe_float(balance, 'total')
+                account['free'] = self.safe_string(balance, 'availableMargin')
+                account['total'] = self.safe_string(balance, 'total')
                 result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     def fetch_trades(self, symbol, since=None, limit=50, params={}):
         self.load_markets()
@@ -763,11 +758,11 @@ class hbtc(Exchange):
         #
         return [
             self.safe_integer(ohlcv, 0),
-            self.safe_float(ohlcv, 1),
-            self.safe_float(ohlcv, 2),
-            self.safe_float(ohlcv, 3),
-            self.safe_float(ohlcv, 4),
-            self.safe_float(ohlcv, 5),
+            self.safe_number(ohlcv, 1),
+            self.safe_number(ohlcv, 2),
+            self.safe_number(ohlcv, 3),
+            self.safe_number(ohlcv, 4),
+            self.safe_number(ohlcv, 5),
         ]
 
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
@@ -1392,8 +1387,8 @@ class hbtc(Exchange):
         #
         currencyId = self.safe_string(item, 'tokenId')
         code = self.safe_currency_code(currencyId, currency)
-        amount = self.safe_float(item, 'change')
-        after = self.safe_float(item, 'total')
+        amount = self.safe_number(item, 'change')
+        after = self.safe_number(item, 'total')
         direction = 'out' if (amount < 0) else 'in'
         before = None
         if after is not None and amount is not None:
@@ -1523,8 +1518,8 @@ class hbtc(Exchange):
             status = 'ok'
         else:
             type = 'withdrawal'
-        amount = self.safe_float(transaction, 'quantity')
-        feeCost = self.safe_float(transaction, 'fee')
+        amount = self.safe_number(transaction, 'quantity')
+        feeCost = self.safe_number(transaction, 'fee')
         fee = None
         if feeCost is not None:
             feeCurrencyId = self.safe_string(transaction, 'feeTokenId')
@@ -1583,8 +1578,8 @@ class hbtc(Exchange):
         marketId = self.safe_string(ticker, 'symbol')
         symbol = self.safe_symbol(marketId, market)
         timestamp = self.safe_integer(ticker, 'time')
-        open = self.safe_float(ticker, 'openPrice')
-        close = self.safe_float(ticker, 'lastPrice')
+        open = self.safe_number(ticker, 'openPrice')
+        close = self.safe_number(ticker, 'lastPrice')
         change = None
         percentage = None
         average = None
@@ -1593,19 +1588,19 @@ class hbtc(Exchange):
             average = self.sum(open, close) / 2
             if (close is not None) and (close > 0):
                 percentage = (change / open) * 100
-        quoteVolume = self.safe_float(ticker, 'quoteVolume')
-        baseVolume = self.safe_float(ticker, 'volume')
+        quoteVolume = self.safe_number(ticker, 'quoteVolume')
+        baseVolume = self.safe_number(ticker, 'volume')
         vwap = self.vwap(baseVolume, quoteVolume)
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'highPrice'),
-            'low': self.safe_float(ticker, 'lowPrice'),
-            'bid': self.safe_float_2(ticker, 'bestBidPrice', 'bidPrice'),
-            'bidVolume': self.safe_float(ticker, 'bidQty'),
-            'ask': self.safe_float_2(ticker, 'bestAskPrice', 'askPrice'),
-            'askVolume': self.safe_float(ticker, 'askQty'),
+            'high': self.safe_number(ticker, 'highPrice'),
+            'low': self.safe_number(ticker, 'lowPrice'),
+            'bid': self.safe_number_2(ticker, 'bestBidPrice', 'bidPrice'),
+            'bidVolume': self.safe_number(ticker, 'bidQty'),
+            'ask': self.safe_number_2(ticker, 'bestAskPrice', 'askPrice'),
+            'askVolume': self.safe_number(ticker, 'askQty'),
             'vwap': vwap,
             'open': open,
             'close': close,
@@ -1654,15 +1649,14 @@ class hbtc(Exchange):
         #     }
         #
         id = self.safe_string(trade, 'id')
-        timestamp = self.safe_float(trade, 'time')
+        timestamp = self.safe_number(trade, 'time')
         type = None
         orderId = self.safe_string(trade, 'orderId')
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'qty')
-        cost = None
-        if price is not None:
-            if amount is not None:
-                cost = price * amount
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'qty')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         side = None
         takerOrMaker = None
         if 'isBuyerMaker' in trade:
@@ -1674,7 +1668,7 @@ class hbtc(Exchange):
             isBuyer = self.safe_value(trade, 'isBuyer')
             side = 'buy' if isBuyer else 'sell'
         fee = None
-        feeCost = self.safe_float(trade, 'commission')
+        feeCost = self.safe_number(trade, 'commission')
         if feeCost is not None:
             feeCurrencyId = self.safe_string(trade, 'commissionAsset')
             feeCurrencyCode = self.safe_currency_code(feeCurrencyId)
@@ -1776,26 +1770,26 @@ class hbtc(Exchange):
         symbol = self.safe_symbol(marketId, market)
         type = self.safe_string_lower(order, 'type')
         side = self.safe_string_lower(order, 'side')
-        price = self.safe_float(order, 'price')
-        average = self.safe_float(order, 'avgPrice')
+        price = self.safe_number(order, 'price')
+        average = self.safe_number(order, 'avgPrice')
         amount = None
-        cost = self.safe_float(order, 'cummulativeQuoteQty')
+        cost = self.safe_number(order, 'cummulativeQuoteQty')
         filled = None
         remaining = None
         if type is None:
             type = self.safe_string_lower(order, 'orderType')
             if (market is not None) and market['inverse']:
-                cost = self.safe_float(order, 'executedQty')
+                cost = self.safe_number(order, 'executedQty')
                 amount = None
             if cost == 0.0:
                 filled = 0
         else:
-            amount = self.safe_float(order, 'origQty')
+            amount = self.safe_number(order, 'origQty')
             if type == 'market':
                 price = None
                 if side == 'buy':
                     amount = None
-            filled = self.safe_float(order, 'executedQty')
+            filled = self.safe_number(order, 'executedQty')
             if filled is not None:
                 if amount is not None:
                     remaining = amount - filled
@@ -1803,7 +1797,7 @@ class hbtc(Exchange):
             average = None
         status = self.parse_order_status(self.safe_string(order, 'status'))
         timeInForce = self.safe_string(order, 'timeInForce')
-        stopPrice = self.safe_float(order, 'stopPrice')
+        stopPrice = self.safe_number(order, 'stopPrice')
         result = {
             'info': order,
             'id': id,
@@ -1832,7 +1826,7 @@ class hbtc(Exchange):
         if numFees > 0:
             result['fees'] = []
             for i in range(0, len(fees)):
-                feeCost = self.safe_float(fees[i], 'fee')
+                feeCost = self.safe_number(fees[i], 'fee')
                 if feeCost is not None:
                     feeCurrencyId = self.safe_string(fees[i], 'feeToken')
                     feeCurrencyCode = self.safe_currency_code(feeCurrencyId)

@@ -10,6 +10,7 @@ use \ccxt\ExchangeError;
 use \ccxt\AuthenticationError;
 use \ccxt\InvalidOrder;
 use \ccxt\DDoSProtection;
+use \ccxt\Precise;
 
 class btcalpha extends Exchange {
 
@@ -150,8 +151,8 @@ class btcalpha extends Exchange {
                 'precision' => $precision,
                 'limits' => array(
                     'amount' => array(
-                        'min' => $this->safe_float($market, 'minimum_order_size'),
-                        'max' => $this->safe_float($market, 'maximum_order_size'),
+                        'min' => $this->safe_number($market, 'minimum_order_size'),
+                        'max' => $this->safe_number($market, 'maximum_order_size'),
                     ),
                     'price' => array(
                         'min' => pow(10, -$precision['price']),
@@ -203,14 +204,11 @@ class btcalpha extends Exchange {
             $symbol = $market['symbol'];
         }
         $timestamp = $this->safe_timestamp($trade, 'timestamp');
-        $price = $this->safe_float($trade, 'price');
-        $amount = $this->safe_float($trade, 'amount');
-        $cost = null;
-        if ($price !== null) {
-            if ($amount !== null) {
-                $cost = floatval($this->cost_to_precision($symbol, $price * $amount));
-            }
-        }
+        $priceString = $this->safe_string($trade, 'price');
+        $amountString = $this->safe_string($trade, 'amount');
+        $price = $this->parse_number($priceString);
+        $amount = $this->parse_number($amountString);
+        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         $id = $this->safe_string_2($trade, 'id', 'tid');
         $side = $this->safe_string_2($trade, 'my_side', 'side');
         $orderId = $this->safe_string($trade, 'o_id');
@@ -259,11 +257,11 @@ class btcalpha extends Exchange {
         //
         return array(
             $this->safe_timestamp($ohlcv, 'time'),
-            $this->safe_float($ohlcv, 'open'),
-            $this->safe_float($ohlcv, 'high'),
-            $this->safe_float($ohlcv, 'low'),
-            $this->safe_float($ohlcv, 'close'),
-            $this->safe_float($ohlcv, 'volume'),
+            $this->safe_number($ohlcv, 'open'),
+            $this->safe_number($ohlcv, 'high'),
+            $this->safe_number($ohlcv, 'low'),
+            $this->safe_number($ohlcv, 'close'),
+            $this->safe_number($ohlcv, 'volume'),
         );
     }
 
@@ -300,11 +298,11 @@ class btcalpha extends Exchange {
             $currencyId = $this->safe_string($balance, 'currency');
             $code = $this->safe_currency_code($currencyId);
             $account = $this->account();
-            $account['used'] = $this->safe_float($balance, 'reserve');
-            $account['total'] = $this->safe_float($balance, 'balance');
+            $account['used'] = $this->safe_string($balance, 'reserve');
+            $account['total'] = $this->safe_string($balance, 'balance');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result);
+        return $this->parse_balance($result, false);
     }
 
     public function parse_order_status($status) {
@@ -325,8 +323,8 @@ class btcalpha extends Exchange {
             $symbol = $market['symbol'];
         }
         $timestamp = $this->safe_timestamp($order, 'date');
-        $price = $this->safe_float($order, 'price');
-        $amount = $this->safe_float($order, 'amount');
+        $price = $this->safe_number($order, 'price');
+        $amount = $this->safe_number($order, 'amount');
         $status = $this->parse_order_status($this->safe_string($order, 'status'));
         $id = $this->safe_string_2($order, 'oid', 'id');
         $trades = $this->safe_value($order, 'trades', array());

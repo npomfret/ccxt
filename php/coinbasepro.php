@@ -243,7 +243,7 @@ class coinbasepro extends Exchange {
             $name = $this->safe_string($currency, 'name');
             $code = $this->safe_currency_code($id);
             $details = $this->safe_value($currency, 'details', array());
-            $precision = $this->safe_float($currency, 'max_precision');
+            $precision = $this->safe_number($currency, 'max_precision');
             $status = $this->safe_string($currency, 'status');
             $active = ($status === 'online');
             $result[$code] = array(
@@ -257,7 +257,7 @@ class coinbasepro extends Exchange {
                 'precision' => $precision,
                 'limits' => array(
                     'amount' => array(
-                        'min' => $this->safe_float($details, 'min_size'),
+                        'min' => $this->safe_number($details, 'min_size'),
                         'max' => null,
                     ),
                     'price' => array(
@@ -269,7 +269,7 @@ class coinbasepro extends Exchange {
                         'max' => null,
                     ),
                     'withdraw' => array(
-                        'min' => $this->safe_float($details, 'min_withdrawal_amount'),
+                        'min' => $this->safe_number($details, 'min_withdrawal_amount'),
                         'max' => null,
                     ),
                 ),
@@ -313,12 +313,12 @@ class coinbasepro extends Exchange {
             $quote = $this->safe_currency_code($quoteId);
             $symbol = $base . '/' . $quote;
             $priceLimits = array(
-                'min' => $this->safe_float($market, 'quote_increment'),
+                'min' => $this->safe_number($market, 'quote_increment'),
                 'max' => null,
             );
             $precision = array(
-                'amount' => $this->safe_float($market, 'base_increment'),
-                'price' => $this->safe_float($market, 'quote_increment'),
+                'amount' => $this->safe_number($market, 'base_increment'),
+                'price' => $this->safe_number($market, 'quote_increment'),
             );
             $status = $this->safe_string($market, 'status');
             $active = ($status === 'online');
@@ -332,13 +332,13 @@ class coinbasepro extends Exchange {
                 'precision' => $precision,
                 'limits' => array(
                     'amount' => array(
-                        'min' => $this->safe_float($market, 'base_min_size'),
-                        'max' => $this->safe_float($market, 'base_max_size'),
+                        'min' => $this->safe_number($market, 'base_min_size'),
+                        'max' => $this->safe_number($market, 'base_max_size'),
                     ),
                     'price' => $priceLimits,
                     'cost' => array(
-                        'min' => $this->safe_float($market, 'min_market_funds'),
-                        'max' => $this->safe_float($market, 'max_market_funds'),
+                        'min' => $this->safe_number($market, 'min_market_funds'),
+                        'max' => $this->safe_number($market, 'max_market_funds'),
                     ),
                 ),
                 'active' => $active,
@@ -395,14 +395,13 @@ class coinbasepro extends Exchange {
             $balance = $response[$i];
             $currencyId = $this->safe_string($balance, 'currency');
             $code = $this->safe_currency_code($currencyId);
-            $account = array(
-                'free' => $this->safe_float($balance, 'available'),
-                'used' => $this->safe_float($balance, 'hold'),
-                'total' => $this->safe_float($balance, 'balance'),
-            );
+            $account = $this->account();
+            $account['free'] = $this->safe_string($balance, 'available');
+            $account['used'] = $this->safe_string($balance, 'hold');
+            $account['total'] = $this->safe_string($balance, 'balance');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result);
+        return $this->parse_balance($result, false);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -459,29 +458,29 @@ class coinbasepro extends Exchange {
         //     }
         //
         $timestamp = $this->parse8601($this->safe_value($ticker, 'time'));
-        $bid = $this->safe_float($ticker, 'bid');
-        $ask = $this->safe_float($ticker, 'ask');
-        $last = $this->safe_float($ticker, 'price');
+        $bid = $this->safe_number($ticker, 'bid');
+        $ask = $this->safe_number($ticker, 'ask');
+        $last = $this->safe_number($ticker, 'price');
         $symbol = ($market === null) ? null : $market['symbol'];
         return array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_float($ticker, 'high'),
-            'low' => $this->safe_float($ticker, 'low'),
+            'high' => $this->safe_number($ticker, 'high'),
+            'low' => $this->safe_number($ticker, 'low'),
             'bid' => $bid,
             'bidVolume' => null,
             'ask' => $ask,
             'askVolume' => null,
             'vwap' => null,
-            'open' => $this->safe_float($ticker, 'open'),
+            'open' => $this->safe_number($ticker, 'open'),
             'close' => $last,
             'last' => $last,
             'previousClose' => null,
             'change' => null,
             'percentage' => null,
             'average' => null,
-            'baseVolume' => $this->safe_float($ticker, 'volume'),
+            'baseVolume' => $this->safe_number($ticker, 'volume'),
             'quoteVolume' => null,
             'info' => $ticker,
         );
@@ -554,7 +553,7 @@ class coinbasepro extends Exchange {
         if ($market !== null) {
             $feeCurrencyId = $this->safe_string_lower($market, 'quoteId');
             $costField = $feeCurrencyId . '_value';
-            $cost = $this->safe_float($trade, $costField);
+            $cost = $this->safe_number($trade, $costField);
             $feeCurrency = $market['quote'];
             $liquidity = $this->safe_string($trade, 'liquidity');
             if ($liquidity !== null) {
@@ -562,7 +561,7 @@ class coinbasepro extends Exchange {
                 $feeRate = $market[$takerOrMaker];
             }
         }
-        $feeCost = $this->safe_float_2($trade, 'fill_fees', 'fee');
+        $feeCost = $this->safe_number_2($trade, 'fill_fees', 'fee');
         $fee = array(
             'cost' => $feeCost,
             'currency' => $feeCurrency,
@@ -576,10 +575,12 @@ class coinbasepro extends Exchange {
         if ($orderId !== null) {
             $side = ($trade['side'] === 'buy') ? 'buy' : 'sell';
         }
-        $price = $this->safe_float($trade, 'price');
-        $amount = $this->safe_float($trade, 'size');
+        $priceString = $this->safe_string($trade, 'price');
+        $amountString = $this->safe_string($trade, 'size');
+        $price = $this->parse_number($priceString);
+        $amount = $this->parse_number($amountString);
         if ($cost === null) {
-            $cost = $amount * $price;
+            $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         }
         return array(
             'id' => $id,
@@ -641,11 +642,11 @@ class coinbasepro extends Exchange {
         //
         return array(
             $this->safe_timestamp($ohlcv, 0),
-            $this->safe_float($ohlcv, 3),
-            $this->safe_float($ohlcv, 2),
-            $this->safe_float($ohlcv, 1),
-            $this->safe_float($ohlcv, 4),
-            $this->safe_float($ohlcv, 5),
+            $this->safe_number($ohlcv, 3),
+            $this->safe_number($ohlcv, 2),
+            $this->safe_number($ohlcv, 1),
+            $this->safe_number($ohlcv, 4),
+            $this->safe_number($ohlcv, 5),
         );
     }
 
@@ -725,17 +726,11 @@ class coinbasepro extends Exchange {
         $marketId = $this->safe_string($order, 'product_id');
         $market = $this->safe_market($marketId, $market, '-');
         $status = $this->parse_order_status($this->safe_string($order, 'status'));
-        $price = $this->safe_float($order, 'price');
-        $filled = $this->safe_float($order, 'filled_size');
-        $amount = $this->safe_float($order, 'size', $filled);
-        $remaining = null;
-        if ($amount !== null) {
-            if ($filled !== null) {
-                $remaining = $amount - $filled;
-            }
-        }
-        $cost = $this->safe_float($order, 'executed_value');
-        $feeCost = $this->safe_float($order, 'fill_fees');
+        $price = $this->safe_number($order, 'price');
+        $filled = $this->safe_number($order, 'filled_size');
+        $amount = $this->safe_number($order, 'size', $filled);
+        $cost = $this->safe_number($order, 'executed_value');
+        $feeCost = $this->safe_number($order, 'fill_fees');
         $fee = null;
         if ($feeCost !== null) {
             $feeCurrencyCode = null;
@@ -753,9 +748,9 @@ class coinbasepro extends Exchange {
         $side = $this->safe_string($order, 'side');
         $timeInForce = $this->safe_string($order, 'time_in_force');
         $postOnly = $this->safe_value($order, 'post_only');
-        $stopPrice = $this->safe_float($order, 'stop_price');
+        $stopPrice = $this->safe_number($order, 'stop_price');
         $clientOrderId = $this->safe_string($order, 'client_oid');
-        return array(
+        return $this->safe_order(array(
             'id' => $id,
             'clientOrderId' => $clientOrderId,
             'info' => $order,
@@ -773,11 +768,11 @@ class coinbasepro extends Exchange {
             'cost' => $cost,
             'amount' => $amount,
             'filled' => $filled,
-            'remaining' => $remaining,
+            'remaining' => null,
             'fee' => $fee,
             'average' => null,
             'trades' => null,
-        );
+        ));
     }
 
     public function fetch_order($id, $symbol = null, $params = array ()) {
@@ -867,7 +862,7 @@ class coinbasepro extends Exchange {
             $request['client_oid'] = $clientOrderId;
             $params = $this->omit($params, array( 'clientOrderId', 'client_oid' ));
         }
-        $stopPrice = $this->safe_float_2($params, 'stopPrice', 'stop_price');
+        $stopPrice = $this->safe_number_2($params, 'stopPrice', 'stop_price');
         if ($stopPrice !== null) {
             $request['stop_price'] = $this->price_to_precision($symbol, $stopPrice);
             $params = $this->omit($params, array( 'stopPrice', 'stop_price' ));
@@ -881,7 +876,7 @@ class coinbasepro extends Exchange {
             $request['price'] = $this->price_to_precision($symbol, $price);
             $request['size'] = $this->amount_to_precision($symbol, $amount);
         } else if ($type === 'market') {
-            $cost = $this->safe_float_2($params, 'cost', 'funds');
+            $cost = $this->safe_number_2($params, 'cost', 'funds');
             if ($cost === null) {
                 if ($price !== null) {
                     $cost = $amount * $price;
@@ -950,19 +945,6 @@ class coinbasepro extends Exchange {
             $request['product_id'] = $market['symbol']; // the $request will be more performant if you include it
         }
         return $this->privateDeleteOrders (array_merge($request, $params));
-    }
-
-    public function calculate_fee($symbol, $type, $side, $amount, $price, $takerOrMaker = 'taker', $params = array ()) {
-        $market = $this->markets[$symbol];
-        $rate = $market[$takerOrMaker];
-        $cost = $amount * $price;
-        $currency = $market['quote'];
-        return array(
-            'type' => $takerOrMaker,
-            'currency' => $currency,
-            'rate' => $rate,
-            'cost' => floatval($this->currency_to_precision($currency, $rate * $cost)),
-        );
     }
 
     public function fetch_payment_methods($params = array ()) {
@@ -1103,7 +1085,7 @@ class coinbasepro extends Exchange {
         $currencyId = $this->safe_string($transaction, 'currency');
         $code = $this->safe_currency_code($currencyId, $currency);
         $status = $this->parse_transaction_status($transaction);
-        $amount = $this->safe_float($transaction, 'amount');
+        $amount = $this->safe_number($transaction, 'amount');
         $type = $this->safe_string($transaction, 'type');
         $address = $this->safe_string($details, 'crypto_address');
         $tag = $this->safe_string($details, 'destination_tag');
@@ -1112,7 +1094,7 @@ class coinbasepro extends Exchange {
         if ($type === 'withdraw') {
             $type = 'withdrawal';
             $address = $this->safe_string($details, 'sent_to_address', $address);
-            $feeCost = $this->safe_float($details, 'fee');
+            $feeCost = $this->safe_number($details, 'fee');
             if ($feeCost !== null) {
                 if ($amount !== null) {
                     $amount -= $feeCost;

@@ -11,6 +11,7 @@ from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import InvalidNonce
+from ccxt.base.precise import Precise
 
 
 class bitbank(Exchange):
@@ -85,21 +86,23 @@ class bitbank(Exchange):
                 },
             },
             'markets': {
+                'BAT/JPY': {'id': 'bat_jpy', 'symbol': 'BAT/JPY', 'base': 'BAT', 'quote': 'JPY', 'baseId': 'bat', 'quoteId': 'jpy'},
+                'BAT/BTC': {'id': 'bat_btc', 'symbol': 'BAT/BTC', 'base': 'BAT', 'quote': 'BTC', 'baseId': 'bat', 'quoteId': 'btc'},
                 'BCH/BTC': {'id': 'bcc_btc', 'symbol': 'BCH/BTC', 'base': 'BCH', 'quote': 'BTC', 'baseId': 'bcc', 'quoteId': 'btc'},
                 'BCH/JPY': {'id': 'bcc_jpy', 'symbol': 'BCH/JPY', 'base': 'BCH', 'quote': 'JPY', 'baseId': 'bcc', 'quoteId': 'jpy'},
+                'BTC/JPY': {'id': 'btc_jpy', 'symbol': 'BTC/JPY', 'base': 'BTC', 'quote': 'JPY', 'baseId': 'btc', 'quoteId': 'jpy'},
+                'ETH/BTC': {'id': 'eth_btc', 'symbol': 'ETH/BTC', 'base': 'ETH', 'quote': 'BTC', 'baseId': 'eth', 'quoteId': 'btc'},
+                'ETH/JPY': {'id': 'eth_jpy', 'symbol': 'ETH/JPY', 'base': 'ETH', 'quote': 'JPY', 'baseId': 'eth', 'quoteId': 'jpy'},
+                'LTC/BTC': {'id': 'ltc_btc', 'symbol': 'LTC/BTC', 'base': 'LTC', 'quote': 'BTC', 'baseId': 'ltc', 'quoteId': 'btc'},
+                'LTC/JPY': {'id': 'ltc_jpy', 'symbol': 'LTC/JPY', 'base': 'LTC', 'quote': 'JPY', 'baseId': 'ltc', 'quoteId': 'jpy'},
                 'MONA/BTC': {'id': 'mona_btc', 'symbol': 'MONA/BTC', 'base': 'MONA', 'quote': 'BTC', 'baseId': 'mona', 'quoteId': 'btc'},
                 'MONA/JPY': {'id': 'mona_jpy', 'symbol': 'MONA/JPY', 'base': 'MONA', 'quote': 'JPY', 'baseId': 'mona', 'quoteId': 'jpy'},
                 'QTUM/BTC': {'id': 'qtum_btc', 'symbol': 'QTUM/BTC', 'base': 'QTUM', 'quote': 'BTC', 'baseId': 'qtum', 'quoteId': 'btc'},
                 'QTUM/JPY': {'id': 'qtum_jpy', 'symbol': 'QTUM/JPY', 'base': 'QTUM', 'quote': 'JPY', 'baseId': 'qtum', 'quoteId': 'jpy'},
-                'ETH/BTC': {'id': 'eth_btc', 'symbol': 'ETH/BTC', 'base': 'ETH', 'quote': 'BTC', 'baseId': 'eth', 'quoteId': 'btc'},
-                'LTC/BTC': {'id': 'ltc_btc', 'symbol': 'LTC/BTC', 'base': 'LTC', 'quote': 'BTC', 'baseId': 'ltc', 'quoteId': 'btc'},
-                'XRP/JPY': {'id': 'xrp_jpy', 'symbol': 'XRP/JPY', 'base': 'XRP', 'quote': 'JPY', 'baseId': 'xrp', 'quoteId': 'jpy'},
-                'XLM/JPY': {'id': 'xlm_jpy', 'symbol': 'XLM/JPY', 'base': 'XLM', 'quote': 'JPY', 'baseId': 'xlm', 'quoteId': 'jpy'},
-                'BTC/JPY': {'id': 'btc_jpy', 'symbol': 'BTC/JPY', 'base': 'BTC', 'quote': 'JPY', 'baseId': 'btc', 'quoteId': 'jpy'},
-                'ETH/JPY': {'id': 'eth_jpy', 'symbol': 'ETH/JPY', 'base': 'ETH', 'quote': 'JPY', 'baseId': 'eth', 'quoteId': 'jpy'},
-                'LTC/JPY': {'id': 'ltc_jpy', 'symbol': 'LTC/JPY', 'base': 'LTC', 'quote': 'JPY', 'baseId': 'ltc', 'quoteId': 'jpy'},
-                'XRP/BTC': {'id': 'xrp_btc', 'symbol': 'XRP/BTC', 'base': 'XRP', 'quote': 'BTC', 'baseId': 'xrp', 'quoteId': 'btc'},
                 'XLM/BTC': {'id': 'xlm_btc', 'symbol': 'XLM/BTC', 'base': 'XLM', 'quote': 'BTC', 'baseId': 'xlm', 'quoteId': 'btc'},
+                'XLM/JPY': {'id': 'xlm_jpy', 'symbol': 'XLM/JPY', 'base': 'XLM', 'quote': 'JPY', 'baseId': 'xlm', 'quoteId': 'jpy'},
+                'XRP/BTC': {'id': 'xrp_btc', 'symbol': 'XRP/BTC', 'base': 'XRP', 'quote': 'BTC', 'baseId': 'xrp', 'quoteId': 'btc'},
+                'XRP/JPY': {'id': 'xrp_jpy', 'symbol': 'XRP/JPY', 'base': 'XRP', 'quote': 'JPY', 'baseId': 'xrp', 'quoteId': 'jpy'},
             },
             'fees': {
                 'trading': {
@@ -146,16 +149,16 @@ class bitbank(Exchange):
         if market is not None:
             symbol = market['symbol']
         timestamp = self.safe_integer(ticker, 'timestamp')
-        last = self.safe_float(ticker, 'last')
+        last = self.safe_number(ticker, 'last')
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(ticker, 'buy'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'bid': self.safe_number(ticker, 'buy'),
             'bidVolume': None,
-            'ask': self.safe_float(ticker, 'sell'),
+            'ask': self.safe_number(ticker, 'sell'),
             'askVolume': None,
             'vwap': None,
             'open': None,
@@ -165,7 +168,7 @@ class bitbank(Exchange):
             'change': None,
             'percentage': None,
             'average': None,
-            'baseVolume': self.safe_float(ticker, 'vol'),
+            'baseVolume': self.safe_number(ticker, 'vol'),
             'quoteVolume': None,
             'info': ticker,
         }
@@ -197,16 +200,15 @@ class bitbank(Exchange):
         if market is not None:
             symbol = market['symbol']
             feeCurrency = market['quote']
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
-        cost = None
-        if price is not None:
-            if amount is not None:
-                cost = float(self.cost_to_precision(symbol, price * amount))
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         id = self.safe_string_2(trade, 'transaction_id', 'trade_id')
         takerOrMaker = self.safe_string(trade, 'maker_taker')
         fee = None
-        feeCost = self.safe_float(trade, 'fee_amount_quote')
+        feeCost = self.safe_number(trade, 'fee_amount_quote')
         if feeCost is not None:
             fee = {
                 'currency': feeCurrency,
@@ -255,11 +257,11 @@ class bitbank(Exchange):
         #
         return [
             self.safe_integer(ohlcv, 5),
-            self.safe_float(ohlcv, 0),
-            self.safe_float(ohlcv, 1),
-            self.safe_float(ohlcv, 2),
-            self.safe_float(ohlcv, 3),
-            self.safe_float(ohlcv, 4),
+            self.safe_number(ohlcv, 0),
+            self.safe_number(ohlcv, 1),
+            self.safe_number(ohlcv, 2),
+            self.safe_number(ohlcv, 3),
+            self.safe_number(ohlcv, 4),
         ]
 
     def fetch_ohlcv(self, symbol, timeframe='5m', since=None, limit=None, params={}):
@@ -308,13 +310,12 @@ class bitbank(Exchange):
             balance = assets[i]
             currencyId = self.safe_string(balance, 'asset')
             code = self.safe_currency_code(currencyId)
-            account = {
-                'free': self.safe_float(balance, 'free_amount'),
-                'used': self.safe_float(balance, 'locked_amount'),
-                'total': self.safe_float(balance, 'onhand_amount'),
-            }
+            account = self.account()
+            account['free'] = self.safe_string(balance, 'free_amount')
+            account['used'] = self.safe_string(balance, 'locked_amount')
+            account['total'] = self.safe_string(balance, 'onhand_amount')
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     def parse_order_status(self, status):
         statuses = {
@@ -335,19 +336,15 @@ class bitbank(Exchange):
         if market is not None:
             symbol = market['symbol']
         timestamp = self.safe_integer(order, 'ordered_at')
-        price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'start_amount')
-        filled = self.safe_float(order, 'executed_amount')
-        remaining = self.safe_float(order, 'remaining_amount')
-        average = self.safe_float(order, 'average_price')
-        cost = None
-        if filled is not None:
-            if average is not None:
-                cost = filled * average
+        price = self.safe_number(order, 'price')
+        amount = self.safe_number(order, 'start_amount')
+        filled = self.safe_number(order, 'executed_amount')
+        remaining = self.safe_number(order, 'remaining_amount')
+        average = self.safe_number(order, 'average_price')
         status = self.parse_order_status(self.safe_string(order, 'status'))
         type = self.safe_string_lower(order, 'type')
         side = self.safe_string_lower(order, 'side')
-        return {
+        return self.safe_order({
             'id': id,
             'clientOrderId': None,
             'datetime': self.iso8601(timestamp),
@@ -361,7 +358,7 @@ class bitbank(Exchange):
             'side': side,
             'price': price,
             'stopPrice': None,
-            'cost': cost,
+            'cost': None,
             'average': average,
             'amount': amount,
             'filled': filled,
@@ -369,7 +366,7 @@ class bitbank(Exchange):
             'trades': None,
             'fee': None,
             'info': order,
-        }
+        })
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         self.load_markets()

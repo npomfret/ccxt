@@ -10,6 +10,7 @@ from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import DDoSProtection
+from ccxt.base.precise import Precise
 
 
 class btcalpha(Exchange):
@@ -150,8 +151,8 @@ class btcalpha(Exchange):
                 'precision': precision,
                 'limits': {
                     'amount': {
-                        'min': self.safe_float(market, 'minimum_order_size'),
-                        'max': self.safe_float(market, 'maximum_order_size'),
+                        'min': self.safe_number(market, 'minimum_order_size'),
+                        'max': self.safe_number(market, 'maximum_order_size'),
                     },
                     'price': {
                         'min': math.pow(10, -precision['price']),
@@ -194,12 +195,11 @@ class btcalpha(Exchange):
         if market is not None:
             symbol = market['symbol']
         timestamp = self.safe_timestamp(trade, 'timestamp')
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
-        cost = None
-        if price is not None:
-            if amount is not None:
-                cost = float(self.cost_to_precision(symbol, price * amount))
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         id = self.safe_string_2(trade, 'id', 'tid')
         side = self.safe_string_2(trade, 'my_side', 'side')
         orderId = self.safe_string(trade, 'o_id')
@@ -244,11 +244,11 @@ class btcalpha(Exchange):
         #
         return [
             self.safe_timestamp(ohlcv, 'time'),
-            self.safe_float(ohlcv, 'open'),
-            self.safe_float(ohlcv, 'high'),
-            self.safe_float(ohlcv, 'low'),
-            self.safe_float(ohlcv, 'close'),
-            self.safe_float(ohlcv, 'volume'),
+            self.safe_number(ohlcv, 'open'),
+            self.safe_number(ohlcv, 'high'),
+            self.safe_number(ohlcv, 'low'),
+            self.safe_number(ohlcv, 'close'),
+            self.safe_number(ohlcv, 'volume'),
         ]
 
     async def fetch_ohlcv(self, symbol, timeframe='5m', since=None, limit=None, params={}):
@@ -281,10 +281,10 @@ class btcalpha(Exchange):
             currencyId = self.safe_string(balance, 'currency')
             code = self.safe_currency_code(currencyId)
             account = self.account()
-            account['used'] = self.safe_float(balance, 'reserve')
-            account['total'] = self.safe_float(balance, 'balance')
+            account['used'] = self.safe_string(balance, 'reserve')
+            account['total'] = self.safe_string(balance, 'balance')
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     def parse_order_status(self, status):
         statuses = {
@@ -301,8 +301,8 @@ class btcalpha(Exchange):
         if market is not None:
             symbol = market['symbol']
         timestamp = self.safe_timestamp(order, 'date')
-        price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'amount')
+        price = self.safe_number(order, 'price')
+        amount = self.safe_number(order, 'amount')
         status = self.parse_order_status(self.safe_string(order, 'status'))
         id = self.safe_string_2(order, 'oid', 'id')
         trades = self.safe_value(order, 'trades', [])
