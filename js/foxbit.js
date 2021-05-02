@@ -4,6 +4,7 @@
 
 const Exchange = require ('./base/Exchange');
 const { ExchangeError } = require ('./base/errors');
+const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -89,21 +90,17 @@ module.exports = class foxbit extends Exchange {
                 // otherwise we will lose the info if the currency balance has been funded or traded or not
                 if (currencyId in balances) {
                     const account = this.account ();
-                    let used = this.safeFloat (balances, currencyId + '_locked');
-                    if (used !== undefined) {
-                        used *= 1e-8;
-                    }
-                    let total = this.safeFloat (balances, currencyId);
-                    if (total !== undefined) {
-                        total *= 1e-8;
-                    }
+                    let used = this.safeString (balances, currencyId + '_locked');
+                    used = Precise.stringDiv (used, '1e8');
+                    let total = this.safeString (balances, currencyId);
+                    total = Precise.stringDiv (total, '1e8');
                     account['used'] = used;
                     account['total'] = total;
                     result[code] = account;
                 }
             }
         }
-        return this.parseBalance (result);
+        return this.parseBalance (result, false);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -114,7 +111,7 @@ module.exports = class foxbit extends Exchange {
             'crypto_currency': market['base'],
         };
         const response = await this.publicGetCurrencyOrderbook (this.extend (request, params));
-        return this.parseOrderBook (response);
+        return this.parseOrderBook (response, symbol);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -128,16 +125,16 @@ module.exports = class foxbit extends Exchange {
         const timestamp = this.milliseconds ();
         const lowercaseQuote = market['quote'].toLowerCase ();
         const quoteVolume = 'vol_' + lowercaseQuote;
-        const last = this.safeFloat (ticker, 'last');
+        const last = this.safeNumber (ticker, 'last');
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeFloat (ticker, 'high'),
-            'low': this.safeFloat (ticker, 'low'),
-            'bid': this.safeFloat (ticker, 'buy'),
+            'high': this.safeNumber (ticker, 'high'),
+            'low': this.safeNumber (ticker, 'low'),
+            'bid': this.safeNumber (ticker, 'buy'),
             'bidVolume': undefined,
-            'ask': this.safeFloat (ticker, 'sell'),
+            'ask': this.safeNumber (ticker, 'sell'),
             'askVolume': undefined,
             'vwap': undefined,
             'open': undefined,
@@ -147,8 +144,8 @@ module.exports = class foxbit extends Exchange {
             'change': undefined,
             'percentage': undefined,
             'average': undefined,
-            'baseVolume': this.safeFloat (ticker, 'vol'),
-            'quoteVolume': this.safeFloat (ticker, quoteVolume),
+            'baseVolume': this.safeNumber (ticker, 'vol'),
+            'quoteVolume': this.safeNumber (ticker, quoteVolume),
             'info': ticker,
         };
     }
@@ -161,14 +158,11 @@ module.exports = class foxbit extends Exchange {
             symbol = market['symbol'];
         }
         const side = this.safeString (trade, 'side');
-        const price = this.safeFloat (trade, 'price');
-        const amount = this.safeFloat (trade, 'amount');
-        let cost = undefined;
-        if (price !== undefined) {
-            if (amount !== undefined) {
-                cost = amount * price;
-            }
-        }
+        const priceString = this.safeString (trade, 'price');
+        const amountString = this.safeString (trade, 'amount');
+        const price = this.parseNumber (priceString);
+        const amount = this.parseNumber (amountString);
+        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
         return {
             'id': id,
             'info': trade,

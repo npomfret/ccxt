@@ -35,15 +35,16 @@ const Exchange  = require ('./js/base/Exchange')
 //-----------------------------------------------------------------------------
 // this is updated by vss.js when building
 
-const version = '1.40.94'
+const version = '1.49.24'
 
 Exchange.ccxtVersion = version
 
 //-----------------------------------------------------------------------------
 
 const exchanges = {
-    'acx':                     require ('./js/acx.js'),
+    'aax':                     require ('./js/aax.js'),
     'aofex':                   require ('./js/aofex.js'),
+    'ascendex':                require ('./js/ascendex.js'),
     'bequant':                 require ('./js/bequant.js'),
     'bibox':                   require ('./js/bibox.js'),
     'bigone':                  require ('./js/bigone.js'),
@@ -61,7 +62,6 @@ const exchanges = {
     'bithumb':                 require ('./js/bithumb.js'),
     'bitkk':                   require ('./js/bitkk.js'),
     'bitmart':                 require ('./js/bitmart.js'),
-    'bitmax':                  require ('./js/bitmax.js'),
     'bitmex':                  require ('./js/bitmex.js'),
     'bitpanda':                require ('./js/bitpanda.js'),
     'bitso':                   require ('./js/bitso.js'),
@@ -71,7 +71,6 @@ const exchanges = {
     'bitvavo':                 require ('./js/bitvavo.js'),
     'bitz':                    require ('./js/bitz.js'),
     'bl3p':                    require ('./js/bl3p.js'),
-    'bleutrade':               require ('./js/bleutrade.js'),
     'braziliex':               require ('./js/braziliex.js'),
     'btcalpha':                require ('./js/btcalpha.js'),
     'btcbox':                  require ('./js/btcbox.js'),
@@ -84,7 +83,6 @@ const exchanges = {
     'bytetrade':               require ('./js/bytetrade.js'),
     'cdax':                    require ('./js/cdax.js'),
     'cex':                     require ('./js/cex.js'),
-    'chilebit':                require ('./js/chilebit.js'),
     'coinbase':                require ('./js/coinbase.js'),
     'coinbaseprime':           require ('./js/coinbaseprime.js'),
     'coinbasepro':             require ('./js/coinbasepro.js'),
@@ -103,7 +101,7 @@ const exchanges = {
     'delta':                   require ('./js/delta.js'),
     'deribit':                 require ('./js/deribit.js'),
     'digifinex':               require ('./js/digifinex.js'),
-    'dsx':                     require ('./js/dsx.js'),
+    'equos':                   require ('./js/equos.js'),
     'eterbase':                require ('./js/eterbase.js'),
     'exmo':                    require ('./js/exmo.js'),
     'exx':                     require ('./js/exx.js'),
@@ -120,7 +118,6 @@ const exchanges = {
     'hollaex':                 require ('./js/hollaex.js'),
     'huobijp':                 require ('./js/huobijp.js'),
     'huobipro':                require ('./js/huobipro.js'),
-    'ice3x':                   require ('./js/ice3x.js'),
     'idex':                    require ('./js/idex.js'),
     'independentreserve':      require ('./js/independentreserve.js'),
     'indodax':                 require ('./js/indodax.js'),
@@ -136,6 +133,7 @@ const exchanges = {
     'lykke':                   require ('./js/lykke.js'),
     'mercado':                 require ('./js/mercado.js'),
     'mixcoins':                require ('./js/mixcoins.js'),
+    'ndax':                    require ('./js/ndax.js'),
     'novadax':                 require ('./js/novadax.js'),
     'oceanex':                 require ('./js/oceanex.js'),
     'okcoin':                  require ('./js/okcoin.js'),
@@ -155,7 +153,6 @@ const exchanges = {
     'tidex':                   require ('./js/tidex.js'),
     'timex':                   require ('./js/timex.js'),
     'upbit':                   require ('./js/upbit.js'),
-    'vaultoro':                require ('./js/vaultoro.js'),
     'vbtc':                    require ('./js/vbtc.js'),
     'vcc':                     require ('./js/vcc.js'),
     'wavesexchange':           require ('./js/wavesexchange.js'),
