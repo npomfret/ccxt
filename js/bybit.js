@@ -78,11 +78,11 @@ module.exports = class bybit extends Exchange {
                 'futures': {
                     'private': {
                         'get': [
-                            'position/list',
                             'order/list',
                             'order',
                             'stop-order/list',
                             'stop-order',
+                            'position/list',
                             'execution/list',
                             'trade/closed-pnl/list',
                         ],
@@ -100,6 +100,7 @@ module.exports = class bybit extends Exchange {
                             'position/leverage/save',
                             'position/switch-mode',
                             'position/switch-isolated',
+                            'position/risk-limit',
                         ],
                     },
                 },
@@ -120,6 +121,8 @@ module.exports = class bybit extends Exchange {
                             'account-ratio',
                             'time',
                             'announcement',
+                            'funding/prev-funding-rate',
+                            'risk-limit/list',
                         ],
                     },
                     'private': {
@@ -153,6 +156,9 @@ module.exports = class bybit extends Exchange {
                             'position/change-position-margin',
                             'position/trading-stop',
                             'position/leverage/save',
+                            'position/switch-mode',
+                            'position/switch-isolated',
+                            'position/risk-limit',
                         ],
                     },
                 },
@@ -197,16 +203,7 @@ module.exports = class bybit extends Exchange {
                             'position/add-margin',
                             'position/set-leverage',
                             'position/trading-stop',
-                        ],
-                    },
-                },
-                'openapi': {
-                    'wallet': {
-                        'get': [
-                            'risk-limit/list',
-                        ],
-                        'post': [
-                            'risk-limit',
+                            'position/set-risk',
                         ],
                     },
                 },

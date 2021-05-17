@@ -172,6 +172,7 @@ class binance(Exchange):
                         'capital/deposit/subAddress',
                         'capital/deposit/subHisrec',
                         'capital/withdraw/history',
+                        'bnbBurn',
                         'sub-account/futures/account',
                         'sub-account/futures/accountSummary',
                         'sub-account/futures/positionRisk',
@@ -253,6 +254,7 @@ class binance(Exchange):
                         'margin/order',
                         'margin/isolated/create',
                         'margin/isolated/transfer',
+                        'bnbBurn',
                         'sub-account/margin/transfer',
                         'sub-account/margin/enable',
                         'sub-account/margin/enable',
@@ -2978,3 +2980,57 @@ class binance(Exchange):
         if (api == 'private') or (api == 'wapi'):
             self.options['hasAlreadyAuthenticatedSuccessfully'] = True
         return response
+
+    def futures_transfer(self, code, amount, type, params={}):
+        if (type < 1) or (type > 4):
+            raise ArgumentsRequired(self.id + ' type must be between 1 and 4')
+        self.load_markets()
+        currency = self.currency(code)
+        request = {
+            'asset': currency['id'],
+            'amount': amount,
+            'type': type,
+        }
+        response = self.sapiPostFuturesTransfer(self.extend(request, params))
+        #
+        #   {
+        #       "tranId": 100000001
+        #   }
+        #
+        return self.parse_transfer(response, currency)
+
+    def parse_funding_rate(self, premiumIndex, market=None):
+        # ensure it matches with https://www.binance.com/en/futures/funding-history/0
+        #
+        #   {
+        #     "symbol": "BTCUSDT",
+        #     "markPrice": "45802.81129892",
+        #     "indexPrice": "45745.47701915",
+        #     "estimatedSettlePrice": "45133.91753671",
+        #     "lastFundingRate": "0.00063521",
+        #     "interestRate": "0.00010000",
+        #     "nextFundingTime": "1621267200000",
+        #     "time": "1621252344001"
+        #  }
+        #
+        timestamp = self.safe_integer(premiumIndex, 'time')
+        marketId = self.safe_string(premiumIndex, 'symbol')
+        symbol = self.safe_symbol(marketId, market)
+        markPrice = self.safe_number(premiumIndex, 'markPrice')
+        indexPrice = self.safe_number(premiumIndex, 'indexPrice')
+        interestRate = self.safe_number(premiumIndex, 'interestRate')
+        # current funding rate
+        fundingRate = self.safe_number(premiumIndex, 'lastFundingRate')
+        nextFundingTime = self.safe_integer(premiumIndex, 'nextFundingTime')
+        return {
+            'info': premiumIndex,
+            'symbol': symbol,
+            'markPrice': markPrice,
+            'indexPrice': indexPrice,
+            'interestRate': interestRate,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'fundingRate': fundingRate,
+            'nextFundingTimestamp': nextFundingTime,
+            'nextFundingDatetime': self.iso8601(nextFundingTime),
+        }

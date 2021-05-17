@@ -487,12 +487,6 @@ class aax(Exchange):
             'info': ticker,
         }
 
-    def fetch_ticker(self, symbol, params={}):
-        tickers = self.fetch_tickers(None, params)
-        if symbol in tickers:
-            return tickers[symbol]
-        raise BadSymbol(self.id + ' fetchTicker() symbol ' + symbol + ' ticker not found')
-
     def fetch_tickers(self, symbols=None, params={}):
         self.load_markets()
         response = self.publicGetMarketTickers(params)
@@ -1530,15 +1524,9 @@ class aax(Exchange):
         remaining = self.safe_number(order, 'leavesQty')
         if (filled == 0) and (remaining == 0):
             remaining = None
-        cost = None
-        lastTradeTimestamp = None
-        if filled is not None:
-            if price is not None:
-                cost = filled * price
-            if filled > 0:
-                lastTradeTimestamp = self.safe_value(order, 'transactTime')
-                if isinstance(lastTradeTimestamp, basestring):
-                    lastTradeTimestamp = self.parse8601(lastTradeTimestamp)
+        lastTradeTimestamp = self.safe_value(order, 'transactTime')
+        if isinstance(lastTradeTimestamp, basestring):
+            lastTradeTimestamp = self.parse8601(lastTradeTimestamp)
         fee = None
         feeCost = self.safe_number(order, 'commission')
         if feeCost is not None:
@@ -1552,7 +1540,7 @@ class aax(Exchange):
                 'currency': feeCurrency,
                 'cost': feeCost,
             }
-        return {
+        return self.safe_order({
             'id': id,
             'info': order,
             'clientOrderId': clientOrderId,
@@ -1571,10 +1559,10 @@ class aax(Exchange):
             'amount': amount,
             'filled': filled,
             'remaining': remaining,
-            'cost': cost,
+            'cost': None,
             'trades': None,
             'fee': fee,
-        }
+        })
 
     def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         self.load_markets()

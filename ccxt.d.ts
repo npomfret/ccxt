@@ -431,10 +431,13 @@ declare module 'ccxt' {
     export class bibox extends Exchange {}
     export class bigone extends Exchange {}
     export class binance extends Exchange {}
+    export class binancecoinm extends binance {}
     export class binanceus extends binance {}
+    export class binanceusdm extends binance {}
     export class bit2c extends Exchange {}
     export class bitbank extends Exchange {}
     export class bitbay extends Exchange {}
+    export class bitbns extends Exchange {}
     export class bitcoincom extends hitbtc {}
     export class bitfinex extends Exchange {}
     export class bitfinex2 extends bitfinex {}
@@ -487,10 +490,7 @@ declare module 'ccxt' {
     export class eterbase extends Exchange {}
     export class exmo extends Exchange {}
     export class exx extends Exchange {}
-    export class fcoin extends Exchange {}
-    export class fcoinjp extends fcoin {}
     export class flowbtc extends Exchange {}
-    export class foxbit extends Exchange {}
     export class ftx extends Exchange {}
     export class gateio extends Exchange {}
     export class gemini extends Exchange {}
@@ -529,13 +529,11 @@ declare module 'ccxt' {
     export class ripio extends Exchange {}
     export class southxchange extends Exchange {}
     export class stex extends Exchange {}
-    export class surbitcoin extends foxbit {}
     export class therock extends Exchange {}
     export class tidebit extends Exchange {}
     export class tidex extends Exchange {}
     export class timex extends Exchange {}
     export class upbit extends Exchange {}
-    export class vbtc extends foxbit {}
     export class vcc extends Exchange {}
     export class wavesexchange extends Exchange {}
     export class whitebit extends Exchange {}
@@ -555,10 +553,13 @@ declare module 'ccxt' {
         | 'bibox'
         | 'bigone'
         | 'binance'
+        | 'binancecoinm'
         | 'binanceus'
+        | 'binanceusdm'
         | 'bit2c'
         | 'bitbank'
         | 'bitbay'
+        | 'bitbns'
         | 'bitcoincom'
         | 'bitfinex'
         | 'bitfinex2'
@@ -611,10 +612,7 @@ declare module 'ccxt' {
         | 'eterbase'
         | 'exmo'
         | 'exx'
-        | 'fcoin'
-        | 'fcoinjp'
         | 'flowbtc'
-        | 'foxbit'
         | 'ftx'
         | 'gateio'
         | 'gemini'
@@ -653,13 +651,11 @@ declare module 'ccxt' {
         | 'ripio'
         | 'southxchange'
         | 'stex'
-        | 'surbitcoin'
         | 'therock'
         | 'tidebit'
         | 'tidex'
         | 'timex'
         | 'upbit'
-        | 'vbtc'
         | 'vcc'
         | 'wavesexchange'
         | 'whitebit'

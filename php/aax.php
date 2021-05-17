@@ -8,7 +8,6 @@ namespace ccxt;
 use Exception; // a common import
 use \ccxt\ArgumentsRequired;
 use \ccxt\BadRequest;
-use \ccxt\BadSymbol;
 use \ccxt\OrderNotFound;
 
 class aax extends Exchange {
@@ -479,14 +478,6 @@ class aax extends Exchange {
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
         );
-    }
-
-    public function fetch_ticker($symbol, $params = array ()) {
-        $tickers = $this->fetch_tickers(null, $params);
-        if (is_array($tickers) && array_key_exists($symbol, $tickers)) {
-            return $tickers[$symbol];
-        }
-        throw new BadSymbol($this->id . ' fetchTicker() $symbol ' . $symbol . ' ticker not found');
     }
 
     public function fetch_tickers($symbols = null, $params = array ()) {
@@ -1589,18 +1580,9 @@ class aax extends Exchange {
         if (($filled === 0) && ($remaining === 0)) {
             $remaining = null;
         }
-        $cost = null;
-        $lastTradeTimestamp = null;
-        if ($filled !== null) {
-            if ($price !== null) {
-                $cost = $filled * $price;
-            }
-            if ($filled > 0) {
-                $lastTradeTimestamp = $this->safe_value($order, 'transactTime');
-                if (gettype($lastTradeTimestamp) === 'string') {
-                    $lastTradeTimestamp = $this->parse8601($lastTradeTimestamp);
-                }
-            }
+        $lastTradeTimestamp = $this->safe_value($order, 'transactTime');
+        if (gettype($lastTradeTimestamp) === 'string') {
+            $lastTradeTimestamp = $this->parse8601($lastTradeTimestamp);
         }
         $fee = null;
         $feeCost = $this->safe_number($order, 'commission');
@@ -1618,7 +1600,7 @@ class aax extends Exchange {
                 'cost' => $feeCost,
             );
         }
-        return array(
+        return $this->safe_order(array(
             'id' => $id,
             'info' => $order,
             'clientOrderId' => $clientOrderId,
@@ -1637,10 +1619,10 @@ class aax extends Exchange {
             'amount' => $amount,
             'filled' => $filled,
             'remaining' => $remaining,
-            'cost' => $cost,
+            'cost' => null,
             'trades' => null,
             'fee' => $fee,
-        );
+        ));
     }
 
     public function fetch_my_trades($symbol = null, $since = null, $limit = null, $params = array ()) {

@@ -93,6 +93,8 @@ class ftx extends Exchange {
                         'options/historical_volumes/BTC',
                         'options/open_interest/BTC',
                         'options/historical_open_interest/BTC',
+                        // spot margin
+                        'spot_margin/history',
                     ),
                 ),
                 'private' => array(
@@ -242,7 +244,7 @@ class ftx extends Exchange {
                     'Invalid parameter' => '\\ccxt\\BadRequest', // array("error":"Invalid parameter start_time","success":false)
                     'The requested URL was not found on the server' => '\\ccxt\\BadRequest',
                     'No such coin' => '\\ccxt\\BadRequest',
-                    'No such market' => '\\ccxt\\BadRequest',
+                    'No such market' => '\\ccxt\\BadSymbol',
                     'Do not send more than' => '\\ccxt\\RateLimitExceeded',
                     'An unexpected error occurred' => '\\ccxt\\ExchangeNotAvailable', // array("error":"An unexpected error occurred, please try again later (58BC21C795).","success":false)
                     'Please retry request' => '\\ccxt\\ExchangeNotAvailable', // array("error":"Please retry request","success":false)
@@ -1673,6 +1675,19 @@ class ftx extends Exchange {
         //
         // fetchDeposits
         //
+        //     airdrop
+        //
+        //     {
+        //         "$id" => 9147072,
+        //         "coin" => "SRM_LOCKED",
+        //         "size" => 3.12,
+        //         "time" => "2021-04-27T23:59:03.565983+00:00",
+        //         "$notes" => "SRM Airdrop for FTT holdings",
+        //         "$status" => "complete"
+        //     }
+        //
+        //     regular deposits
+        //
         //     {
         //         "coin" => "TUSD",
         //         "confirmations" => 64,
@@ -1724,7 +1739,7 @@ class ftx extends Exchange {
         if ($address === null) {
             // parse $address from internal transfer
             $notes = $this->safe_string($transaction, 'notes');
-            if ($notes !== null) {
+            if (($notes !== null) && (mb_strpos($notes, 'Transfer to') !== false)) {
                 $address = mb_substr($notes, 12);
             }
         }

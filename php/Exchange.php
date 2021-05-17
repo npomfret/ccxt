@@ -31,13 +31,12 @@ SOFTWARE.
 namespace ccxt;
 
 use kornrunner\Keccak;
-use kornrunner\Solidity;
 use Elliptic\EC;
 use Elliptic\EdDSA;
 use BN\BN;
 use Exception;
 
-$version = '1.49.24';
+$version = '1.50.8';
 
 // rounding mode
 const TRUNCATE = 0;
@@ -56,7 +55,7 @@ const PAD_WITH_ZERO = 1;
 
 class Exchange {
 
-    const VERSION = '1.49.24';
+    const VERSION = '1.50.8';
 
     private static $base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
     private static $base58_encoder = null;
@@ -70,10 +69,13 @@ class Exchange {
         'bibox',
         'bigone',
         'binance',
+        'binancecoinm',
         'binanceus',
+        'binanceusdm',
         'bit2c',
         'bitbank',
         'bitbay',
+        'bitbns',
         'bitcoincom',
         'bitfinex',
         'bitfinex2',
@@ -126,10 +128,7 @@ class Exchange {
         'eterbase',
         'exmo',
         'exx',
-        'fcoin',
-        'fcoinjp',
         'flowbtc',
-        'foxbit',
         'ftx',
         'gateio',
         'gemini',
@@ -168,13 +167,11 @@ class Exchange {
         'ripio',
         'southxchange',
         'stex',
-        'surbitcoin',
         'therock',
         'tidebit',
         'tidex',
         'timex',
         'upbit',
-        'vbtc',
         'vcc',
         'wavesexchange',
         'whitebit',
@@ -296,6 +293,7 @@ class Exchange {
         'fetchTransactions' => 'fetch_transactions',
         'fetchDeposits' => 'fetch_deposits',
         'fetchWithdrawals' => 'fetch_withdrawals',
+        'fetchDepositAddress' => 'fetch_deposit_address',
         'fetchCurrencies' => 'fetch_currencies',
         'fetchMarkets' => 'fetch_markets',
         'fetchOrderStatus' => 'fetch_order_status',
@@ -355,7 +353,6 @@ class Exchange {
         'currencyToPrecision' => 'currency_to_precision',
         'calculateFee' => 'calculate_fee',
         'checkRequiredDependencies' => 'check_required_dependencies',
-        'soliditySha3' => 'solidity_sha3',
         'remove0xPrefix' => 'remove0x_prefix',
         'hashMessage' => 'hash_message',
         'signHash' => 'sign_hash',
@@ -1166,7 +1163,7 @@ class Exchange {
         $this->lastRestPollTimestamp = 0;
         $this->restRequestQueue = null;
         $this->restPollerLoopIsRunning = false;
-        $this->enableRateLimit = false;
+        $this->enableRateLimit = true;
         $this->enableLastJsonResponse = true;
         $this->enableLastHttpResponse = true;
         $this->enableLastResponseHeaders = true;
@@ -2141,8 +2138,18 @@ class Exchange {
         throw new NotSupported($this->id . ' API does not allow to fetch all prices at once with a single call to fetch_bids_asks () for now');
     }
 
-    public function fetch_ticker($symbol, $params = array()) { // stub
-        throw new NotSupported($this->id . ' fetchTicker not supported yet');
+    public function fetch_ticker($symbol, $params = array ()) {
+        if ($this->has['fetchTickers']) {
+            $tickers = $this->fetch_tickers(array( $symbol ), $params);
+            $ticker = $this->safe_value($tickers, $symbol);
+            if ($ticker === null) {
+                throw new BadSymbol($this->id . ' fetchTickers could not find a $ticker for ' . $symbol);
+            } else {
+                return $ticker;
+            }
+        } else {
+            throw new NotSupported($this->id . ' fetchTicker not supported yet');
+        }
     }
 
     public function fetch_tickers($symbols, $params = array()) { // stub
@@ -2194,8 +2201,22 @@ class Exchange {
         throw new NotSupported($this->id . ' fetch_withdrawals() not supported yet');
     }
 
+    // public function fetch_deposit_address($code, $params = array()) {
+    //     throw new NotSupported($this->id . ' fetch_deposit_address() not supported yet');
+    // }
+
     public function fetch_deposit_address($code, $params = array()) {
-        throw new NotSupported($this->id . ' fetch_deposit_address() not supported yet');
+        if ($this->has['fetchDepositAddresses']) {
+            $deposit_addresses = $this->fetch_deposit_addresses(array($code), $params);
+            $deposit_address = $this->safe_value($deposit_addresses, $code);
+            if ($deposit_address === null) {
+                throw new InvalidAddress($this->id . ' fetchDepositAddress could not find a deposit address for ' . $code . ', make sure you have created a corresponding deposit address in your wallet on the exchange website');
+            } else {
+                return $deposit_address;
+            }
+        } else {
+            throw new NotSupported ($this->id + ' fetchDepositAddress not supported yet');
+        }
     }
 
     public function fetch_markets($params = array()) {
@@ -2775,10 +2796,6 @@ class Exchange {
         } else {
             throw new ExchangeError($this->id . ' requires a non-empty value in $this->twofa property');
         }
-    }
-
-    public function soliditySha3($array) {
-        return @call_user_func_array('\\kornrunner\Solidity::sha3', $array);
     }
 
     public static function base32_decode($s) {

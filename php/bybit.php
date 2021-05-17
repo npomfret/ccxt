@@ -79,11 +79,11 @@ class bybit extends Exchange {
                 'futures' => array(
                     'private' => array(
                         'get' => array(
-                            'position/list',
                             'order/list',
                             'order',
                             'stop-order/list',
                             'stop-order',
+                            'position/list',
                             'execution/list',
                             'trade/closed-pnl/list',
                         ),
@@ -101,6 +101,7 @@ class bybit extends Exchange {
                             'position/leverage/save',
                             'position/switch-mode',
                             'position/switch-isolated',
+                            'position/risk-limit',
                         ),
                     ),
                 ),
@@ -121,6 +122,8 @@ class bybit extends Exchange {
                             'account-ratio',
                             'time',
                             'announcement',
+                            'funding/prev-funding-rate',
+                            'risk-limit/list',
                         ),
                     ),
                     'private' => array(
@@ -154,6 +157,9 @@ class bybit extends Exchange {
                             'position/change-position-margin',
                             'position/trading-stop',
                             'position/leverage/save',
+                            'position/switch-mode',
+                            'position/switch-isolated',
+                            'position/risk-limit',
                         ),
                     ),
                 ),
@@ -198,16 +204,7 @@ class bybit extends Exchange {
                             'position/add-margin',
                             'position/set-leverage',
                             'position/trading-stop',
-                        ),
-                    ),
-                ),
-                'openapi' => array(
-                    'wallet' => array(
-                        'get' => array(
-                            'risk-limit/list',
-                        ),
-                        'post' => array(
-                            'risk-limit',
+                            'position/set-risk',
                         ),
                     ),
                 ),

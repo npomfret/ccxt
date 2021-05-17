@@ -159,6 +159,7 @@ class binance extends Exchange {
                         'capital/deposit/subAddress',
                         'capital/deposit/subHisrec',
                         'capital/withdraw/history',
+                        'bnbBurn',
                         'sub-account/futures/account',
                         'sub-account/futures/accountSummary',
                         'sub-account/futures/positionRisk',
@@ -240,6 +241,7 @@ class binance extends Exchange {
                         'margin/order',
                         'margin/isolated/create',
                         'margin/isolated/transfer',
+                        'bnbBurn',
                         'sub-account/margin/transfer',
                         'sub-account/margin/enable',
                         'sub-account/margin/enable',
@@ -3151,5 +3153,62 @@ class binance extends Exchange {
             $this->options['hasAlreadyAuthenticatedSuccessfully'] = true;
         }
         return $response;
+    }
+
+    public function futures_transfer($code, $amount, $type, $params = array ()) {
+        if (($type < 1) || ($type > 4)) {
+            throw new ArgumentsRequired($this->id . ' $type must be between 1 and 4');
+        }
+        $this->load_markets();
+        $currency = $this->currency($code);
+        $request = array(
+            'asset' => $currency['id'],
+            'amount' => $amount,
+            'type' => $type,
+        );
+        $response = $this->sapiPostFuturesTransfer (array_merge($request, $params));
+        //
+        //   {
+        //       "tranId" => 100000001
+        //   }
+        //
+        return $this->parse_transfer($response, $currency);
+    }
+
+    public function parse_funding_rate($premiumIndex, $market = null) {
+        // ensure it matches with https://www.binance.com/en/futures/funding-history/0
+        //
+        //   {
+        //     "$symbol" => "BTCUSDT",
+        //     "$markPrice" => "45802.81129892",
+        //     "$indexPrice" => "45745.47701915",
+        //     "estimatedSettlePrice" => "45133.91753671",
+        //     "lastFundingRate" => "0.00063521",
+        //     "$interestRate" => "0.00010000",
+        //     "$nextFundingTime" => "1621267200000",
+        //     "time" => "1621252344001"
+        //  }
+        //
+        $timestamp = $this->safe_integer($premiumIndex, 'time');
+        $marketId = $this->safe_string($premiumIndex, 'symbol');
+        $symbol = $this->safe_symbol($marketId, $market);
+        $markPrice = $this->safe_number($premiumIndex, 'markPrice');
+        $indexPrice = $this->safe_number($premiumIndex, 'indexPrice');
+        $interestRate = $this->safe_number($premiumIndex, 'interestRate');
+        // current funding rate
+        $fundingRate = $this->safe_number($premiumIndex, 'lastFundingRate');
+        $nextFundingTime = $this->safe_integer($premiumIndex, 'nextFundingTime');
+        return array(
+            'info' => $premiumIndex,
+            'symbol' => $symbol,
+            'markPrice' => $markPrice,
+            'indexPrice' => $indexPrice,
+            'interestRate' => $interestRate,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'fundingRate' => $fundingRate,
+            'nextFundingTimestamp' => $nextFundingTime,
+            'nextFundingDatetime' => $this->iso8601($nextFundingTime),
+        );
     }
 }
