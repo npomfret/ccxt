@@ -9,8 +9,8 @@ use Exception; // a common import
 
 class bitkk extends zb {
 
-    public function describe () {
-        return array_replace_recursive(parent::describe (), array(
+    public function describe() {
+        return $this->deep_extend(parent::describe (), array(
             'id' => 'bitkk',
             'name' => 'bitkk',
             'comment' => 'a Chinese ZB clone',
@@ -22,6 +22,9 @@ class bitkk extends zb {
                 'www' => 'https://www.bitkk.com',
                 'doc' => 'https://www.bitkk.com/i/developer',
                 'fees' => 'https://www.bitkk.com/i/rate',
+            ),
+            'commonCurrencies' => array(
+                'BCH' => 'BCHOLD',
             ),
         ));
     }

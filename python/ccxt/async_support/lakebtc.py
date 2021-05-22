@@ -4,9 +4,20 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
-import base64
+
+# -----------------------------------------------------------------------------
+
+try:
+    basestring  # Python 3
+except NameError:
+    basestring = str  # Python 2
 import hashlib
 from ccxt.base.errors import ExchangeError
+from ccxt.base.errors import AuthenticationError
+from ccxt.base.errors import BadSymbol
+from ccxt.base.errors import InsufficientFunds
+from ccxt.base.errors import InvalidOrder
+from ccxt.base.precise import Precise
 
 
 class lakebtc(Exchange):
@@ -17,10 +28,18 @@ class lakebtc(Exchange):
             'name': 'LakeBTC',
             'countries': ['US'],
             'version': 'api_v2',
+            'rateLimit': 1000,
             'has': {
+                'cancelOrder': True,
                 'CORS': True,
                 'createMarketOrder': False,
+                'createOrder': True,
+                'fetchBalance': True,
+                'fetchMarkets': True,
+                'fetchOrderBook': True,
+                'fetchTicker': True,
                 'fetchTickers': True,
+                'fetchTrades': True,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/28074120-72b7c38a-6660-11e7-92d9-d9027502281d.jpg',
@@ -58,6 +77,14 @@ class lakebtc(Exchange):
                     'taker': 0.2 / 100,
                 },
             },
+            'exceptions': {
+                'broad': {
+                    'Signature': AuthenticationError,
+                    'invalid symbol': BadSymbol,
+                    'Volume doit': InvalidOrder,
+                    'insufficient_balance': InsufficientFunds,
+                },
+            },
         })
 
     async def fetch_markets(self, params={}):
@@ -80,6 +107,9 @@ class lakebtc(Exchange):
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'info': market,
+                'active': None,
+                'precision': self.precision,
+                'limits': self.limits,
             })
         return result
 
@@ -93,9 +123,9 @@ class lakebtc(Exchange):
             currencyId = currencyIds[i]
             code = self.safe_currency_code(currencyId)
             account = self.account()
-            account['total'] = self.safe_float(balances, currencyId)
+            account['total'] = self.safe_string(balances, currencyId)
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -103,23 +133,23 @@ class lakebtc(Exchange):
             'symbol': self.market_id(symbol),
         }
         response = await self.publicGetBcorderbook(self.extend(request, params))
-        return self.parse_order_book(response)
+        return self.parse_order_book(response, symbol)
 
     def parse_ticker(self, ticker, market=None):
         timestamp = self.milliseconds()
         symbol = None
         if market is not None:
             symbol = market['symbol']
-        last = self.safe_float(ticker, 'last')
+        last = self.safe_number(ticker, 'last')
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(ticker, 'bid'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'bid': self.safe_number(ticker, 'bid'),
             'bidVolume': None,
-            'ask': self.safe_float(ticker, 'ask'),
+            'ask': self.safe_number(ticker, 'ask'),
             'askVolume': None,
             'vwap': None,
             'open': None,
@@ -129,7 +159,7 @@ class lakebtc(Exchange):
             'change': None,
             'percentage': None,
             'average': None,
-            'baseVolume': self.safe_float(ticker, 'volume'),
+            'baseVolume': self.safe_number(ticker, 'volume'),
             'quoteVolume': None,
             'info': ticker,
         }
@@ -140,14 +170,12 @@ class lakebtc(Exchange):
         ids = list(response.keys())
         result = {}
         for i in range(0, len(ids)):
-            symbol = ids[i]
-            ticker = response[symbol]
-            market = None
-            if symbol in self.markets_by_id:
-                market = self.markets_by_id[symbol]
-                symbol = market['symbol']
+            marketId = ids[i]
+            ticker = response[marketId]
+            market = self.safe_market(marketId)
+            symbol = market['symbol']
             result[symbol] = self.parse_ticker(ticker, market)
-        return result
+        return self.filter_by_array(result, 'symbol', symbols)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
@@ -158,12 +186,11 @@ class lakebtc(Exchange):
     def parse_trade(self, trade, market=None):
         timestamp = self.safe_timestamp(trade, 'date')
         id = self.safe_string(trade, 'tid')
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
-        cost = None
-        if price is not None:
-            if amount is not None:
-                cost = price * amount
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         symbol = None
         if market is not None:
             symbol = market['symbol']
@@ -226,34 +253,59 @@ class lakebtc(Exchange):
         else:
             self.check_required_credentials()
             nonce = self.nonce()
+            nonceAsString = str(nonce)
+            requestId = self.seconds()
             queryParams = ''
             if 'params' in params:
                 paramsList = params['params']
-                queryParams = ','.join(paramsList)
-            query = self.urlencode({
-                'tonce': nonce,
-                'accesskey': self.apiKey,
-                'requestmethod': method.lower(),
-                'id': nonce,
-                'method': path,
-                'params': queryParams,
-            })
-            body = self.json({
-                'method': path,
-                'params': queryParams,
-                'id': nonce,
-            })
+                stringParams = []
+                for i in range(0, len(paramsList)):
+                    param = paramsList[i]
+                    if not isinstance(paramsList, basestring):
+                        param = str(param)
+                    stringParams.append(param)
+                queryParams = ','.join(stringParams)
+                body = {
+                    'method': path,
+                    'params': params['params'],
+                    'id': requestId,
+                }
+            else:
+                body = {
+                    'method': path,
+                    'params': '',
+                    'id': requestId,
+                }
+            body = self.json(body)
+            query = [
+                'tonce=' + nonceAsString,
+                'accesskey=' + self.apiKey,
+                'requestmethod=' + method.lower(),
+                'id=' + str(requestId),
+                'method=' + path,
+                'params=' + queryParams,
+            ]
+            query = '&'.join(query)
             signature = self.hmac(self.encode(query), self.encode(self.secret), hashlib.sha1)
-            auth = self.encode(self.apiKey + ':' + signature)
+            auth = self.apiKey + ':' + signature
+            signature64 = self.decode(self.string_to_base64(auth))
             headers = {
-                'Json-Rpc-Tonce': str(nonce),
-                'Authorization': 'Basic ' + self.decode(base64.b64encode(auth)),
+                'Json-Rpc-Tonce': nonceAsString,
+                'Authorization': 'Basic ' + signature64,
                 'Content-Type': 'application/json',
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    async def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        response = await self.fetch2(path, api, method, params, headers, body)
-        if 'error' in response:
-            raise ExchangeError(self.id + ' ' + self.json(response))
-        return response
+    def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        if response is None:
+            return  # fallback to the default error handler
+        #
+        #     {"error":"Failed to submit order: invalid symbol"}
+        #     {"error":"Failed to submit order: La validation a échoué : Volume doit être supérieur ou égal à 1.0"}
+        #     {"error":"Failed to submit order: insufficient_balance"}
+        #
+        feedback = self.id + ' ' + body
+        error = self.safe_string(response, 'error')
+        if error is not None:
+            self.throw_broadly_matched_exception(self.exceptions['broad'], error, feedback)
+            raise ExchangeError(feedback)  # unknown message

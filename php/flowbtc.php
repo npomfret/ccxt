@@ -10,18 +10,25 @@ use \ccxt\ExchangeError;
 
 class flowbtc extends Exchange {
 
-    public function describe () {
-        return array_replace_recursive(parent::describe (), array(
+    public function describe() {
+        return $this->deep_extend(parent::describe (), array(
             'id' => 'flowbtc',
             'name' => 'flowBTC',
             'countries' => array( 'BR' ), // Brazil
             'version' => 'v1',
             'rateLimit' => 1000,
             'has' => array(
+                'cancelOrder' => true,
                 'CORS' => false,
+                'createOrder' => true,
+                'fetchBalance' => true,
+                'fetchMarkets' => true,
+                'fetchOrderBook' => true,
+                'fetchTicker' => true,
+                'fetchTrades' => true,
             ),
             'urls' => array(
-                'logo' => 'https://user-images.githubusercontent.com/1294454/28162465-cd815d4c-67cf-11e7-8e57-438bea0523a2.jpg',
+                'logo' => 'https://user-images.githubusercontent.com/51840849/87443317-01c0d080-c5fe-11ea-95c2-9ebe1a8fafd9.jpg',
                 'api' => 'https://publicapi.flowbtc.com.br',
                 'www' => 'https://www.flowbtc.com.br',
                 'doc' => 'https://www.flowbtc.com.br/api.html',
@@ -71,7 +78,7 @@ class flowbtc extends Exchange {
         ));
     }
 
-    public function fetch_markets ($params = array ()) {
+    public function fetch_markets($params = array ()) {
         $response = $this->publicPostGetProductPairs ($params);
         $markets = $this->safe_value($response, 'productPairs');
         $result = array();
@@ -110,12 +117,13 @@ class flowbtc extends Exchange {
                     ),
                 ),
                 'info' => $market,
+                'active' => null,
             );
         }
         return $result;
     }
 
-    public function fetch_balance ($params = array ()) {
+    public function fetch_balance($params = array ()) {
         $this->load_markets();
         $response = $this->privatePostGetAccountInfo ($params);
         $balances = $this->safe_value($response, 'currencies');
@@ -124,42 +132,42 @@ class flowbtc extends Exchange {
             $balance = $balances[$i];
             $currencyId = $balance['name'];
             $code = $this->safe_currency_code($currencyId);
-            $account = $this->account ();
-            $account['free'] = $this->safe_float($balance, 'balance');
-            $account['total'] = $this->safe_float($balance, 'hold');
+            $account = $this->account();
+            $account['free'] = $this->safe_string($balance, 'balance');
+            $account['total'] = $this->safe_string($balance, 'hold');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result);
+        return $this->parse_balance($result, false);
     }
 
-    public function fetch_order_book ($symbol, $limit = null, $params = array ()) {
+    public function fetch_order_book($symbol, $limit = null, $params = array ()) {
         $this->load_markets();
-        $market = $this->market ($symbol);
+        $market = $this->market($symbol);
         $request = array(
             'productPair' => $market['id'],
         );
         $response = $this->publicPostGetOrderBook (array_merge($request, $params));
-        return $this->parse_order_book($response, null, 'bids', 'asks', 'px', 'qty');
+        return $this->parse_order_book($response, $symbol, null, 'bids', 'asks', 'px', 'qty');
     }
 
-    public function fetch_ticker ($symbol, $params = array ()) {
+    public function fetch_ticker($symbol, $params = array ()) {
         $this->load_markets();
-        $market = $this->market ($symbol);
+        $market = $this->market($symbol);
         $request = array(
             'productPair' => $market['id'],
         );
         $ticker = $this->publicPostGetTicker (array_merge($request, $params));
-        $timestamp = $this->milliseconds ();
-        $last = $this->safe_float($ticker, 'last');
+        $timestamp = $this->milliseconds();
+        $last = $this->safe_number($ticker, 'last');
         return array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
-            'datetime' => $this->iso8601 ($timestamp),
-            'high' => $this->safe_float($ticker, 'high'),
-            'low' => $this->safe_float($ticker, 'low'),
-            'bid' => $this->safe_float($ticker, 'bid'),
+            'datetime' => $this->iso8601($timestamp),
+            'high' => $this->safe_number($ticker, 'high'),
+            'low' => $this->safe_number($ticker, 'low'),
+            'bid' => $this->safe_number($ticker, 'bid'),
             'bidVolume' => null,
-            'ask' => $this->safe_float($ticker, 'ask'),
+            'ask' => $this->safe_number($ticker, 'ask'),
             'askVolume' => null,
             'vwap' => null,
             'open' => null,
@@ -169,28 +177,25 @@ class flowbtc extends Exchange {
             'change' => null,
             'percentage' => null,
             'average' => null,
-            'baseVolume' => $this->safe_float($ticker, 'volume24hr'),
-            'quoteVolume' => $this->safe_float($ticker, 'volume24hrProduct2'),
+            'baseVolume' => $this->safe_number($ticker, 'volume24hr'),
+            'quoteVolume' => $this->safe_number($ticker, 'volume24hrProduct2'),
             'info' => $ticker,
         );
     }
 
-    public function parse_trade ($trade, $market) {
+    public function parse_trade($trade, $market) {
         $timestamp = $this->safe_timestamp($trade, 'unixtime');
         $side = ($trade['incomingOrderSide'] === 0) ? 'buy' : 'sell';
         $id = $this->safe_string($trade, 'tid');
-        $price = $this->safe_float($trade, 'px');
-        $amount = $this->safe_float($trade, 'qty');
-        $cost = null;
-        if ($price !== null) {
-            if ($amount !== null) {
-                $cost = $price * $amount;
-            }
-        }
+        $priceString = $this->safe_string($trade, 'px');
+        $amountString = $this->safe_string($trade, 'qty');
+        $price = $this->parse_number($priceString);
+        $amount = $this->parse_number($amountString);
+        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         return array(
             'info' => $trade,
             'timestamp' => $timestamp,
-            'datetime' => $this->iso8601 ($timestamp),
+            'datetime' => $this->iso8601($timestamp),
             'symbol' => $market['symbol'],
             'id' => $id,
             'order' => null,
@@ -199,12 +204,14 @@ class flowbtc extends Exchange {
             'price' => $price,
             'amount' => $amount,
             'cost' => $cost,
+            'takerOrMaker' => null,
+            'fee' => null,
         );
     }
 
-    public function fetch_trades ($symbol, $since = null, $limit = null, $params = array ()) {
+    public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
-        $market = $this->market ($symbol);
+        $market = $this->market($symbol);
         $request = array(
             'ins' => $market['id'],
             'startIndex' => -1,
@@ -213,7 +220,7 @@ class flowbtc extends Exchange {
         return $this->parse_trades($response['trades'], $market, $since, $limit);
     }
 
-    public function create_order ($symbol, $type, $side, $amount, $price = null, $params = array ()) {
+    public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
         $this->load_markets();
         $orderType = ($type === 'market') ? 1 : 0;
         $request = array(
@@ -230,7 +237,7 @@ class flowbtc extends Exchange {
         );
     }
 
-    public function cancel_order ($id, $symbol = null, $params = array ()) {
+    public function cancel_order($id, $symbol = null, $params = array ()) {
         $this->load_markets();
         if (is_array($params) && array_key_exists('ins', $params)) {
             $request = array(
@@ -238,21 +245,21 @@ class flowbtc extends Exchange {
             );
             return $this->privatePostCancelOrder (array_merge($request, $params));
         }
-        throw new ExchangeError($this->id . ' requires `ins` $symbol parameter for cancelling an order');
+        throw new ExchangeError($this->id . ' cancelOrder() requires an `ins` $symbol parameter for cancelling an order');
     }
 
-    public function sign ($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
+    public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
         $url = $this->urls['api'] . '/' . $this->version . '/' . $path;
         if ($api === 'public') {
             if ($params) {
-                $body = $this->json ($params);
+                $body = $this->json($params);
             }
         } else {
             $this->check_required_credentials();
-            $nonce = $this->nonce ();
+            $nonce = $this->nonce();
             $auth = (string) $nonce . $this->uid . $this->apiKey;
-            $signature = $this->hmac ($this->encode ($auth), $this->encode ($this->secret));
-            $body = $this->json (array_merge(array(
+            $signature = $this->hmac($this->encode($auth), $this->encode($this->secret));
+            $body = $this->json(array_merge(array(
                 'apiKey' => $this->apiKey,
                 'apiNonce' => $nonce,
                 'apiSig' => strtoupper($signature),
@@ -264,13 +271,13 @@ class flowbtc extends Exchange {
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 
-    public function request ($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
-        $response = $this->fetch2 ($path, $api, $method, $params, $headers, $body);
+    public function request($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
+        $response = $this->fetch2($path, $api, $method, $params, $headers, $body);
         if (is_array($response) && array_key_exists('isAccepted', $response)) {
             if ($response['isAccepted']) {
                 return $response;
             }
         }
-        throw new ExchangeError($this->id . ' ' . $this->json ($response));
+        throw new ExchangeError($this->id . ' ' . $this->json($response));
     }
 }

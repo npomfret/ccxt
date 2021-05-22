@@ -5,8 +5,10 @@
 
 from ccxt.async_support.base.exchange import Exchange
 from ccxt.base.errors import ExchangeError
+from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import OrderNotFound
+from ccxt.base.precise import Precise
 
 
 class tidebit(Exchange):
@@ -19,10 +21,17 @@ class tidebit(Exchange):
             'rateLimit': 1000,
             'version': 'v2',
             'has': {
-                'fetchDepositAddress': True,
+                'cancelOrder': True,
                 'CORS': False,
-                'fetchTickers': True,
+                'createOrder': True,
+                'fetchBalance': True,
+                'fetchDepositAddress': True,
+                'fetchMarkets': True,
                 'fetchOHLCV': True,
+                'fetchOrderBook': True,
+                'fetchTicker': True,
+                'fetchTickers': True,
+                'fetchTrades': True,
                 'withdraw': True,
             },
             'timeframes': {
@@ -39,7 +48,7 @@ class tidebit(Exchange):
                 '1w': '10080',
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/39034921-e3acf016-4480-11e8-9945-a6086a1082fe.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87460811-1e690280-c616-11ea-8652-69f187305add.jpg',
                 'api': 'https://www.tidebit.com',
                 'www': 'https://www.tidebit.com',
                 'doc': [
@@ -156,6 +165,9 @@ class tidebit(Exchange):
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'info': market,
+                'active': None,
+                'precision': self.precision,
+                'limits': self.limits,
             })
         return result
 
@@ -169,10 +181,10 @@ class tidebit(Exchange):
             currencyId = self.safe_string(balance, 'currency')
             code = self.safe_currency_code(currencyId)
             account = self.account()
-            account['free'] = self.safe_float(balance, 'balance')
-            account['used'] = self.safe_float(balance, 'locked')
+            account['free'] = self.safe_string(balance, 'balance')
+            account['used'] = self.safe_string(balance, 'locked')
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -185,7 +197,7 @@ class tidebit(Exchange):
         request['market'] = market['id']
         response = await self.publicGetDepth(self.extend(request, params))
         timestamp = self.safe_timestamp(response, 'timestamp')
-        return self.parse_order_book(response, timestamp)
+        return self.parse_order_book(response, symbol, timestamp)
 
     def parse_ticker(self, ticker, market=None):
         timestamp = self.safe_timestamp(ticker, 'at')
@@ -193,15 +205,15 @@ class tidebit(Exchange):
         symbol = None
         if market is not None:
             symbol = market['symbol']
-        last = self.safe_float(ticker, 'last')
+        last = self.safe_number(ticker, 'last')
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(ticker, 'buy'),
-            'ask': self.safe_float(ticker, 'sell'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
+            'bid': self.safe_number(ticker, 'buy'),
+            'ask': self.safe_number(ticker, 'sell'),
             'bidVolume': None,
             'askVolume': None,
             'vwap': None,
@@ -212,7 +224,7 @@ class tidebit(Exchange):
             'percentage': None,
             'previousClose': None,
             'average': None,
-            'baseVolume': self.safe_float(ticker, 'vol'),
+            'baseVolume': self.safe_number(ticker, 'vol'),
             'quoteVolume': None,
             'info': ticker,
         }
@@ -224,20 +236,11 @@ class tidebit(Exchange):
         result = {}
         for i in range(0, len(ids)):
             id = ids[i]
-            market = None
-            symbol = id
-            if id in self.markets_by_id:
-                market = self.markets_by_id[id]
-                symbol = market['symbol']
-            else:
-                baseId = id[0:3]
-                quoteId = id[3:6]
-                base = self.safe_currency_code(baseId)
-                quote = self.safe_currency_code(quoteId)
-                symbol = base + '/' + quote
+            market = self.safe_market(id)
+            symbol = market['symbol']
             ticker = tickers[id]
             result[symbol] = self.parse_ticker(ticker, market)
-        return result
+        return self.filter_by_array(result, 'symbol', symbols)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
@@ -251,9 +254,13 @@ class tidebit(Exchange):
     def parse_trade(self, trade, market=None):
         timestamp = self.parse8601(self.safe_string(trade, 'created_at'))
         id = self.safe_string(trade, 'id')
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'volume')
-        cost = self.safe_float(trade, 'funds')
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'volume')
+        price = self.parse_number(priceString)
+        amount = self.parse_number(amountString)
+        cost = self.safe_number(trade, 'funds')
+        if cost is None:
+            cost = self.parse_number(Precise.string_mul(priceString, amountString))
         symbol = None
         if market is not None:
             symbol = market['symbol']
@@ -282,14 +289,24 @@ class tidebit(Exchange):
         response = await self.publicGetTrades(self.extend(request, params))
         return self.parse_trades(response, market, since, limit)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
+        #
+        #     [
+        #         1498530360,
+        #         2700.0,
+        #         2700.0,
+        #         2700.0,
+        #         2700.0,
+        #         0.01
+        #     ]
+        #
         return [
-            ohlcv[0] * 1000,
-            ohlcv[1],
-            ohlcv[2],
-            ohlcv[3],
-            ohlcv[4],
-            ohlcv[5],
+            self.safe_timestamp(ohlcv, 0),
+            self.safe_number(ohlcv, 1),
+            self.safe_number(ohlcv, 2),
+            self.safe_number(ohlcv, 3),
+            self.safe_number(ohlcv, 4),
+            self.safe_number(ohlcv, 5),
         ]
 
     async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
@@ -307,6 +324,13 @@ class tidebit(Exchange):
         else:
             request['timestamp'] = 1800000
         response = await self.publicGetK(self.extend(request, params))
+        #
+        #     [
+        #         [1498530360,2700.0,2700.0,2700.0,2700.0,0.01],
+        #         [1498530420,2700.0,2700.0,2700.0,2700.0,0],
+        #         [1498530480,2700.0,2700.0,2700.0,2700.0,0],
+        #     ]
+        #
         if response == 'None':
             return []
         return self.parse_ohlcvs(response, market, timeframe, since, limit)
@@ -320,43 +344,76 @@ class tidebit(Exchange):
         return self.safe_string(statuses, status, status)
 
     def parse_order(self, order, market=None):
-        symbol = None
-        if market is not None:
-            symbol = market['symbol']
-        else:
-            marketId = order['market']
-            symbol = self.markets_by_id[marketId]['symbol']
+        #
+        #     {
+        #         "id": 7,                              # 唯一的 Order ID
+        #         "side": "sell",                       # Buy/Sell 代表买单/卖单
+        #         "price": "3100.0",                    # 出价
+        #         "avg_price": "3101.2",                # 平均成交价
+        #         "state": "wait",                      # 订单的当前状态 [wait,done,cancel]
+        #                                               #   wait   表明订单正在市场上挂单
+        #                                               #          是一个active order
+        #                                               #          此时订单可能部分成交或者尚未成交
+        #                                               #   done   代表订单已经完全成交
+        #                                               #   cancel 代表订单已经被撤销
+        #         "market": "btccny",                   # 订单参与的交易市场
+        #         "created_at": "2014-04-18T02:02:33Z",  # 下单时间 ISO8601格式
+        #         "volume": "100.0",                    # 购买/卖出数量
+        #         "remaining_volume": "89.8",           # 还未成交的数量 remaining_volume 总是小于等于 volume
+        #                                               #   在订单完全成交时变成 0
+        #         "executed_volume": "10.2",            # 已成交的数量
+        #                                               #   volume = remaining_volume + executed_volume
+        #         "trades_count": 1,                    # 订单的成交数 整数值
+        #                                               #   未成交的订单为 0 有一笔成交的订单为 1
+        #                                               #   通过该字段可以判断订单是否处于部分成交状态
+        #         "trades": [                          # 订单的详细成交记录 参见Trade
+        #                                               #   注意: 只有某些返回详细订单数据的 API 才会包含 Trade 数据
+        #             {
+        #                 "id": 2,
+        #                 "price": "3100.0",
+        #                 "volume": "10.2",
+        #                 "market": "btccny",
+        #                 "created_at": "2014-04-18T02:04:49Z",
+        #                 "side": "sell"
+        #             }
+        #         ]
+        #     }
+        #
+        marketId = self.safe_string(order, 'market')
+        symbol = self.safe_symbol(marketId, market)
         timestamp = self.parse8601(self.safe_string(order, 'created_at'))
         status = self.parse_order_status(self.safe_string(order, 'state'))
         id = self.safe_string(order, 'id')
         type = self.safe_string(order, 'ord_type')
         side = self.safe_string(order, 'side')
-        price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'volume')
-        filled = self.safe_float(order, 'executed_volume')
-        remaining = self.safe_float(order, 'remaining_volume')
-        cost = None
-        if price is not None:
-            if filled is not None:
-                cost = price * filled
-        return {
+        price = self.safe_number(order, 'price')
+        amount = self.safe_number(order, 'volume')
+        filled = self.safe_number(order, 'executed_volume')
+        remaining = self.safe_number(order, 'remaining_volume')
+        average = self.safe_number(order, 'avg_price')
+        return self.safe_order({
             'id': id,
+            'clientOrderId': None,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'lastTradeTimestamp': None,
             'status': status,
             'symbol': symbol,
             'type': type,
+            'timeInForce': None,
+            'postOnly': None,
             'side': side,
             'price': price,
+            'stopPrice': None,
             'amount': amount,
             'filled': filled,
             'remaining': remaining,
-            'cost': cost,
+            'cost': None,
             'trades': None,
             'fee': None,
             'info': order,
-        }
+            'average': average,
+        })
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
@@ -369,8 +426,7 @@ class tidebit(Exchange):
         if type == 'limit':
             request['price'] = str(price)
         response = await self.privatePostOrders(self.extend(request, params))
-        market = self.markets_by_id[response['market']]
-        return self.parse_order(response, market)
+        return self.parse_order(response)
 
     async def cancel_order(self, id, symbol=None, params={}):
         await self.load_markets()
@@ -390,7 +446,7 @@ class tidebit(Exchange):
         currency = self.currency(code)
         id = self.safe_string(params, 'id')
         if id is None:
-            raise ExchangeError(self.id + ' withdraw() requires an extra `id` param(withdraw account id according to withdraws/bind_account_list endpoint')
+            raise ArgumentsRequired(self.id + ' withdraw() requires an extra `id` param(withdraw account id according to withdraws/bind_account_list endpoint')
         request = {
             'id': id,
             'currency_type': 'coin',  # or 'cash'

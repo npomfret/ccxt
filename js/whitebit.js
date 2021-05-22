@@ -3,7 +3,8 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { ExchangeError, DDoSProtection, BadSymbol } = require ('./base/errors');
+const { ExchangeNotAvailable, ExchangeError, DDoSProtection, BadSymbol } = require ('./base/errors');
+const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -34,6 +35,7 @@ module.exports = class whitebit extends Exchange {
                 'fetchTicker': true,
                 'fetchTickers': true,
                 'fetchTrades': true,
+                'fetchTradingFees': true,
                 'privateAPI': false,
                 'publicAPI': true,
             },
@@ -62,7 +64,7 @@ module.exports = class whitebit extends Exchange {
                     'publicV1': 'https://whitebit.com/api/v1/public',
                 },
                 'www': 'https://www.whitebit.com',
-                'doc': 'https://documenter.getpostman.com/view/7473075/SVSPomwS?version=latest#intro',
+                'doc': 'https://documenter.getpostman.com/view/7473075/Szzj8dgv?version=latest',
                 'fees': 'https://whitebit.com/fee-schedule',
                 'referral': 'https://whitebit.com/referral/d9bdf40e-28f2-4b52-b2f9-cd1415d82963',
             },
@@ -107,6 +109,7 @@ module.exports = class whitebit extends Exchange {
             },
             'exceptions': {
                 'exact': {
+                    '503': ExchangeNotAvailable, // {"response":null,"status":503,"errors":{"message":[""]},"notification":null,"warning":null,"_token":null}
                 },
                 'broad': {
                     'Market is not available': BadSymbol, // {"success":false,"message":{"market":["Market is not available"]},"result":[]}
@@ -162,7 +165,7 @@ module.exports = class whitebit extends Exchange {
                 },
                 'limits': {
                     'amount': {
-                        'min': this.safeFloat (market, 'minAmount'),
+                        'min': this.safeNumber (market, 'minAmount'),
                         'max': undefined,
                     },
                     'price': {
@@ -170,7 +173,7 @@ module.exports = class whitebit extends Exchange {
                         'max': undefined,
                     },
                     'cost': {
-                        'min': this.safeFloat (market, 'minTotal'),
+                        'min': this.safeNumber (market, 'minTotal'),
                         'max': undefined,
                     },
                 },
@@ -226,17 +229,9 @@ module.exports = class whitebit extends Exchange {
                         'min': undefined,
                         'max': undefined,
                     },
-                    'price': {
-                        'min': undefined,
-                        'max': undefined,
-                    },
-                    'cost': {
-                        'min': undefined,
-                        'max': undefined,
-                    },
                     'withdraw': {
-                        'min': this.safeFloat (currency, 'minWithdrawal'),
-                        'max': this.safeFloat (currency, 'maxWithdrawal'),
+                        'min': this.safeNumber (currency, 'minWithdrawal'),
+                        'max': this.safeNumber (currency, 'maxWithdrawal'),
                     },
                 },
             };
@@ -248,8 +243,8 @@ module.exports = class whitebit extends Exchange {
         const response = await this.publicV2GetFee (params);
         const fees = this.safeValue (response, 'result');
         return {
-            'maker': this.safeFloat (fees, 'makerFee'),
-            'taker': this.safeFloat (fees, 'takerFee'),
+            'maker': this.safeNumber (fees, 'makerFee'),
+            'taker': this.safeNumber (fees, 'takerFee'),
         };
     }
 
@@ -319,8 +314,8 @@ module.exports = class whitebit extends Exchange {
         if (market !== undefined) {
             symbol = market['symbol'];
         }
-        const last = this.safeFloat (ticker, 'last');
-        const percentage = this.safeFloat (ticker, 'change');
+        const last = this.safeNumber (ticker, 'last');
+        const percentage = this.safeNumber (ticker, 'change');
         let change = undefined;
         if (percentage !== undefined) {
             change = this.numberToString (percentage * 0.01);
@@ -329,22 +324,22 @@ module.exports = class whitebit extends Exchange {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeFloat (ticker, 'high'),
-            'low': this.safeFloat (ticker, 'low'),
-            'bid': this.safeFloat (ticker, 'bid'),
+            'high': this.safeNumber (ticker, 'high'),
+            'low': this.safeNumber (ticker, 'low'),
+            'bid': this.safeNumber (ticker, 'bid'),
             'bidVolume': undefined,
-            'ask': this.safeFloat (ticker, 'ask'),
+            'ask': this.safeNumber (ticker, 'ask'),
             'askVolume': undefined,
             'vwap': undefined,
-            'open': this.safeFloat (ticker, 'open'),
+            'open': this.safeNumber (ticker, 'open'),
             'close': last,
             'last': last,
             'previousClose': undefined,
             'change': change,
             'percentage': percentage,
             'average': undefined,
-            'baseVolume': this.safeFloat (ticker, 'volume'),
-            'quoteVolume': this.safeFloat (ticker, 'deal'),
+            'baseVolume': this.safeNumber (ticker, 'volume'),
+            'quoteVolume': this.safeNumber (ticker, 'deal'),
             'info': ticker,
         };
     }
@@ -378,19 +373,10 @@ module.exports = class whitebit extends Exchange {
         const result = {};
         for (let i = 0; i < marketIds.length; i++) {
             const marketId = marketIds[i];
-            let market = undefined;
-            let symbol = marketId;
-            if (marketId in this.markets_by_id) {
-                market = this.markets_by_id[marketId];
-                symbol = market['symbol'];
-            } else {
-                const [ baseId, quoteId ] = marketId.split ('_');
-                const base = this.safeCurrencyCode (baseId);
-                const quote = this.safeCurrencyCode (quoteId);
-                symbol = base + '/' + quote;
-            }
+            const market = this.safeMarket (marketId);
             const ticker = this.parseTicker (data[marketId], market);
-            result[symbol] = this.extend (ticker, { 'symbol': symbol });
+            const symbol = ticker['symbol'];
+            result[symbol] = ticker;
         }
         return this.filterByArray (result, 'symbol', symbols);
     }
@@ -426,7 +412,7 @@ module.exports = class whitebit extends Exchange {
         //
         const result = this.safeValue (response, 'result', {});
         const timestamp = this.parse8601 (this.safeString (result, 'lastUpdateTimestamp'));
-        return this.parseOrderBook (result, timestamp);
+        return this.parseOrderBook (result, symbol, timestamp);
     }
 
     async fetchTradesV1 (symbol, since = undefined, limit = undefined, params = {}) {
@@ -521,8 +507,11 @@ module.exports = class whitebit extends Exchange {
         } else {
             timestamp = parseInt (timestamp * 1000);
         }
-        const price = this.safeFloat (trade, 'price');
-        const amount = this.safeFloat2 (trade, 'amount', 'volume');
+        const priceString = this.safeString (trade, 'price');
+        const amountString = this.safeString2 (trade, 'amount', 'volume');
+        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
+        const price = this.parseNumber (priceString);
+        const amount = this.parseNumber (amountString);
         const id = this.safeString2 (trade, 'id', 'tradeId');
         let side = this.safeString (trade, 'type');
         if (side === undefined) {
@@ -532,10 +521,6 @@ module.exports = class whitebit extends Exchange {
         let symbol = undefined;
         if (market !== undefined) {
             symbol = market['symbol'];
-        }
-        let cost = undefined;
-        if (amount !== undefined && price !== undefined) {
-            cost = amount * price;
         }
         return {
             'info': trade,
@@ -562,29 +547,60 @@ module.exports = class whitebit extends Exchange {
             'interval': this.timeframes[timeframe],
         };
         if (since !== undefined) {
-            request['start'] = parseInt (since / 1000);
+            const maxLimit = 1440;
+            if (limit === undefined) {
+                limit = maxLimit;
+            }
+            limit = Math.min (limit, maxLimit);
+            const start = parseInt (since / 1000);
+            const duration = this.parseTimeframe (timeframe);
+            const end = this.sum (start, duration * limit);
+            request['start'] = start;
+            request['end'] = end;
         }
         if (limit !== undefined) {
-            request['limit'] = limit; // default == max == 500
+            request['limit'] = limit; // max 1440
         }
         const response = await this.publicV1GetKline (this.extend (request, params));
-        const result = this.safeValue (response, 'result');
+        //
+        //     {
+        //         "success":true,
+        //         "message":"",
+        //         "result":[
+        //             [1591488000,"0.025025","0.025025","0.025029","0.025023","6.181","0.154686629"],
+        //             [1591488060,"0.025028","0.025033","0.025035","0.025026","8.067","0.201921167"],
+        //             [1591488120,"0.025034","0.02505","0.02505","0.025034","20.089","0.503114696"],
+        //         ]
+        //     }
+        //
+        const result = this.safeValue (response, 'result', []);
         return this.parseOHLCVs (result, market, timeframe, since, limit);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+    parseOHLCV (ohlcv, market = undefined) {
+        //
+        //     [
+        //         1591488000,
+        //         "0.025025",
+        //         "0.025025",
+        //         "0.025029",
+        //         "0.025023",
+        //         "6.181",
+        //         "0.154686629"
+        //     ]
+        //
         return [
-            ohlcv[0] * 1000, // timestamp
-            parseFloat (ohlcv[1]), // open
-            parseFloat (ohlcv[3]), // high
-            parseFloat (ohlcv[4]), // low
-            parseFloat (ohlcv[2]), // close
-            parseFloat (ohlcv[5]), // volume
+            this.safeTimestamp (ohlcv, 0), // timestamp
+            this.safeNumber (ohlcv, 1), // open
+            this.safeNumber (ohlcv, 3), // high
+            this.safeNumber (ohlcv, 4), // low
+            this.safeNumber (ohlcv, 2), // close
+            this.safeNumber (ohlcv, 5), // volume
         ];
     }
 
     async fetchStatus (params = {}) {
-        const response = await this.webGetV1Healthcheck ();
+        const response = await this.webGetV1Healthcheck (params);
         const status = this.safeInteger (response, 'status');
         let formattedStatus = 'ok';
         if (status === 503) {
@@ -617,9 +633,9 @@ module.exports = class whitebit extends Exchange {
             const success = this.safeValue (response, 'success');
             if (!success) {
                 const feedback = this.id + ' ' + body;
-                const message = this.safeValue (response, 'message');
-                if (typeof message === 'string') {
-                    this.throwExactlyMatchedException (this.exceptions['exact'], message, feedback);
+                const status = this.safeString (response, 'status');
+                if (typeof status === 'string') {
+                    this.throwExactlyMatchedException (this.exceptions['exact'], status, feedback);
                 }
                 this.throwBroadlyMatchedException (this.exceptions['broad'], body, feedback);
                 throw new ExchangeError (feedback);

@@ -4,6 +4,7 @@
 
 const Exchange = require ('./base/Exchange');
 const { ExchangeError } = require ('./base/errors');
+const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -15,8 +16,15 @@ module.exports = class coingi extends Exchange {
             'rateLimit': 1000,
             'countries': [ 'PA', 'BG', 'CN', 'US' ], // Panama, Bulgaria, China, US
             'has': {
+                'cancelOrder': true,
                 'CORS': false,
+                'createOrder': true,
+                'fetchBalance': true,
+                'fetchMarkets': true,
+                'fetchOrderBook': true,
+                'fetchTicker': true,
                 'fetchTickers': true,
+                'fetchTrades': true,
             },
             'urls': {
                 'referral': 'https://www.coingi.com/?r=XTPPMC',
@@ -158,14 +166,14 @@ module.exports = class coingi extends Exchange {
             const currencyId = this.safeString (balance['currency'], 'name');
             const code = this.safeCurrencyCode (currencyId);
             const account = this.account ();
-            account['free'] = this.safeFloat (balance, 'available');
-            const blocked = this.safeFloat (balance, 'blocked');
-            const inOrders = this.safeFloat (balance, 'inOrders');
-            const withdrawing = this.safeFloat (balance, 'withdrawing');
-            account['used'] = this.sum (blocked, inOrders, withdrawing);
+            account['free'] = this.safeString (balance, 'available');
+            const blocked = this.safeString (balance, 'blocked');
+            const inOrders = this.safeString (balance, 'inOrders');
+            const withdrawing = this.safeString (balance, 'withdrawing');
+            account['used'] = Precise.stringAdd (Precise.stringAdd (blocked, inOrders), withdrawing);
             result[code] = account;
         }
-        return this.parseBalance (result);
+        return this.parseBalance (result, false);
     }
 
     async fetchOrderBook (symbol, limit = 512, params = {}) {
@@ -178,7 +186,7 @@ module.exports = class coingi extends Exchange {
             'bidCount': limit, // maximum returned number of bids 1-512
         };
         const orderbook = await this.currentGetOrderBookPairAskCountBidCountDepth (this.extend (request, params));
-        return this.parseOrderBook (orderbook, undefined, 'bids', 'asks', 'price', 'baseAmount');
+        return this.parseOrderBook (orderbook, symbol, undefined, 'bids', 'asks', 'price', 'baseAmount');
     }
 
     parseTicker (ticker, market = undefined) {
@@ -191,11 +199,11 @@ module.exports = class coingi extends Exchange {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeFloat (ticker, 'high'),
-            'low': this.safeFloat (ticker, 'low'),
-            'bid': this.safeFloat (ticker, 'highestBid'),
+            'high': this.safeNumber (ticker, 'high'),
+            'low': this.safeNumber (ticker, 'low'),
+            'bid': this.safeNumber (ticker, 'highestBid'),
             'bidVolume': undefined,
-            'ask': this.safeFloat (ticker, 'lowestAsk'),
+            'ask': this.safeNumber (ticker, 'lowestAsk'),
             'askVolume': undefined,
             'vwap': undefined,
             'open': undefined,
@@ -205,8 +213,8 @@ module.exports = class coingi extends Exchange {
             'change': undefined,
             'percentage': undefined,
             'average': undefined,
-            'baseVolume': this.safeFloat (ticker, 'baseVolume'),
-            'quoteVolume': this.safeFloat (ticker, 'counterVolume'),
+            'baseVolume': this.safeNumber (ticker, 'baseVolume'),
+            'quoteVolume': this.safeNumber (ticker, 'counterVolume'),
             'info': ticker,
         };
     }
@@ -226,7 +234,7 @@ module.exports = class coingi extends Exchange {
             }
             result[symbol] = this.parseTicker (ticker, market);
         }
-        return result;
+        return this.filterByArray (result, 'symbol', symbols);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -239,24 +247,15 @@ module.exports = class coingi extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
-        const price = this.safeFloat (trade, 'price');
-        const amount = this.safeFloat (trade, 'amount');
-        let cost = undefined;
-        if (price !== undefined) {
-            if (amount !== undefined) {
-                cost = price * amount;
-            }
-        }
+        const priceString = this.safeString (trade, 'price');
+        const amountString = this.safeString (trade, 'amount');
+        const price = this.parseNumber (priceString);
+        const amount = this.parseNumber (amountString);
+        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
         const timestamp = this.safeInteger (trade, 'timestamp');
         const id = this.safeString (trade, 'id');
         const marketId = this.safeString (trade, 'currencyPair');
-        if (marketId in this.markets_by_id) {
-            market = this.markets_by_id[marketId];
-        }
-        let symbol = undefined;
-        if (market !== undefined) {
-            symbol = market['symbol'];
-        }
+        const symbol = this.safeSymbol (marketId, market);
         return {
             'id': id,
             'info': trade,

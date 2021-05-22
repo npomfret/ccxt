@@ -4,6 +4,7 @@
 
 const Exchange = require ('./base/Exchange');
 const { ExchangeError } = require ('./base/errors');
+const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -17,9 +18,15 @@ module.exports = class paymium extends Exchange {
             'version': 'v1',
             'has': {
                 'CORS': true,
+                'fetchBalance': true,
+                'fetchTicker': true,
+                'fetchTrades': true,
+                'fetchOrderBook': true,
+                'createOrder': true,
+                'cancelOrder': true,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/1294454/27790564-a945a9d4-5ff9-11e7-9d2d-b635763f2f24.jpg',
+                'logo': 'https://user-images.githubusercontent.com/51840849/87153930-f0f02200-c2c0-11ea-9c0a-40337375ae89.jpg',
                 'api': 'https://paymium.com/api',
                 'www': 'https://www.paymium.com',
                 'fees': 'https://www.paymium.com/page/help/fees',
@@ -27,37 +34,41 @@ module.exports = class paymium extends Exchange {
                     'https://github.com/Paymium/api-documentation',
                     'https://www.paymium.com/page/developers',
                 ],
+                'referral': 'https://www.paymium.com/page/sign-up?referral=eDAzPoRQFMvaAB8sf-qj',
             },
             'api': {
                 'public': {
                     'get': [
                         'countries',
-                        'data/{id}/ticker',
-                        'data/{id}/trades',
-                        'data/{id}/depth',
+                        'data/{currency}/ticker',
+                        'data/{currency}/trades',
+                        'data/{currency}/depth',
                         'bitcoin_charts/{id}/trades',
                         'bitcoin_charts/{id}/depth',
                     ],
                 },
                 'private': {
                     'get': [
-                        'merchant/get_payment/{UUID}',
                         'user',
                         'user/addresses',
-                        'user/addresses/{btc_address}',
+                        'user/addresses/{address}',
                         'user/orders',
-                        'user/orders/{UUID}',
+                        'user/orders/{uuid}',
                         'user/price_alerts',
+                        'merchant/get_payment/{uuid}',
                     ],
                     'post': [
-                        'user/orders',
                         'user/addresses',
+                        'user/orders',
+                        'user/withdrawals',
+                        'user/email_transfers',
                         'user/payment_requests',
                         'user/price_alerts',
                         'merchant/create_payment',
                     ],
                     'delete': [
-                        'user/orders/{UUID}/cancel',
+                        'user/orders/{uuid}',
+                        'user/orders/{uuid}/cancel',
                         'user/price_alerts/{id}',
                     ],
                 },
@@ -86,53 +97,54 @@ module.exports = class paymium extends Exchange {
             if (free in response) {
                 const account = this.account ();
                 const used = 'locked_' + currencyId;
-                account['free'] = this.safeFloat (response, free);
-                account['used'] = this.safeFloat (response, used);
+                account['free'] = this.safeString (response, free);
+                account['used'] = this.safeString (response, used);
                 result[code] = account;
             }
         }
-        return this.parseBalance (result);
+        return this.parseBalance (result, false);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
         await this.loadMarkets ();
         const request = {
-            'id': this.marketId (symbol),
+            'currency': this.marketId (symbol),
         };
-        const response = await this.publicGetDataIdDepth (this.extend (request, params));
-        return this.parseOrderBook (response, undefined, 'bids', 'asks', 'price', 'amount');
+        const response = await this.publicGetDataCurrencyDepth (this.extend (request, params));
+        return this.parseOrderBook (response, symbol, undefined, 'bids', 'asks', 'price', 'amount');
     }
 
     async fetchTicker (symbol, params = {}) {
+        await this.loadMarkets ();
         const request = {
-            'id': this.marketId (symbol),
+            'currency': this.marketId (symbol),
         };
-        const ticker = await this.publicGetDataIdTicker (this.extend (request, params));
+        const ticker = await this.publicGetDataCurrencyTicker (this.extend (request, params));
         const timestamp = this.safeTimestamp (ticker, 'at');
-        const vwap = this.safeFloat (ticker, 'vwap');
-        const baseVolume = this.safeFloat (ticker, 'volume');
+        const vwap = this.safeNumber (ticker, 'vwap');
+        const baseVolume = this.safeNumber (ticker, 'volume');
         let quoteVolume = undefined;
         if (baseVolume !== undefined && vwap !== undefined) {
             quoteVolume = baseVolume * vwap;
         }
-        const last = this.safeFloat (ticker, 'price');
+        const last = this.safeNumber (ticker, 'price');
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeFloat (ticker, 'high'),
-            'low': this.safeFloat (ticker, 'low'),
-            'bid': this.safeFloat (ticker, 'bid'),
+            'high': this.safeNumber (ticker, 'high'),
+            'low': this.safeNumber (ticker, 'low'),
+            'bid': this.safeNumber (ticker, 'bid'),
             'bidVolume': undefined,
-            'ask': this.safeFloat (ticker, 'ask'),
+            'ask': this.safeNumber (ticker, 'ask'),
             'askVolume': undefined,
             'vwap': vwap,
-            'open': this.safeFloat (ticker, 'open'),
+            'open': this.safeNumber (ticker, 'open'),
             'close': last,
             'last': last,
             'previousClose': undefined,
             'change': undefined,
-            'percentage': this.safeFloat (ticker, 'variation'),
+            'percentage': this.safeNumber (ticker, 'variation'),
             'average': undefined,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
@@ -148,15 +160,12 @@ module.exports = class paymium extends Exchange {
             symbol = market['symbol'];
         }
         const side = this.safeString (trade, 'side');
-        const price = this.safeFloat (trade, 'price');
+        const priceString = this.safeString (trade, 'price');
         const amountField = 'traded_' + market['base'].toLowerCase ();
-        const amount = this.safeFloat (trade, amountField);
-        let cost = undefined;
-        if (price !== undefined) {
-            if (amount !== undefined) {
-                cost = amount * price;
-            }
-        }
+        const amountString = this.safeString (trade, amountField);
+        const price = this.parseNumber (priceString);
+        const amount = this.parseNumber (amountString);
+        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
         return {
             'info': trade,
             'id': id,
@@ -178,9 +187,9 @@ module.exports = class paymium extends Exchange {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const request = {
-            'id': market['id'],
+            'currency': market['id'],
         };
-        const response = await this.publicGetDataIdTrades (this.extend (request, params));
+        const response = await this.publicGetDataCurrencyTrades (this.extend (request, params));
         return this.parseTrades (response, market, since, limit);
     }
 
@@ -204,9 +213,9 @@ module.exports = class paymium extends Exchange {
 
     async cancelOrder (id, symbol = undefined, params = {}) {
         const request = {
-            'UUID': id,
+            'uuid': id,
         };
-        return await this.privateDeleteUserOrdersUUIDCancel (this.extend (request, params));
+        return await this.privateDeleteUserOrdersUuidCancel (this.extend (request, params));
     }
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
@@ -220,18 +229,24 @@ module.exports = class paymium extends Exchange {
             this.checkRequiredCredentials ();
             const nonce = this.nonce ().toString ();
             let auth = nonce + url;
+            headers = {
+                'Api-Key': this.apiKey,
+                'Api-Nonce': nonce,
+            };
             if (method === 'POST') {
                 if (Object.keys (query).length) {
                     body = this.json (query);
                     auth += body;
+                    headers['Content-Type'] = 'application/json';
+                }
+            } else {
+                if (Object.keys (query).length) {
+                    const queryString = this.urlencode (query);
+                    auth += queryString;
+                    url += '?' + queryString;
                 }
             }
-            headers = {
-                'Api-Key': this.apiKey,
-                'Api-Signature': this.hmac (this.encode (auth), this.encode (this.secret)),
-                'Api-Nonce': nonce,
-                'Content-Type': 'application/json',
-            };
+            headers['Api-Signature'] = this.hmac (this.encode (auth), this.encode (this.secret));
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }

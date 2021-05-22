@@ -2,12 +2,12 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '1.22.96'
+__version__ = '1.50.8'
 
 # -----------------------------------------------------------------------------
 
 import asyncio
-import concurrent
+import concurrent.futures
 import socket
 import certifi
 import aiohttp
@@ -25,6 +25,7 @@ from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import ExchangeNotAvailable
 from ccxt.base.errors import RequestTimeout
 from ccxt.base.errors import NotSupported
+from ccxt.base.errors import BadSymbol
 
 # -----------------------------------------------------------------------------
 
@@ -52,6 +53,8 @@ class Exchange(BaseExchange):
         self.cafile = config.get('cafile', certifi.where())
         super(Exchange, self).__init__(config)
         self.init_rest_rate_limiter()
+        self.markets_loading = None
+        self.reloading_markets = False
 
     def init_rest_rate_limiter(self):
         self.throttle = throttle(self.extend({
@@ -75,7 +78,7 @@ class Exchange(BaseExchange):
             # Create our SSL context object with our CA cert file
             context = ssl.create_default_context(cafile=self.cafile) if self.verify else self.verify
             # Pass this SSL context to aiohttp and create a TCPConnector
-            connector = aiohttp.TCPConnector(ssl=context, loop=self.asyncio_loop)
+            connector = aiohttp.TCPConnector(ssl=context, loop=self.asyncio_loop, enable_cleanup_closed=True)
             self.session = aiohttp.ClientSession(loop=self.asyncio_loop, connector=connector, trust_env=self.aiohttp_trust_env)
 
     async def close(self):
@@ -98,7 +101,7 @@ class Exchange(BaseExchange):
         url = self.proxy + url
 
         if self.verbose:
-            print("\nRequest:", method, url, headers, body)
+            self.print("\nRequest:", method, url, headers, body)
         self.logger.debug("%s %s, Request: %s %s", method, url, headers, body)
 
         request_body = body
@@ -117,10 +120,18 @@ class Exchange(BaseExchange):
                                       timeout=(self.timeout / 1000),
                                       proxy=self.aiohttp_proxy) as response:
                 http_response = await response.text()
+                # CIMultiDictProxy
+                raw_headers = response.headers
+                headers = {}
+                for header in raw_headers:
+                    if header in headers:
+                        headers[header] = headers[header] + ', ' + raw_headers[header]
+                    else:
+                        headers[header] = raw_headers[header]
                 http_status_code = response.status
                 http_status_text = response.reason
+                http_response = self.on_rest_response(http_status_code, http_status_text, url, method, headers, http_response, request_headers, request_body)
                 json_response = self.parse_json(http_response)
-                headers = response.headers
                 if self.enableLastHttpResponse:
                     self.last_http_response = http_response
                 if self.enableLastResponseHeaders:
@@ -128,31 +139,34 @@ class Exchange(BaseExchange):
                 if self.enableLastJsonResponse:
                     self.last_json_response = json_response
                 if self.verbose:
-                    print("\nResponse:", method, url, http_status_code, headers, http_response)
+                    self.print("\nResponse:", method, url, http_status_code, headers, http_response)
                 self.logger.debug("%s %s, Response: %s %s %s", method, url, http_status_code, headers, http_response)
 
         except socket.gaierror as e:
-            raise ExchangeNotAvailable(method + ' ' + url)
+            details = ' '.join([self.id, method, url])
+            raise ExchangeNotAvailable(details) from e
 
-        except concurrent.futures._base.TimeoutError as e:
-            raise RequestTimeout(method + ' ' + url)
+        except (concurrent.futures.TimeoutError, asyncio.TimeoutError) as e:
+            details = ' '.join([self.id, method, url])
+            raise RequestTimeout(details) from e
 
-        except aiohttp.client_exceptions.ClientConnectionError as e:
-            raise ExchangeNotAvailable(method + ' ' + url)
+        except aiohttp.ClientConnectionError as e:
+            details = ' '.join([self.id, method, url])
+            raise ExchangeNotAvailable(details) from e
 
-        except aiohttp.client_exceptions.ClientError as e:  # base exception class
-            raise ExchangeError(method + ' ' + url)
+        except aiohttp.ClientError as e:  # base exception class
+            details = ' '.join([self.id, method, url])
+            raise ExchangeError(details) from e
 
         self.handle_errors(http_status_code, http_status_text, url, method, headers, http_response, json_response, request_headers, request_body)
-        self.handle_rest_errors(http_status_code, http_status_text, http_response, url, method)
-        self.handle_rest_response(http_response, json_response, url, method)
+        self.handle_http_status_code(http_status_code, http_status_text, url, method, http_response)
         if json_response is not None:
             return json_response
         if self.is_text_response(headers):
             return http_response
         return response.content
 
-    async def load_markets(self, reload=False, params={}):
+    async def load_markets_helper(self, reload=False, params={}):
         if not reload:
             if self.markets:
                 if not self.markets_by_id:
@@ -163,6 +177,21 @@ class Exchange(BaseExchange):
             currencies = await self.fetch_currencies()
         markets = await self.fetch_markets(params)
         return self.set_markets(markets, currencies)
+
+    async def load_markets(self, reload=False, params={}):
+        if (reload and not self.reloading_markets) or not self.markets_loading:
+            self.reloading_markets = True
+            coroutine = self.load_markets_helper(reload, params)
+            # coroutines can only be awaited once so we wrap it in a task
+            self.markets_loading = asyncio.ensure_future(coroutine)
+        try:
+            result = await self.markets_loading
+        except Exception as e:
+            self.reloading_markets = False
+            self.markets_loading = None
+            raise e
+        self.reloading_markets = False
+        return result
 
     async def fetch_fees(self):
         trading = {}
@@ -227,12 +256,19 @@ class Exchange(BaseExchange):
         orderbook = await self.perform_order_book_request(market, limit, params)
         return self.parse_order_book(orderbook, market, limit, params)
 
-    async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+    async def fetch_ohlcvc(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         if not self.has['fetchTrades']:
             raise NotSupported('fetch_ohlcv() not implemented yet')
         await self.load_markets()
         trades = await self.fetch_trades(symbol, since, limit, params)
-        return self.build_ohlcv(trades, timeframe, since, limit)
+        return self.build_ohlcvc(trades, timeframe, since, limit)
+
+    async def fetchOHLCVC(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        return await self.fetch_ohlcvc(symbol, timeframe, since, limit, params)
+
+    async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        ohlcvs = await self.fetch_ohlcvc(symbol, timeframe, since, limit, params)
+        return [ohlcv[0:-1] for ohlcv in ohlcvs]
 
     async def fetchOHLCV(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         return await self.fetch_ohlcv(symbol, timeframe, since, limit, params)
@@ -245,6 +281,12 @@ class Exchange(BaseExchange):
             raise ExchangeError('updateOrder() requires enableRateLimit = true')
         await self.cancel_order(id, symbol)
         return await self.create_order(symbol, *args)
+
+    async def create_order(self, symbol, type, side, amount, price=None, params={}):
+        raise NotSupported('create_order() not supported yet')
+
+    async def cancel_order(self, id, symbol=None, params={}):
+        raise NotSupported('cancel_order() not supported yet')
 
     async def fetch_trading_fees(self, params={}):
         raise NotSupported('fetch_trading_fees() not supported yet')
@@ -276,4 +318,35 @@ class Exchange(BaseExchange):
         return self.accounts
 
     async def fetch_ticker(self, symbol, params={}):
-        raise NotSupported('fetch_ticker() not supported yet')
+        if self.has['fetchTickers']:
+            tickers = await self.fetch_tickers([symbol], params)
+            ticker = self.safe_value(tickers, symbol)
+            if ticker is None:
+                raise BadSymbol(self.id + ' fetchTickers could not find a ticker for ' + symbol)
+            else:
+                return ticker
+        else:
+            raise NotSupported(self.id + ' fetchTicker not supported yet')
+
+    async def fetch_transactions(self, code=None, since=None, limit=None, params={}):
+        raise NotSupported('fetch_transactions() is not supported yet')
+
+    async def fetch_deposits(self, code=None, since=None, limit=None, params={}):
+        raise NotSupported('fetch_deposits() is not supported yet')
+
+    async def fetch_withdrawals(self, code=None, since=None, limit=None, params={}):
+        raise NotSupported('fetch_withdrawals() is not supported yet')
+
+    async def fetch_deposit_address(self, code, params={}):
+        if self.has['fetchDepositAddresses']:
+            deposit_addresses = await self.fetch_deposit_addresses([code], params)
+            deposit_address = self.safe_value(deposit_addresses, code)
+            if deposit_address is None:
+                raise NotSupported(self.id + ' fetch_deposit_address could not find a deposit address for ' + code + ', make sure you have created a corresponding deposit address in your wallet on the exchange website')
+            else:
+                return deposit_address
+        else:
+            raise NotSupported(self.id + ' fetchDepositAddress not supported yet')
+
+    async def sleep(self, milliseconds):
+        return await asyncio.sleep(milliseconds / 1000)

@@ -3,7 +3,8 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { InvalidNonce, InsufficientFunds, AuthenticationError, InvalidOrder, ExchangeError, OrderNotFound, AccountSuspended, BadSymbol } = require ('./base/errors');
+const { InvalidNonce, InsufficientFunds, AuthenticationError, InvalidOrder, ExchangeError, OrderNotFound, AccountSuspended, BadSymbol, OrderImmediatelyFillable, RateLimitExceeded, OnMaintenance, PermissionDenied } = require ('./base/errors');
+const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -15,11 +16,19 @@ module.exports = class bitbay extends Exchange {
             'countries': [ 'MT', 'EU' ], // Malta
             'rateLimit': 1000,
             'has': {
+                'cancelOrder': true,
                 'CORS': true,
-                'withdraw': true,
+                'createOrder': true,
+                'fetchBalance': true,
+                'fetchLedger': true,
+                'fetchMarkets': true,
                 'fetchMyTrades': true,
-                'fetchOpenOrders': true,
                 'fetchOHLCV': true,
+                'fetchOpenOrders': true,
+                'fetchOrderBook': true,
+                'fetchTicker': true,
+                'fetchTrades': true,
+                'withdraw': true,
             },
             'timeframes': {
                 '1m': '60',
@@ -36,15 +45,16 @@ module.exports = class bitbay extends Exchange {
                 '3d': '259200',
                 '1w': '604800',
             },
+            'hostname': 'bitbay.net',
             'urls': {
                 'referral': 'https://auth.bitbay.net/ref/jHlbB4mIkdS1',
                 'logo': 'https://user-images.githubusercontent.com/1294454/27766132-978a7bd8-5ece-11e7-9540-bc96d1e9bbb8.jpg',
                 'www': 'https://bitbay.net',
                 'api': {
-                    'public': 'https://bitbay.net/API/Public',
-                    'private': 'https://bitbay.net/API/Trading/tradingApi.php',
-                    'v1_01Public': 'https://api.bitbay.net/rest',
-                    'v1_01Private': 'https://api.bitbay.net/rest',
+                    'public': 'https://{hostname}/API/Public',
+                    'private': 'https://{hostname}/API/Trading/tradingApi.php',
+                    'v1_01Public': 'https://api.{hostname}/rest',
+                    'v1_01Private': 'https://api.{hostname}/rest',
                 },
                 'doc': [
                     'https://bitbay.net/public-api',
@@ -53,6 +63,7 @@ module.exports = class bitbay extends Exchange {
                     'https://github.com/BitBayNet/API',
                     'https://docs.bitbay.net/v1.0.1-en/reference',
                 ],
+                'support': 'https://support.bitbay.net',
                 'fees': 'https://bitbay.net/en/fees',
             },
             'api': {
@@ -117,8 +128,60 @@ module.exports = class bitbay extends Exchange {
             },
             'fees': {
                 'trading': {
+                    'maker': 0.0,
+                    'taker': 0.1 / 100,
+                    'percentage': true,
+                    'tierBased': false,
+                },
+                'fiat': {
                     'maker': 0.30 / 100,
                     'taker': 0.43 / 100,
+                    'percentage': true,
+                    'tierBased': true,
+                    'tiers': {
+                        'taker': [
+                            [ 0.0043, 0 ],
+                            [ 0.0042, 1250 ],
+                            [ 0.0041, 3750 ],
+                            [ 0.0040, 7500 ],
+                            [ 0.0039, 10000 ],
+                            [ 0.0038, 15000 ],
+                            [ 0.0037, 20000 ],
+                            [ 0.0036, 25000 ],
+                            [ 0.0035, 37500 ],
+                            [ 0.0034, 50000 ],
+                            [ 0.0033, 75000 ],
+                            [ 0.0032, 100000 ],
+                            [ 0.0031, 150000 ],
+                            [ 0.0030, 200000 ],
+                            [ 0.0029, 250000 ],
+                            [ 0.0028, 375000 ],
+                            [ 0.0027, 500000 ],
+                            [ 0.0026, 625000 ],
+                            [ 0.0025, 875000 ],
+                        ],
+                        'maker': [
+                            [ 0.0030, 0 ],
+                            [ 0.0029, 1250 ],
+                            [ 0.0028, 3750 ],
+                            [ 0.0028, 7500 ],
+                            [ 0.0027, 10000 ],
+                            [ 0.0026, 15000 ],
+                            [ 0.0025, 20000 ],
+                            [ 0.0025, 25000 ],
+                            [ 0.0024, 37500 ],
+                            [ 0.0023, 50000 ],
+                            [ 0.0023, 75000 ],
+                            [ 0.0022, 100000 ],
+                            [ 0.0021, 150000 ],
+                            [ 0.0021, 200000 ],
+                            [ 0.0020, 250000 ],
+                            [ 0.0019, 375000 ],
+                            [ 0.0018, 500000 ],
+                            [ 0.0018, 625000 ],
+                            [ 0.0017, 875000 ],
+                        ],
+                    },
                 },
                 'funding': {
                     'withdraw': {
@@ -134,6 +197,9 @@ module.exports = class bitbay extends Exchange {
                         'EUR': 1.5,
                     },
                 },
+            },
+            'options': {
+                'fiatCurrencies': [ 'EUR', 'USD', 'GBP', 'PLN' ],
             },
             'exceptions': {
                 '400': ExchangeError, // At least one parameter wasn't set
@@ -157,12 +223,21 @@ module.exports = class bitbay extends Exchange {
                 'FUNDS_NOT_SUFFICIENT': InsufficientFunds,
                 'OFFER_FUNDS_NOT_EXCEEDING_MINIMUMS': InvalidOrder,
                 'OFFER_NOT_FOUND': OrderNotFound,
+                'OFFER_WOULD_HAVE_BEEN_PARTIALLY_FILLED': OrderImmediatelyFillable,
+                'ACTION_LIMIT_EXCEEDED': RateLimitExceeded,
+                'UNDER_MAINTENANCE': OnMaintenance,
+                'REQUEST_TIMESTAMP_TOO_OLD': InvalidNonce,
+                'PERMISSIONS_NOT_SUFFICIENT': PermissionDenied,
+            },
+            'commonCurrencies': {
+                'GGC': 'Global Game Coin',
             },
         });
     }
 
     async fetchMarkets (params = {}) {
         const response = await this.v1_01PublicGetTradingTicker (params);
+        const fiatCurrencies = this.safeValue (this.options, 'fiatCurrencies', []);
         //
         //     {
         //         status: 'Ok',
@@ -201,6 +276,12 @@ module.exports = class bitbay extends Exchange {
                 'amount': this.safeInteger (first, 'scale'),
                 'price': this.safeInteger (second, 'scale'),
             };
+            let fees = this.safeValue (this.fees, 'trading', {});
+            if (this.inArray (base, fiatCurrencies) || this.inArray (quote, fiatCurrencies)) {
+                fees = this.safeValue (this.fees, 'fiat', {});
+            }
+            const maker = this.safeNumber (fees, 'maker');
+            const taker = this.safeNumber (fees, 'taker');
             // todo: check that the limits have ben interpreted correctly
             // todo: parse the fees page
             result.push ({
@@ -212,10 +293,11 @@ module.exports = class bitbay extends Exchange {
                 'quoteId': quoteId,
                 'precision': precision,
                 'active': undefined,
-                'fee': undefined,
+                'maker': maker,
+                'taker': taker,
                 'limits': {
                     'amount': {
-                        'min': this.safeFloat (first, 'minOffer'),
+                        'min': this.safeNumber (first, 'minOffer'),
                         'max': undefined,
                     },
                     'price': {
@@ -223,7 +305,7 @@ module.exports = class bitbay extends Exchange {
                         'max': undefined,
                     },
                     'cost': {
-                        'min': this.safeFloat (second, 'minOffer'),
+                        'min': this.safeNumber (second, 'minOffer'),
                         'max': undefined,
                     },
                 },
@@ -261,33 +343,14 @@ module.exports = class bitbay extends Exchange {
         //     }
         //
         const marketId = this.safeString (order, 'market');
-        let symbol = undefined;
-        if (marketId !== undefined) {
-            if (marketId in this.markets_by_id) {
-                market = this.markets_by_id[marketId];
-            } else {
-                const [ baseId, quoteId ] = marketId.split ('-');
-                const base = this.safeCurrencyCode (baseId);
-                const quote = this.safeCurrencyCode (quoteId);
-                symbol = base + '/' + quote;
-            }
-        }
-        if (symbol === undefined) {
-            if (market !== undefined) {
-                symbol = market['symbol'];
-            }
-        }
+        const symbol = this.safeSymbol (marketId, market, '-');
         const timestamp = this.safeInteger (order, 'time');
-        const amount = this.safeFloat (order, 'startAmount');
-        const remaining = this.safeFloat (order, 'currentAmount');
-        let filled = undefined;
-        if (amount !== undefined) {
-            if (remaining !== undefined) {
-                filled = Math.max (0, amount - remaining);
-            }
-        }
-        return {
+        const amount = this.safeNumber (order, 'startAmount');
+        const remaining = this.safeNumber (order, 'currentAmount');
+        const postOnly = this.safeValue (order, 'postOnly');
+        return this.safeOrder ({
             'id': this.safeString (order, 'id'),
+            'clientOrderId': undefined,
             'info': order,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -295,16 +358,19 @@ module.exports = class bitbay extends Exchange {
             'status': undefined,
             'symbol': symbol,
             'type': this.safeString (order, 'mode'),
+            'timeInForce': undefined,
+            'postOnly': postOnly,
             'side': this.safeStringLower (order, 'offerType'),
-            'price': this.safeFloat (order, 'rate'),
+            'price': this.safeNumber (order, 'rate'),
+            'stopPrice': undefined,
             'amount': amount,
             'cost': undefined,
-            'filled': filled,
+            'filled': undefined,
             'remaining': remaining,
             'average': undefined,
             'fee': undefined,
             'trades': undefined,
-        };
+        });
     }
 
     async fetchMyTrades (symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -357,11 +423,11 @@ module.exports = class bitbay extends Exchange {
             const currencyId = this.safeString (balance, 'currency');
             const code = this.safeCurrencyCode (currencyId);
             const account = this.account ();
-            account['used'] = this.safeFloat (balance, 'lockedFunds');
-            account['free'] = this.safeFloat (balance, 'availableFunds');
+            account['used'] = this.safeString (balance, 'lockedFunds');
+            account['free'] = this.safeString (balance, 'availableFunds');
             result[code] = account;
         }
-        return this.parseBalance (result);
+        return this.parseBalance (result, false);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -370,7 +436,7 @@ module.exports = class bitbay extends Exchange {
             'id': this.marketId (symbol),
         };
         const orderbook = await this.publicGetIdOrderbook (this.extend (request, params));
-        return this.parseOrderBook (orderbook);
+        return this.parseOrderBook (orderbook, symbol);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -380,22 +446,22 @@ module.exports = class bitbay extends Exchange {
         };
         const ticker = await this.publicGetIdTicker (this.extend (request, params));
         const timestamp = this.milliseconds ();
-        const baseVolume = this.safeFloat (ticker, 'volume');
-        const vwap = this.safeFloat (ticker, 'vwap');
+        const baseVolume = this.safeNumber (ticker, 'volume');
+        const vwap = this.safeNumber (ticker, 'vwap');
         let quoteVolume = undefined;
         if (baseVolume !== undefined && vwap !== undefined) {
             quoteVolume = baseVolume * vwap;
         }
-        const last = this.safeFloat (ticker, 'last');
+        const last = this.safeNumber (ticker, 'last');
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeFloat (ticker, 'max'),
-            'low': this.safeFloat (ticker, 'min'),
-            'bid': this.safeFloat (ticker, 'bid'),
+            'high': this.safeNumber (ticker, 'max'),
+            'low': this.safeNumber (ticker, 'min'),
+            'bid': this.safeNumber (ticker, 'bid'),
             'bidVolume': undefined,
-            'ask': this.safeFloat (ticker, 'ask'),
+            'ask': this.safeNumber (ticker, 'ask'),
             'askVolume': undefined,
             'vwap': vwap,
             'open': undefined,
@@ -404,7 +470,7 @@ module.exports = class bitbay extends Exchange {
             'previousClose': undefined,
             'change': undefined,
             'percentage': undefined,
-            'average': this.safeFloat (ticker, 'average'),
+            'average': this.safeNumber (ticker, 'average'),
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
@@ -705,7 +771,7 @@ module.exports = class bitbay extends Exchange {
         const currencyId = this.safeString (balance, 'currency');
         const code = this.safeCurrencyCode (currencyId);
         const change = this.safeValue (item, 'change', {});
-        let amount = this.safeFloat (change, 'total');
+        let amount = this.safeNumber (change, 'total');
         let direction = 'in';
         if (amount < 0) {
             direction = 'out';
@@ -717,9 +783,9 @@ module.exports = class bitbay extends Exchange {
         const referenceId = this.safeString (item, 'detailId');
         const type = this.parseLedgerEntryType (this.safeString (item, 'type'));
         const fundsBefore = this.safeValue (item, 'fundsBefore', {});
-        const before = this.safeFloat (fundsBefore, 'total');
+        const before = this.safeNumber (fundsBefore, 'total');
         const fundsAfter = this.safeValue (item, 'fundsAfter', {});
-        const after = this.safeFloat (fundsAfter, 'total');
+        const after = this.safeNumber (fundsAfter, 'total');
         return {
             'info': item,
             'id': id,
@@ -759,25 +825,28 @@ module.exports = class bitbay extends Exchange {
         return this.safeString (types, type, type);
     }
 
-    parseOHLCV (ohlcv, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
-        // [
-        //     '1582399800000',
-        //     {
-        //         o: '0.0001428',
-        //         c: '0.0001428',
-        //         h: '0.0001428',
-        //         l: '0.0001428',
-        //         v: '4',
-        //         co: '1'
-        //     }
-        // ]
+    parseOHLCV (ohlcv, market = undefined) {
+        //
+        //     [
+        //         '1582399800000',
+        //         {
+        //             o: '0.0001428',
+        //             c: '0.0001428',
+        //             h: '0.0001428',
+        //             l: '0.0001428',
+        //             v: '4',
+        //             co: '1'
+        //         }
+        //     ]
+        //
+        const first = this.safeValue (ohlcv, 1, {});
         return [
-            parseInt (ohlcv[0]),
-            this.safeFloat (ohlcv[1], 'o'),
-            this.safeFloat (ohlcv[1], 'h'),
-            this.safeFloat (ohlcv[1], 'l'),
-            this.safeFloat (ohlcv[1], 'c'),
-            this.safeFloat (ohlcv[1], 'v'),
+            this.safeInteger (ohlcv, 0),
+            this.safeNumber (first, 'o'),
+            this.safeNumber (first, 'h'),
+            this.safeNumber (first, 'l'),
+            this.safeNumber (first, 'c'),
+            this.safeNumber (first, 'v'),
         ];
     }
 
@@ -804,8 +873,18 @@ module.exports = class bitbay extends Exchange {
             request['to'] = this.sum (request['from'], timerange);
         }
         const response = await this.v1_01PublicGetTradingCandleHistorySymbolResolution (this.extend (request, params));
-        const ohlcvs = this.safeValue (response, 'items', []);
-        return this.parseOHLCVs (ohlcvs, market, timeframe, since, limit);
+        //
+        //     {
+        //         "status":"Ok",
+        //         "items":[
+        //             ["1591503060000",{"o":"0.02509572","c":"0.02509438","h":"0.02509664","l":"0.02509438","v":"0.02082165","co":"17"}],
+        //             ["1591503120000",{"o":"0.02509606","c":"0.02509515","h":"0.02509606","l":"0.02509487","v":"0.04971703","co":"13"}],
+        //             ["1591503180000",{"o":"0.02509532","c":"0.02509589","h":"0.02509589","l":"0.02509454","v":"0.01332236","co":"7"}],
+        //         ]
+        //     }
+        //
+        const items = this.safeValue (response, 'items', []);
+        return this.parseOHLCVs (items, market, timeframe, since, limit);
     }
 
     parseTrade (trade, market = undefined) {
@@ -850,43 +929,18 @@ module.exports = class bitbay extends Exchange {
         if (wasTaker !== undefined) {
             takerOrMaker = wasTaker ? 'taker' : 'maker';
         }
-        const price = this.safeFloat2 (trade, 'rate', 'r');
-        const amount = this.safeFloat2 (trade, 'amount', 'a');
-        let cost = undefined;
-        if (amount !== undefined) {
-            if (price !== undefined) {
-                cost = price * amount;
-            }
-        }
-        const feeCost = this.safeFloat (trade, 'commissionValue');
+        const priceString = this.safeString2 (trade, 'rate', 'r');
+        const amountString = this.safeString2 (trade, 'amount', 'a');
+        const price = this.parseNumber (priceString);
+        const amount = this.parseNumber (amountString);
+        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
+        const feeCost = this.safeNumber (trade, 'commissionValue');
         const marketId = this.safeString (trade, 'market');
-        let base = undefined;
-        let quote = undefined;
-        let symbol = undefined;
-        if (marketId !== undefined) {
-            if (marketId in this.markets_by_id) {
-                market = this.markets_by_id[marketId];
-                symbol = market['symbol'];
-                base = market['base'];
-                quote = market['quote'];
-            } else {
-                const [ baseId, quoteId ] = marketId.split ('-');
-                base = this.safeCurrencyCode (baseId);
-                quote = this.safeCurrencyCode (quoteId);
-                symbol = base + '/' + quote;
-            }
-        }
-        if (market !== undefined) {
-            if (symbol === undefined) {
-                symbol = market['symbol'];
-            }
-            if (base === undefined) {
-                base = market['base'];
-            }
-        }
+        market = this.safeMarket (marketId, market, '-');
+        const symbol = market['symbol'];
         let fee = undefined;
         if (feeCost !== undefined) {
-            const feeCcy = (side === 'buy') ? base : quote;
+            const feeCcy = (side === 'buy') ? market['base'] : market['quote'];
             fee = {
                 'currency': feeCcy,
                 'cost': feeCost,
@@ -930,7 +984,7 @@ module.exports = class bitbay extends Exchange {
         }
         const response = await this.v1_01PublicGetTradingTransactionsSymbol (this.extend (request, params));
         const items = this.safeValue (response, 'items');
-        return this.parseTrades (items, symbol, since, limit);
+        return this.parseTrades (items, market, since, limit);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -945,7 +999,9 @@ module.exports = class bitbay extends Exchange {
         };
         if (type === 'limit') {
             request['rate'] = price;
+            price = parseFloat (price);
         }
+        amount = parseFloat (amount);
         const response = await this.v1_01PrivatePostTradingOfferSymbol (this.extend (request, params));
         //
         // unfilled (open order)
@@ -1035,14 +1091,15 @@ module.exports = class bitbay extends Exchange {
             'symbol': symbol,
             'type': type,
             'side': side,
-            'price': parseFloat (price),
-            'amount': parseFloat (amount),
+            'price': price,
+            'amount': amount,
             'cost': cost,
             'filled': filled,
             'remaining': remaining,
             'average': undefined,
             'fee': undefined,
             'trades': trades,
+            'clientOrderId': undefined,
         };
     }
 
@@ -1107,7 +1164,7 @@ module.exports = class bitbay extends Exchange {
     }
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
-        let url = this.urls['api'][api];
+        let url = this.implodeParams (this.urls['api'][api], { 'hostname': this.hostname });
         if (api === 'public') {
             const query = this.omit (params, this.extractParams (path));
             url += '/' + this.implodeParams (path, params) + '.json';

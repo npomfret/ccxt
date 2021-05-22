@@ -3,7 +3,8 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { ExchangeError, AuthenticationError } = require ('./base/errors');
+const { ExchangeError, AuthenticationError, ArgumentsRequired } = require ('./base/errors');
+const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -16,9 +17,20 @@ module.exports = class itbit extends Exchange {
             'rateLimit': 2000,
             'version': 'v1',
             'has': {
+                'cancelOrder': true,
                 'CORS': true,
                 'createMarketOrder': false,
+                'createOrder': true,
+                'fetchBalance': true,
+                'fetchClosedOrders': true,
                 'fetchMyTrades': true,
+                'fetchOpenOrders': true,
+                'fetchOrder': true,
+                'fetchOrderBook': true,
+                'fetchOrders': true,
+                'fetchTicker': true,
+                'fetchTrades': true,
+                'fetchTransactions': true,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/27822159-66153620-60ad-11e7-89e7-005f6d7f3de0.jpg',
@@ -61,12 +73,15 @@ module.exports = class itbit extends Exchange {
                 },
             },
             'markets': {
-                'BTC/USD': { 'id': 'XBTUSD', 'symbol': 'BTC/USD', 'base': 'BTC', 'quote': 'USD' },
-                'BTC/SGD': { 'id': 'XBTSGD', 'symbol': 'BTC/SGD', 'base': 'BTC', 'quote': 'SGD' },
-                'BTC/EUR': { 'id': 'XBTEUR', 'symbol': 'BTC/EUR', 'base': 'BTC', 'quote': 'EUR' },
-                'ETH/USD': { 'id': 'ETHUSD', 'symbol': 'ETH/USD', 'base': 'ETH', 'quote': 'USD' },
-                'ETH/EUR': { 'id': 'ETHEUR', 'symbol': 'ETH/EUR', 'base': 'ETH', 'quote': 'EUR' },
-                'ETH/SGD': { 'id': 'ETHSGD', 'symbol': 'ETH/SGD', 'base': 'ETH', 'quote': 'SGD' },
+                'BTC/USD': { 'id': 'XBTUSD', 'symbol': 'BTC/USD', 'base': 'BTC', 'quote': 'USD', 'baseId': 'XBT', 'quoteId': 'USD' },
+                'BTC/SGD': { 'id': 'XBTSGD', 'symbol': 'BTC/SGD', 'base': 'BTC', 'quote': 'SGD', 'baseId': 'XBT', 'quoteId': 'SGD' },
+                'BTC/EUR': { 'id': 'XBTEUR', 'symbol': 'BTC/EUR', 'base': 'BTC', 'quote': 'EUR', 'baseId': 'XBT', 'quoteId': 'EUR' },
+                'ETH/USD': { 'id': 'ETHUSD', 'symbol': 'ETH/USD', 'base': 'ETH', 'quote': 'USD', 'baseId': 'ETH', 'quoteId': 'USD' },
+                'ETH/EUR': { 'id': 'ETHEUR', 'symbol': 'ETH/EUR', 'base': 'ETH', 'quote': 'EUR', 'baseId': 'ETH', 'quoteId': 'EUR' },
+                'ETH/SGD': { 'id': 'ETHSGD', 'symbol': 'ETH/SGD', 'base': 'ETH', 'quote': 'SGD', 'baseId': 'ETH', 'quoteId': 'SGD' },
+                'PAXGUSD': { 'id': 'PAXGUSD', 'symbol': 'PAXG/USD', 'base': 'PAXG', 'quote': 'USD', 'baseId': 'PAXG', 'quoteId': 'USD' },
+                'BCHUSD': { 'id': 'BCHUSD', 'symbol': 'BCH/USD', 'base': 'BCH', 'quote': 'USD', 'baseId': 'BCH', 'quoteId': 'USD' },
+                'LTCUSD': { 'id': 'LTCUSD', 'symbol': 'LTC/USD', 'base': 'LTC', 'quote': 'USD', 'baseId': 'LTC', 'quoteId': 'USD' },
             },
             'fees': {
                 'trading': {
@@ -86,7 +101,7 @@ module.exports = class itbit extends Exchange {
             'symbol': this.marketId (symbol),
         };
         const orderbook = await this.publicGetMarketsSymbolOrderBook (this.extend (request, params));
-        return this.parseOrderBook (orderbook);
+        return this.parseOrderBook (orderbook, symbol);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -100,25 +115,25 @@ module.exports = class itbit extends Exchange {
             throw new ExchangeError (this.id + ' fetchTicker returned a bad response: ' + this.json (ticker));
         }
         const timestamp = this.parse8601 (serverTimeUTC);
-        const vwap = this.safeFloat (ticker, 'vwap24h');
-        const baseVolume = this.safeFloat (ticker, 'volume24h');
+        const vwap = this.safeNumber (ticker, 'vwap24h');
+        const baseVolume = this.safeNumber (ticker, 'volume24h');
         let quoteVolume = undefined;
         if (baseVolume !== undefined && vwap !== undefined) {
             quoteVolume = baseVolume * vwap;
         }
-        const last = this.safeFloat (ticker, 'lastPrice');
+        const last = this.safeNumber (ticker, 'lastPrice');
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeFloat (ticker, 'high24h'),
-            'low': this.safeFloat (ticker, 'low24h'),
-            'bid': this.safeFloat (ticker, 'bid'),
+            'high': this.safeNumber (ticker, 'high24h'),
+            'low': this.safeNumber (ticker, 'low24h'),
+            'bid': this.safeNumber (ticker, 'bid'),
             'bidVolume': undefined,
-            'ask': this.safeFloat (ticker, 'ask'),
+            'ask': this.safeNumber (ticker, 'ask'),
             'askVolume': undefined,
             'vwap': vwap,
-            'open': this.safeFloat (ticker, 'openToday'),
+            'open': this.safeNumber (ticker, 'openToday'),
             'close': last,
             'last': last,
             'previousClose': undefined,
@@ -165,23 +180,20 @@ module.exports = class itbit extends Exchange {
         const timestamp = this.parse8601 (this.safeString (trade, 'timestamp'));
         const side = this.safeString (trade, 'direction');
         const orderId = this.safeString (trade, 'orderId');
-        let feeCost = this.safeFloat (trade, 'commissionPaid');
+        let feeCost = this.safeNumber (trade, 'commissionPaid');
         const feeCurrencyId = this.safeString (trade, 'commissionCurrency');
         const feeCurrency = this.safeCurrencyCode (feeCurrencyId);
-        let rebatesApplied = this.safeFloat (trade, 'rebatesApplied');
+        let rebatesApplied = this.safeNumber (trade, 'rebatesApplied');
         if (rebatesApplied !== undefined) {
             rebatesApplied = -rebatesApplied;
         }
         const rebateCurrencyId = this.safeString (trade, 'rebateCurrency');
         const rebateCurrency = this.safeCurrencyCode (rebateCurrencyId);
-        const price = this.safeFloat2 (trade, 'price', 'rate');
-        const amount = this.safeFloat2 (trade, 'currency1Amount', 'amount');
-        let cost = undefined;
-        if (price !== undefined) {
-            if (amount !== undefined) {
-                cost = price * amount;
-            }
-        }
+        const priceString = this.safeString2 (trade, 'price', 'rate');
+        const amountString = this.safeString2 (trade, 'currency1Amount', 'amount');
+        const price = this.parseNumber (priceString);
+        const amount = this.parseNumber (amountString);
+        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
         let symbol = undefined;
         const marketId = this.safeString (trade, 'instrument');
         if (marketId !== undefined) {
@@ -213,6 +225,7 @@ module.exports = class itbit extends Exchange {
             'price': price,
             'amount': amount,
             'cost': cost,
+            'fee': undefined,
         };
         if (feeCost !== undefined) {
             if (rebatesApplied !== undefined) {
@@ -253,7 +266,7 @@ module.exports = class itbit extends Exchange {
         await this.loadMarkets ();
         const walletId = this.safeString (params, 'walletId');
         if (walletId === undefined) {
-            throw new ExchangeError (this.id + ' fetchMyTrades requires a walletId parameter');
+            throw new ArgumentsRequired (this.id + ' fetchMyTrades() requires a walletId parameter');
         }
         const request = {
             'walletId': walletId,
@@ -302,7 +315,7 @@ module.exports = class itbit extends Exchange {
                 'txid': txnHash,
                 'type': transactionType,
                 'status': status,
-                'amount': this.safeFloat (item, 'amount'),
+                'amount': this.safeNumber (item, 'amount'),
                 'fee': undefined,
                 'info': item,
             });
@@ -322,7 +335,7 @@ module.exports = class itbit extends Exchange {
         await this.loadMarkets ();
         const walletId = this.safeString (params, 'walletId');
         if (walletId === undefined) {
-            throw new ExchangeError (this.id + ' fetchMyTrades requires a walletId parameter');
+            throw new ExchangeError (this.id + ' fetchMyTrades() requires a walletId parameter');
         }
         const request = {
             'walletId': walletId,
@@ -402,17 +415,17 @@ module.exports = class itbit extends Exchange {
             const currencyId = this.safeString (balance, 'currency');
             const code = this.safeCurrencyCode (currencyId);
             const account = this.account ();
-            account['free'] = this.safeFloat (balance, 'availableBalance');
-            account['total'] = this.safeFloat (balance, 'totalBalance');
+            account['free'] = this.safeString (balance, 'availableBalance');
+            account['total'] = this.safeString (balance, 'totalBalance');
             result[code] = account;
         }
-        return this.parseBalance (result);
+        return this.parseBalance (result, false);
     }
 
     async fetchWallets (params = {}) {
         await this.loadMarkets ();
         if (!this.uid) {
-            throw new AuthenticationError (this.id + ' fetchWallets requires uid API credential');
+            throw new AuthenticationError (this.id + ' fetchWallets() requires uid API credential');
         }
         const request = {
             'userId': this.uid,
@@ -450,7 +463,7 @@ module.exports = class itbit extends Exchange {
         }
         const walletIdInParams = ('walletId' in params);
         if (!walletIdInParams) {
-            throw new ExchangeError (this.id + ' fetchOrders requires a walletId parameter');
+            throw new ExchangeError (this.id + ' fetchOrders() requires a walletId parameter');
         }
         const walletId = params['walletId'];
         const request = {
@@ -472,19 +485,43 @@ module.exports = class itbit extends Exchange {
     }
 
     parseOrder (order, market = undefined) {
-        const side = order['side'];
-        const type = order['type'];
+        //
+        //     {
+        //         "id": "13d6af57-8b0b-41e5-af30-becf0bcc574d",
+        //         "walletId": "7e037345-1288-4c39-12fe-d0f99a475a98",
+        //         "side": "buy",
+        //         "instrument": "XBTUSD",
+        //         "type": "limit",
+        //         "currency": "XBT",
+        //         "amount": "2.50000000",
+        //         "displayAmount": "2.50000000",
+        //         "price": "650.00000000",
+        //         "volumeWeightedAveragePrice": "0.00000000",
+        //         "amountFilled": "0.00000000",
+        //         "createdTime": "2014-02-11T17:05:15Z",
+        //         "status": "submitted",
+        //         "funds": null,
+        //         "metadata": {},
+        //         "clientOrderIdentifier": null,
+        //         "postOnly": "False"
+        //     }
+        //
+        const side = this.safeString (order, 'side');
+        const type = this.safeString (order, 'type');
         const symbol = this.markets_by_id[order['instrument']]['symbol'];
         const timestamp = this.parse8601 (order['createdTime']);
-        const amount = this.safeFloat (order, 'amount');
-        const filled = this.safeFloat (order, 'amountFilled');
-        const remaining = amount - filled;
+        const amount = this.safeNumber (order, 'amount');
+        const filled = this.safeNumber (order, 'amountFilled');
         const fee = undefined;
-        const price = this.safeFloat (order, 'price');
-        const average = this.safeFloat (order, 'volumeWeightedAveragePrice');
-        const cost = filled * average;
-        return {
-            'id': order['id'],
+        const price = this.safeNumber (order, 'price');
+        const average = this.safeNumber (order, 'volumeWeightedAveragePrice');
+        const clientOrderId = this.safeString (order, 'clientOrderIdentifier');
+        const id = this.safeString (order, 'id');
+        const postOnlyString = this.safeString (order, 'postOnly');
+        const postOnly = (postOnlyString === 'True');
+        return this.safeOrder ({
+            'id': id,
+            'clientOrderId': clientOrderId,
             'info': order,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -492,16 +529,20 @@ module.exports = class itbit extends Exchange {
             'status': this.parseOrderStatus (this.safeString (order, 'status')),
             'symbol': symbol,
             'type': type,
+            'timeInForce': undefined,
+            'postOnly': postOnly,
             'side': side,
             'price': price,
-            'cost': cost,
+            'stopPrice': undefined,
+            'cost': undefined,
             'average': average,
             'amount': amount,
             'filled': filled,
-            'remaining': remaining,
+            'remaining': undefined,
             'fee': fee,
             // 'trades': this.parseTrades (order['trades'], market),
-        };
+            'trades': undefined,
+        });
     }
 
     nonce () {
@@ -515,7 +556,7 @@ module.exports = class itbit extends Exchange {
         }
         const walletIdInParams = ('walletId' in params);
         if (!walletIdInParams) {
-            throw new ExchangeError (this.id + ' createOrder requires a walletId parameter');
+            throw new ExchangeError (this.id + ' createOrder() requires a walletId parameter');
         }
         amount = amount.toString ();
         price = price.toString ();
@@ -540,7 +581,7 @@ module.exports = class itbit extends Exchange {
         await this.loadMarkets ();
         const walletIdInParams = ('walletId' in params);
         if (!walletIdInParams) {
-            throw new ExchangeError (this.id + ' fetchOrder requires a walletId parameter');
+            throw new ExchangeError (this.id + ' fetchOrder() requires a walletId parameter');
         }
         const request = {
             'id': id,
@@ -552,7 +593,7 @@ module.exports = class itbit extends Exchange {
     async cancelOrder (id, symbol = undefined, params = {}) {
         const walletIdInParams = ('walletId' in params);
         if (!walletIdInParams) {
-            throw new ExchangeError (this.id + ' cancelOrder requires a walletId parameter');
+            throw new ExchangeError (this.id + ' cancelOrder() requires a walletId parameter');
         }
         const request = {
             'id': id,
@@ -581,7 +622,7 @@ module.exports = class itbit extends Exchange {
             const binhash = this.binaryConcat (binaryUrl, hash);
             const signature = this.hmac (binhash, this.encode (this.secret), 'sha512', 'base64');
             headers = {
-                'Authorization': this.apiKey + ':' + this.decode (signature),
+                'Authorization': this.apiKey + ':' + signature,
                 'Content-Type': 'application/json',
                 'X-Auth-Timestamp': timestamp,
                 'X-Auth-Nonce': nonce,

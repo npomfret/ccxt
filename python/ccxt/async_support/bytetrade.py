@@ -4,7 +4,6 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
-import base64
 import math
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
@@ -29,20 +28,27 @@ class bytetrade(Exchange):
             'certified': True,
             # new metainfo interface
             'has': {
+                'cancelOrder': True,
+                'CORS': False,
+                'createOrder': True,
+                'fetchBalance': True,
+                'fetchBidsAsks': True,
+                'fetchClosedOrders': True,
                 'fetchCurrencies': True,
                 'fetchDepositAddress': True,
-                'CORS': False,
-                'fetchBidsAsks': True,
-                'fetchTickers': True,
-                'fetchOHLCV': True,
-                'fetchMyTrades': True,
-                'fetchOrder': True,
-                'fetchOrders': True,
-                'fetchOpenOrders': True,
-                'fetchClosedOrders': True,
-                'withdraw': True,
                 'fetchDeposits': True,
+                'fetchMarkets': True,
+                'fetchMyTrades': True,
+                'fetchOHLCV': True,
+                'fetchOpenOrders': True,
+                'fetchOrder': True,
+                'fetchOrderBook': True,
+                'fetchOrders': True,
+                'fetchTicker': True,
+                'fetchTickers': True,
+                'fetchTrades': True,
                 'fetchWithdrawals': True,
+                'withdraw': True,
             },
             'timeframes': {
                 '1m': '1m',
@@ -57,11 +63,17 @@ class bytetrade(Exchange):
                 '1M': '1M',
             },
             'urls': {
-                'test': 'https://api-v2-test.bytetrade.com',
+                'test': {
+                    'market': 'https://api-v2-test.byte-trade.com',
+                    'public': 'https://api-v2-test.byte-trade.com',
+                },
                 'logo': 'https://user-images.githubusercontent.com/1294454/67288762-2f04a600-f4e6-11e9-9fd6-c60641919491.jpg',
-                'api': 'https://api-v2.bytetrade.com',
-                'www': 'https://www.bytetrade.com',
-                'doc': 'https://github.com/Bytetrade/bytetrade-official-api-docs/wiki',
+                'api': {
+                    'market': 'https://api-v2.byte-trade.com',
+                    'public': 'https://api-v2.byte-trade.com',
+                },
+                'www': 'https://www.byte-trade.com',
+                'doc': 'https://docs.byte-trade.com/#description',
             },
             'api': {
                 'market': {
@@ -102,7 +114,10 @@ class bytetrade(Exchange):
                 },
             },
             'commonCurrencies': {
+                '1': 'ByteTrade',
+                '44': 'ByteHub',
                 '48': 'Blocktonic',
+                '133': 'TerraCredit',
             },
             'exceptions': {
                 'vertify error': AuthenticationError,  # typo on the exchange side, 'vertify'
@@ -124,7 +139,7 @@ class bytetrade(Exchange):
             else:
                 code = self.safe_string(currency, 'name')
             name = self.safe_string(currency, 'fullname')
-            # in bytetrade.com DEX, request https://api-v2.bytetrade.com/currencies will return currencies,
+            # in byte-trade.com DEX, request https://api-v2.byte-trade.com/currencies will return currencies,
             # the api doc is https://github.com/Bytetrade/bytetrade-official-api-docs/wiki/rest-api#get-currencies-get-currencys-supported-in-bytetradecom
             # we can see the coin name is none-unique in the result, the coin which code is 18 is the CyberMiles ERC20, and the coin which code is 35 is the CyberMiles main chain, but their name is same.
             # that is because bytetrade is a DEX, supports people create coin with the same name, but the id(code) of coin is unique, so we should use the id or name and id as the identity of coin.
@@ -178,11 +193,11 @@ class bytetrade(Exchange):
             limits = self.safe_value(currency, 'limits')
             deposit = self.safe_value(limits, 'deposit')
             amountPrecision = self.safe_integer(currency, 'basePrecision')
-            maxDeposit = self.safe_float(deposit, 'max')
+            maxDeposit = self.safe_number(deposit, 'max')
             if maxDeposit == -1.0:
                 maxDeposit = None
             withdraw = self.safe_value(limits, 'withdraw')
-            maxWithdraw = self.safe_float(withdraw, 'max')
+            maxWithdraw = self.safe_number(withdraw, 'max')
             if maxWithdraw == -1.0:
                 maxWithdraw = None
             result[code] = {
@@ -190,21 +205,16 @@ class bytetrade(Exchange):
                 'code': code,
                 'name': name,
                 'active': active,
-                'precision': {
-                    'amount': amountPrecision,
-                    'price': None,
-                },
+                'precision': amountPrecision,
                 'fee': None,
                 'limits': {
                     'amount': {'min': None, 'max': None},
-                    'price': {'min': None, 'max': None},
-                    'cost': {'min': None, 'max': None},
                     'deposit': {
-                        'min': self.safe_float(deposit, 'min'),
+                        'min': self.safe_number(deposit, 'min'),
                         'max': maxDeposit,
                     },
                     'withdraw': {
-                        'min': self.safe_float(withdraw, 'min'),
+                        'min': self.safe_number(withdraw, 'min'),
                         'max': maxWithdraw,
                     },
                 },
@@ -222,6 +232,11 @@ class bytetrade(Exchange):
             quote = self.safe_string(market, 'quoteName')
             baseId = self.safe_string(market, 'base')
             quoteId = self.safe_string(market, 'quote')
+            normalBase = base.split('@' + baseId)[0]
+            normalQuote = quote.split('@' + quoteId)[0]
+            if quoteId == '126':
+                normalQuote = 'ZAR'  # The id 126 coin is a special coin whose name on the chain is actually ZAR, but it is changed to ZCN after creation, so it must be changed to ZAR when placing the transaction in the chain
+            normalSymbol = normalBase + '/' + normalQuote
             if baseId in self.commonCurrencies:
                 base = self.commonCurrencies[baseId]
             if quoteId in self.commonCurrencies:
@@ -232,9 +247,6 @@ class bytetrade(Exchange):
             price = self.safe_value(limits, 'price', {})
             precision = self.safe_value(market, 'precision', {})
             active = self.safe_string(market, 'active')
-            normalBase = base.split('@')[0]
-            normalQuote = quote.split('@')[0]
-            normalSymbol = normalBase + '/' + normalQuote
             entry = {
                 'id': id,
                 'symbol': symbol,
@@ -251,12 +263,12 @@ class bytetrade(Exchange):
                 'normalSymbol': normalSymbol,
                 'limits': {
                     'amount': {
-                        'min': self.safe_float(amount, 'min'),
-                        'max': self.safe_float(amount, 'max'),
+                        'min': self.safe_number(amount, 'min'),
+                        'max': self.safe_number(amount, 'max'),
                     },
                     'price': {
-                        'min': self.safe_float(price, 'min'),
-                        'max': self.safe_float(price, 'max'),
+                        'min': self.safe_number(price, 'min'),
+                        'max': self.safe_number(price, 'max'),
                     },
                     'cost': {
                         'min': None,
@@ -269,7 +281,7 @@ class bytetrade(Exchange):
 
     async def fetch_balance(self, params={}):
         if not ('userid' in params) and (self.apiKey is None):
-            raise ArgumentsRequired(self.id + ' fetchDeposits requires self.apiKey or userid argument')
+            raise ArgumentsRequired(self.id + ' fetchDeposits() requires self.apiKey or userid argument')
         await self.load_markets()
         request = {
             'userid': self.apiKey,
@@ -281,10 +293,10 @@ class bytetrade(Exchange):
             currencyId = self.safe_string(balance, 'code')
             code = self.safe_currency_code(currencyId, None)
             account = self.account()
-            account['free'] = self.safe_float(balance, 'free')
-            account['used'] = self.safe_float(balance, 'used')
+            account['free'] = self.safe_string(balance, 'free')
+            account['used'] = self.safe_string(balance, 'used')
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -296,7 +308,7 @@ class bytetrade(Exchange):
             request['limit'] = limit  # default = maximum = 100
         response = await self.marketGetDepth(self.extend(request, params))
         timestamp = self.safe_value(response, 'timestamp')
-        orderbook = self.parse_order_book(response, timestamp)
+        orderbook = self.parse_order_book(response, symbol, timestamp)
         return orderbook
 
     def parse_ticker(self, ticker, market=None):
@@ -339,22 +351,22 @@ class bytetrade(Exchange):
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
+            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_number(ticker, 'low'),
             'bid': None,
             'bidVolume': None,
             'ask': None,
             'askVolume': None,
-            'vwap': self.safe_float(ticker, 'weightedAvgPrice'),
-            'open': self.safe_float(ticker, 'open'),
-            'close': self.safe_float(ticker, 'close'),
-            'last': self.safe_float(ticker, 'last'),
+            'vwap': self.safe_number(ticker, 'weightedAvgPrice'),
+            'open': self.safe_number(ticker, 'open'),
+            'close': self.safe_number(ticker, 'close'),
+            'last': self.safe_number(ticker, 'last'),
             'previousClose': None,  # previous day close
-            'change': self.safe_float(ticker, 'change'),
-            'percentage': self.safe_float(ticker, 'percentage'),
+            'change': self.safe_number(ticker, 'change'),
+            'percentage': self.safe_number(ticker, 'percentage'),
             'average': None,
-            'baseVolume': self.safe_float(ticker, 'baseVolume'),
-            'quoteVolume': self.safe_float(ticker, 'quoteVolume'),
+            'baseVolume': self.safe_number(ticker, 'baseVolume'),
+            'quoteVolume': self.safe_number(ticker, 'quoteVolume'),
             'info': ticker,
         }
 
@@ -393,30 +405,34 @@ class bytetrade(Exchange):
             return self.parse_ticker(ticker, market)
         return self.parse_ticker(response, market)
 
-    def parse_tickers(self, rawTickers, symbols=None):
-        tickers = []
-        for i in range(0, len(rawTickers)):
-            tickers.append(self.parse_ticker(rawTickers[i]))
-        return self.filter_by_array(tickers, 'symbol', symbols)
-
     async def fetch_bids_asks(self, symbols=None, params={}):
         await self.load_markets()
-        rawTickers = await self.marketGetDepth(params)
-        return self.parse_tickers(rawTickers, symbols)
+        response = await self.marketGetDepth(params)
+        return self.parse_tickers(response, symbols)
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
-        rawTickers = await self.marketGetTickers(params)
-        return self.parse_tickers(rawTickers, symbols)
+        response = await self.marketGetTickers(params)
+        return self.parse_tickers(response, symbols)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
+        #
+        #     [
+        #         1591505760000,
+        #         "242.7",
+        #         "242.76",
+        #         "242.69",
+        #         "242.76",
+        #         "0.1892"
+        #     ]
+        #
         return [
-            ohlcv[0],
-            float(ohlcv[1]),
-            float(ohlcv[2]),
-            float(ohlcv[3]),
-            float(ohlcv[4]),
-            float(ohlcv[5]),
+            self.safe_integer(ohlcv, 0),
+            self.safe_number(ohlcv, 1),
+            self.safe_number(ohlcv, 2),
+            self.safe_number(ohlcv, 3),
+            self.safe_number(ohlcv, 4),
+            self.safe_number(ohlcv, 5),
         ]
 
     async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
@@ -431,26 +447,42 @@ class bytetrade(Exchange):
         if limit is not None:
             request['limit'] = limit
         response = await self.marketGetKlines(self.extend(request, params))
+        #
+        #     [
+        #         [1591505760000,"242.7","242.76","242.69","242.76","0.1892"],
+        #         [1591505820000,"242.77","242.83","242.7","242.72","0.6378"],
+        #         [1591505880000,"242.72","242.73","242.61","242.72","0.4141"],
+        #     ]
+        #
         return self.parse_ohlcvs(response, market, timeframe, since, limit)
 
     def parse_trade(self, trade, market=None):
         timestamp = self.safe_integer(trade, 'timestamp')
-        price = self.safe_float(trade, 'price')
-        amount = self.safe_float(trade, 'amount')
-        cost = self.safe_float(trade, 'cost')
+        price = self.safe_number(trade, 'price')
+        amount = self.safe_number(trade, 'amount')
+        cost = self.safe_number(trade, 'cost')
         id = self.safe_string(trade, 'id')
         type = self.safe_string(trade, 'type')
         takerOrMaker = self.safe_string(trade, 'takerOrMaker')
         side = self.safe_string(trade, 'side')
-        datetime = self.safe_string(trade, 'datetime')
+        datetime = self.iso8601(timestamp)  # self.safe_string(trade, 'datetime')
         order = self.safe_string(trade, 'order')
-        fee = self.safe_value(trade, 'fee')
         symbol = None
         if market is None:
             marketId = self.safe_string(trade, 'symbol')
             market = self.safe_value(self.markets_by_id, marketId)
         if market is not None:
             symbol = market['symbol']
+        feeData = self.safe_value(trade, 'fee')
+        feeCost = self.safe_number(feeData, 'cost')
+        feeRate = self.safe_number(feeData, 'rate')
+        feeCode = self.safe_string(feeData, 'code')
+        feeCurrency = self.safe_currency_code(feeCode)
+        fee = {
+            'currency': feeCurrency,
+            'cost': feeCost,
+            'rate': feeRate,
+        }
         return {
             'info': trade,
             'timestamp': timestamp,
@@ -498,26 +530,39 @@ class bytetrade(Exchange):
         timestamp = self.safe_integer(order, 'timestamp')
         datetime = self.safe_string(order, 'datetime')
         lastTradeTimestamp = self.safe_integer(order, 'lastTradeTimestamp')
-        price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'amount')
-        filled = self.safe_float(order, 'filled')
-        remaining = self.safe_float(order, 'remaining')
-        cost = self.safe_float(order, 'cost')
-        average = self.safe_float(order, 'average')
+        price = self.safe_number(order, 'price')
+        amount = self.safe_number(order, 'amount')
+        filled = self.safe_number(order, 'filled')
+        remaining = self.safe_number(order, 'remaining')
+        cost = self.safe_number(order, 'cost')
+        average = self.safe_number(order, 'average')
         id = self.safe_string(order, 'id')
         type = self.safe_string(order, 'type')
         side = self.safe_string(order, 'side')
-        fee = self.safe_value(order, 'fee')
+        feeData = self.safe_value(order, 'fee')
+        feeCost = self.safe_number(feeData, 'cost')
+        feeRate = self.safe_number(feeData, 'rate')
+        feeCode = self.safe_string(feeData, 'code')
+        feeCurrency = self.safe_currency_code(feeCode)
+        fee = {
+            'currency': feeCurrency,
+            'cost': feeCost,
+            'rate': feeRate,
+        }
         return {
             'info': order,
             'id': id,
+            'clientOrderId': None,
             'timestamp': timestamp,
             'datetime': datetime,
             'lastTradeTimestamp': lastTradeTimestamp,
             'symbol': symbol,
             'type': type,
+            'timeInForce': None,
+            'postOnly': None,
             'side': side,
             'price': price,
+            'stopPrice': None,
             'amount': amount,
             'cost': cost,
             'average': average,
@@ -525,12 +570,13 @@ class bytetrade(Exchange):
             'remaining': remaining,
             'status': status,
             'fee': fee,
+            'trades': None,
         }
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         self.check_required_dependencies()
         if self.apiKey is None:
-            raise ArgumentsRequired('createOrder requires self.apiKey or userid in params')
+            raise ArgumentsRequired('createOrder() requires self.apiKey or userid in params')
         await self.load_markets()
         market = self.market(symbol)
         sideNum = None
@@ -548,89 +594,98 @@ class bytetrade(Exchange):
         baseId = market['baseId']
         baseCurrency = self.currency(market['base'])
         amountTruncated = self.amount_to_precision(symbol, amount)
-        amountChain = self.toWei(amountTruncated, baseCurrency['precision']['amount'])
+        amountChain = self.to_wei(amountTruncated, baseCurrency['precision'])
         quoteId = market['quoteId']
         quoteCurrency = self.currency(market['quote'])
         priceRounded = self.price_to_precision(symbol, price)
-        priceChain = self.toWei(priceRounded, quoteCurrency['precision']['amount'])
+        priceChain = self.to_wei(priceRounded, quoteCurrency['precision'])
         now = self.milliseconds()
         expiration = self.milliseconds()
         datetime = self.iso8601(now)
         datetime = datetime.split('.')[0]
         expirationDatetime = self.iso8601(expiration)
         expirationDatetime = expirationDatetime.split('.')[0]
-        chainName = 'Sagittarius'
+        defaultDappId = 'Sagittarius'
+        dappId = self.safe_string(params, 'dappId', defaultDappId)
         defaultFee = self.safe_string(self.options, 'fee', '300000000000000')
+        totalFeeRate = self.safe_string(params, 'totalFeeRate', 8)
+        chainFeeRate = self.safe_string(params, 'chainFeeRate', 1)
         fee = self.safe_string(params, 'fee', defaultFee)
         eightBytes = self.integer_pow('2', '64')
         allByteStringArray = [
-            self.numberToBE(1, 32),
-            self.numberToLE(int(math.floor(now / 1000)), 4),
-            self.numberToLE(1, 1),
-            self.numberToLE(int(math.floor(expiration / 1000)), 4),
-            self.numberToLE(1, 1),
-            self.numberToLE(32, 1),
-            self.numberToLE(0, 8),
-            self.numberToLE(fee, 8),  # string for 32 bit php
-            self.numberToLE(len(self.apiKey), 1),
+            self.number_to_be(1, 32),
+            self.number_to_le(int(math.floor(now / 1000)), 4),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(math.floor(expiration / 1000)), 4),
+            self.number_to_le(1, 1),
+            self.number_to_le(32, 1),
+            self.number_to_le(0, 8),
+            self.number_to_le(fee, 8),  # string for 32 bit php
+            self.number_to_le(len(self.apiKey), 1),
             self.encode(self.apiKey),
-            self.numberToLE(sideNum, 1),
-            self.numberToLE(typeNum, 1),
-            self.numberToLE(len(normalSymbol), 1),
+            self.number_to_le(sideNum, 1),
+            self.number_to_le(typeNum, 1),
+            self.number_to_le(len(normalSymbol), 1),
             self.encode(normalSymbol),
-            self.numberToLE(self.integer_divide(amountChain, eightBytes), 8),
-            self.numberToLE(self.integer_modulo(amountChain, eightBytes), 8),
-            self.numberToLE(self.integer_divide(priceChain, eightBytes), 8),
-            self.numberToLE(self.integer_modulo(priceChain, eightBytes), 8),
-            self.numberToLE(0, 2),
-            self.numberToLE(int(math.floor(now / 1000)), 4),
-            self.numberToLE(int(math.floor(expiration / 1000)), 4),
-            self.numberToLE(0, 2),
-            self.numberToLE(int(quoteId), 4),
-            self.numberToLE(int(baseId), 4),
-            self.numberToLE(0, 1),
-            self.numberToLE(1, 1),
-            self.numberToLE(len(chainName), 1),
-            self.encode(chainName),
-            self.numberToLE(0, 1),
+            self.number_to_le(self.integer_divide(amountChain, eightBytes), 8),
+            self.number_to_le(self.integer_modulo(amountChain, eightBytes), 8),
+            self.number_to_le(self.integer_divide(priceChain, eightBytes), 8),
+            self.number_to_le(self.integer_modulo(priceChain, eightBytes), 8),
+            self.number_to_le(0, 2),
+            self.number_to_le(int(math.floor(now / 1000)), 4),
+            self.number_to_le(int(math.floor(expiration / 1000)), 4),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(chainFeeRate), 2),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(totalFeeRate), 2),
+            self.number_to_le(int(quoteId), 4),
+            self.number_to_le(int(baseId), 4),
+            self.number_to_le(0, 1),
+            self.number_to_le(1, 1),
+            self.number_to_le(len(dappId), 1),
+            self.encode(dappId),
+            self.number_to_le(0, 1),
         ]
         txByteStringArray = [
-            self.numberToLE(int(math.floor(now / 1000)), 4),
-            self.numberToLE(1, 1),
-            self.numberToLE(int(math.floor(expiration / 1000)), 4),
-            self.numberToLE(1, 1),
-            self.numberToLE(32, 1),
-            self.numberToLE(0, 8),
-            self.numberToLE(fee, 8),  # string for 32 bit php
-            self.numberToLE(len(self.apiKey), 1),
+            self.number_to_le(int(math.floor(now / 1000)), 4),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(math.floor(expiration / 1000)), 4),
+            self.number_to_le(1, 1),
+            self.number_to_le(32, 1),
+            self.number_to_le(0, 8),
+            self.number_to_le(fee, 8),  # string for 32 bit php
+            self.number_to_le(len(self.apiKey), 1),
             self.encode(self.apiKey),
-            self.numberToLE(sideNum, 1),
-            self.numberToLE(typeNum, 1),
-            self.numberToLE(len(normalSymbol), 1),
+            self.number_to_le(sideNum, 1),
+            self.number_to_le(typeNum, 1),
+            self.number_to_le(len(normalSymbol), 1),
             self.encode(normalSymbol),
-            self.numberToLE(self.integer_divide(amountChain, eightBytes), 8),
-            self.numberToLE(self.integer_modulo(amountChain, eightBytes), 8),
-            self.numberToLE(self.integer_divide(priceChain, eightBytes), 8),
-            self.numberToLE(self.integer_modulo(priceChain, eightBytes), 8),
-            self.numberToLE(0, 2),
-            self.numberToLE(int(math.floor(now / 1000)), 4),
-            self.numberToLE(int(math.floor(expiration / 1000)), 4),
-            self.numberToLE(0, 2),
-            self.numberToLE(int(quoteId), 4),
-            self.numberToLE(int(baseId), 4),
-            self.numberToLE(0, 1),
-            self.numberToLE(1, 1),
-            self.numberToLE(len(chainName), 1),
-            self.encode(chainName),
-            self.numberToLE(0, 1),
+            self.number_to_le(self.integer_divide(amountChain, eightBytes), 8),
+            self.number_to_le(self.integer_modulo(amountChain, eightBytes), 8),
+            self.number_to_le(self.integer_divide(priceChain, eightBytes), 8),
+            self.number_to_le(self.integer_modulo(priceChain, eightBytes), 8),
+            self.number_to_le(0, 2),
+            self.number_to_le(int(math.floor(now / 1000)), 4),
+            self.number_to_le(int(math.floor(expiration / 1000)), 4),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(chainFeeRate), 2),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(totalFeeRate), 2),
+            self.number_to_le(int(quoteId), 4),
+            self.number_to_le(int(baseId), 4),
+            self.number_to_le(0, 1),
+            self.number_to_le(1, 1),
+            self.number_to_le(len(dappId), 1),
+            self.encode(dappId),
+            self.number_to_le(0, 1),
         ]
         txbytestring = self.binary_concat_array(txByteStringArray)
         txidhash = self.hash(txbytestring, 'sha256', 'hex')
         txid = txidhash[0:40]
         orderidByteStringArray = [
-            self.numberToLE(len(txid), 1),
+            self.number_to_le(len(txid), 1),
             self.encode(txid),
-            self.numberToBE(0, 4),
+            self.number_to_be(0, 4),
         ]
         orderidbytestring = self.binary_concat_array(orderidByteStringArray)
         orderidhash = self.hash(orderidbytestring, 'sha256', 'hex')
@@ -638,7 +693,7 @@ class bytetrade(Exchange):
         bytestring = self.binary_concat_array(allByteStringArray)
         hash = self.hash(bytestring, 'sha256', 'hex')
         signature = self.ecdsa(hash, self.secret, 'secp256k1', None, True)
-        recoveryParam = self.decode(base64.b16encode(self.numberToLE(self.sum(signature['v'], 31), 1)))
+        recoveryParam = self.binary_to_base16(self.number_to_le(self.sum(signature['v'], 31), 1))
         mySignature = recoveryParam + signature['r'] + signature['s']
         operation = {
             'now': datetime,
@@ -653,6 +708,8 @@ class bytetrade(Exchange):
             'use_btt_as_fee': False,
             'money_id': int(quoteId),
             'stock_id': int(baseId),
+            'custom_no_btt_fee_rate': int(totalFeeRate),
+            'custom_btt_fee_rate': int(chainFeeRate),
         }
         fatty = {
             'timestamp': datetime,
@@ -664,7 +721,7 @@ class bytetrade(Exchange):
                 ],
             ],
             'validate_type': 0,
-            'dapp': 'Sagittarius',
+            'dapp': dappId,
             'signatures': [
                 mySignature,
             ],
@@ -693,11 +750,13 @@ class bytetrade(Exchange):
             'cost': None,
             'trades': None,
             'fee': None,
+            'clientOrderId': None,
+            'average': None,
         }
 
     async def fetch_order(self, id, symbol=None, params={}):
         if not ('userid' in params) and (self.apiKey is None):
-            raise ArgumentsRequired('fetchOrder requires self.apiKey or userid argument')
+            raise ArgumentsRequired('fetchOrder() requires self.apiKey or userid argument')
         await self.load_markets()
         request = {
             'userid': self.apiKey,
@@ -712,7 +771,7 @@ class bytetrade(Exchange):
 
     async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         if not ('userid' in params) and (self.apiKey is None):
-            raise ArgumentsRequired('fetchOpenOrders requires self.apiKey or userid argument')
+            raise ArgumentsRequired('fetchOpenOrders() requires self.apiKey or userid argument')
         await self.load_markets()
         request = {
             'userid': self.apiKey,
@@ -723,12 +782,14 @@ class bytetrade(Exchange):
             request['symbol'] = market['id']
         if limit is not None:
             request['limit'] = limit
+        if since is not None:
+            request['since'] = since
         response = await self.publicGetOrdersOpen(self.extend(request, params))
         return self.parse_orders(response, market, since, limit)
 
     async def fetch_closed_orders(self, symbol=None, since=None, limit=None, params={}):
         if not ('userid' in params) and (self.apiKey is None):
-            raise ArgumentsRequired('fetchClosedOrders requires self.apiKey or userid argument')
+            raise ArgumentsRequired('fetchClosedOrders() requires self.apiKey or userid argument')
         await self.load_markets()
         market = None
         request = {
@@ -739,12 +800,14 @@ class bytetrade(Exchange):
             request['symbol'] = market['id']
         if limit is not None:
             request['limit'] = limit
+        if since is not None:
+            request['since'] = since
         response = await self.publicGetOrdersClosed(self.extend(request, params))
         return self.parse_orders(response, market, since, limit)
 
     async def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
         if not ('userid' in params) and (self.apiKey is None):
-            raise ArgumentsRequired('fetchOrders requires self.apiKey or userid argument')
+            raise ArgumentsRequired('fetchOrders() requires self.apiKey or userid argument')
         await self.load_markets()
         market = None
         request = {
@@ -755,14 +818,16 @@ class bytetrade(Exchange):
             request['symbol'] = market['id']
         if limit is not None:
             request['limit'] = limit
+        if since is not None:
+            request['since'] = since
         response = await self.publicGetOrdersAll(self.extend(request, params))
         return self.parse_orders(response, market, since, limit)
 
     async def cancel_order(self, id, symbol=None, params={}):
         if self.apiKey is None:
-            raise ArgumentsRequired('cancelOrder requires hasAlreadyAuthenticatedSuccessfully')
+            raise ArgumentsRequired('cancelOrder() requires hasAlreadyAuthenticatedSuccessfully')
         if symbol is None:
-            raise ArgumentsRequired(self.id + ' cancelOrder requires a symbol argument')
+            raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
         await self.load_markets()
         market = self.market(symbol)
         baseId = market['baseId']
@@ -775,33 +840,34 @@ class bytetrade(Exchange):
         datetime = datetime.split('.')[0]
         expirationDatetime = self.iso8601(expiration)
         expirationDatetime = expirationDatetime.split('.')[0]
-        chainName = 'Sagittarius'
+        defaultDappId = 'Sagittarius'
+        dappId = self.safe_string(params, 'dappId', defaultDappId)
         byteStringArray = [
-            self.numberToBE(1, 32),
-            self.numberToLE(int(math.floor(now / 1000)), 4),
-            self.numberToLE(1, 1),
-            self.numberToLE(expiration, 4),
-            self.numberToLE(1, 1),
-            self.numberToLE(33, 1),
-            self.numberToLE(0, 8),
-            self.numberToLE(feeAmount, 8),  # string for 32 bit php
-            self.numberToLE(len(self.apiKey), 1),
+            self.number_to_be(1, 32),
+            self.number_to_le(int(math.floor(now / 1000)), 4),
+            self.number_to_le(1, 1),
+            self.number_to_le(expiration, 4),
+            self.number_to_le(1, 1),
+            self.number_to_le(33, 1),
+            self.number_to_le(0, 8),
+            self.number_to_le(feeAmount, 8),  # string for 32 bit php
+            self.number_to_le(len(self.apiKey), 1),
             self.encode(self.apiKey),
-            self.numberToLE(len(normalSymbol), 1),
+            self.number_to_le(len(normalSymbol), 1),
             self.encode(normalSymbol),
             self.base16_to_binary(id),
-            self.numberToLE(int(quoteId), 4),
-            self.numberToLE(int(baseId), 4),
-            self.numberToLE(0, 1),
-            self.numberToLE(1, 1),
-            self.numberToLE(len(chainName), 1),
-            self.encode(chainName),
-            self.numberToLE(0, 1),
+            self.number_to_le(int(quoteId), 4),
+            self.number_to_le(int(baseId), 4),
+            self.number_to_le(0, 1),
+            self.number_to_le(1, 1),
+            self.number_to_le(len(dappId), 1),
+            self.encode(dappId),
+            self.number_to_le(0, 1),
         ]
         bytestring = self.binary_concat_array(byteStringArray)
         hash = self.hash(bytestring, 'sha256', 'hex')
         signature = self.ecdsa(hash, self.secret, 'secp256k1', None, True)
-        recoveryParam = self.decode(base64.b16encode(self.numberToLE(self.sum(signature['v'], 31), 1)))
+        recoveryParam = self.binary_to_base16(self.number_to_le(self.sum(signature['v'], 31), 1))
         mySignature = recoveryParam + signature['r'] + signature['s']
         operation = {
             'fee': feeAmount,
@@ -821,7 +887,7 @@ class bytetrade(Exchange):
                 ],
             ],
             'validate_type': 0,
-            'dapp': 'Sagittarius',
+            'dapp': dappId,
             'signatures': [
                 mySignature,
             ],
@@ -850,16 +916,18 @@ class bytetrade(Exchange):
             'cost': None,
             'trades': None,
             'fee': None,
+            'clientOrderId': None,
+            'average': None,
         }
 
-    async def transfer(self, code, amount, address, params={}):
+    async def transfer(self, code, amount, fromAccount, toAccount, params={}):
         self.check_required_dependencies()
         if self.apiKey is None:
-            raise ArgumentsRequired('transfer requires self.apiKey')
+            raise ArgumentsRequired('transfer() requires self.apiKey')
         await self.load_markets()
         currency = self.currency(code)
-        amountTruncate = self.decimal_to_precision(amount, TRUNCATE, currency['info']['transferPrecision'], DECIMAL_PLACES, NO_PADDING)
-        amountChain = self.toWei(amountTruncate, currency['precision']['amount'])
+        amountTruncate = self.decimal_to_precision(amount, TRUNCATE, currency['info']['basePrecision'] - currency['info']['transferPrecision'], DECIMAL_PLACES, NO_PADDING)
+        amountChain = self.to_wei(amountTruncate, currency['precision'])
         assetType = int(currency['id'])
         now = self.milliseconds()
         expiration = now
@@ -868,53 +936,59 @@ class bytetrade(Exchange):
         expirationDatetime = self.iso8601(expiration)
         expirationDatetime = expirationDatetime.split('.')[0]
         feeAmount = '300000000000000'
-        chainName = 'Sagittarius'
+        defaultDappId = 'Sagittarius'
+        message = self.safe_string(params, 'message', '')
+        dappId = self.safe_string(params, 'dappId', defaultDappId)
         eightBytes = self.integer_pow('2', '64')
         byteStringArray = [
-            self.numberToBE(1, 32),
-            self.numberToLE(int(math.floor(now / 1000)), 4),
-            self.numberToLE(1, 1),
-            self.numberToLE(int(math.floor(expiration / 1000)), 4),
-            self.numberToLE(1, 1),
-            self.numberToLE(0, 1),
-            self.numberToLE(0, 8),
-            self.numberToLE(feeAmount, 8),  # string for 32 bit php
-            self.numberToLE(len(self.apiKey), 1),
+            self.number_to_be(1, 32),
+            self.number_to_le(int(math.floor(now / 1000)), 4),
+            self.number_to_le(1, 1),
+            self.number_to_le(int(math.floor(expiration / 1000)), 4),
+            self.number_to_le(1, 1),
+            self.number_to_le(28, 1),
+            self.number_to_le(0, 8),
+            self.number_to_le(feeAmount, 8),  # string for 32 bit php
+            self.number_to_le(len(self.apiKey), 1),
             self.encode(self.apiKey),
-            self.numberToLE(len(address), 1),
-            self.encode(address),
-            self.numberToLE(assetType, 4),
-            self.numberToLE(self.integer_divide(amountChain, eightBytes), 8),
-            self.numberToLE(self.integer_modulo(amountChain, eightBytes), 8),
-            self.numberToLE(0, 1),
-            self.numberToLE(1, 1),
-            self.numberToLE(len(chainName), 1),
-            self.encode(chainName),
-            self.numberToLE(0, 1),
+            self.number_to_le(len(toAccount), 1),
+            self.encode(toAccount),
+            self.number_to_le(assetType, 4),
+            self.number_to_le(self.integer_divide(amountChain, eightBytes), 8),
+            self.number_to_le(self.integer_modulo(amountChain, eightBytes), 8),
+            self.number_to_le(1, 1),
+            self.number_to_le(len(message), 1),
+            self.encode(message),
+            self.number_to_le(0, 1),
+            self.number_to_le(1, 1),
+            self.number_to_le(len(dappId), 1),
+            self.encode(dappId),
+            self.number_to_le(0, 1),
         ]
         bytestring = self.binary_concat_array(byteStringArray)
         hash = self.hash(bytestring, 'sha256', 'hex')
         signature = self.ecdsa(hash, self.secret, 'secp256k1', None, True)
-        recoveryParam = self.decode(base64.b16encode(self.numberToLE(self.sum(signature['v'], 31), 1)))
+        recoveryParam = self.binary_to_base16(self.number_to_le(self.sum(signature['v'], 31), 1))
         mySignature = recoveryParam + signature['r'] + signature['s']
         operation = {
             'fee': '300000000000000',
             'from': self.apiKey,
-            'to': address,
+            'to': toAccount,
             'asset_type': int(currency['id']),
             'amount': str(amountChain),
+            'message': message,
         }
         fatty = {
             'timestamp': datetime,
             'expiration': expirationDatetime,
             'operations': [
                 [
-                    0,
+                    28,
                     operation,
                 ],
             ],
             'validate_type': 0,
-            'dapp': 'Sagittarius',
+            'dapp': dappId,
             'signatures': [
                 mySignature,
             ],
@@ -946,11 +1020,14 @@ class bytetrade(Exchange):
             'remaining': None,
             'cost': None,
             'fee': None,
+            'clientOrderId': None,
+            'average': None,
+            'trades': None,
         }
 
     async def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         if not ('userid' in params) and (self.apiKey is None):
-            raise ArgumentsRequired('fetchMyTrades requires self.apiKey or userid argument')
+            raise ArgumentsRequired('fetchMyTrades() requires self.apiKey or userid argument')
         await self.load_markets()
         market = self.market(symbol)
         request = {
@@ -960,13 +1037,15 @@ class bytetrade(Exchange):
             request['symbol'] = market['id']
         if limit is not None:
             request['limit'] = limit
+        if since is not None:
+            request['since'] = since
         response = await self.publicGetOrdersTrades(self.extend(request, params))
         return self.parse_trades(response, market, since, limit)
 
     async def fetch_deposits(self, code=None, since=None, limit=None, params={}):
         await self.load_markets()
         if not ('userid' in params) and (self.apiKey is None):
-            raise ArgumentsRequired('fetchDeposits requires self.apiKey or userid argument')
+            raise ArgumentsRequired('fetchDeposits() requires self.apiKey or userid argument')
         currency = None
         request = {
             'userid': self.apiKey,
@@ -984,7 +1063,7 @@ class bytetrade(Exchange):
     async def fetch_withdrawals(self, code=None, since=None, limit=None, params={}):
         await self.load_markets()
         if not ('userid' in params) and (self.apiKey is None):
-            raise ArgumentsRequired('fetchWithdrawals requires self.apiKey or userid argument')
+            raise ArgumentsRequired('fetchWithdrawals() requires self.apiKey or userid argument')
         currency = None
         request = {
             'userid': self.apiKey,
@@ -1031,9 +1110,9 @@ class bytetrade(Exchange):
         datetime = self.safe_string(transaction, 'datetime')
         type = self.safe_string(transaction, 'type')
         status = self.parse_transaction_status(self.safe_string(transaction, 'status'))
-        amount = self.safe_float(transaction, 'amount')
+        amount = self.safe_number(transaction, 'amount')
         feeInfo = self.safe_value(transaction, 'fee')
-        feeCost = self.safe_float(feeInfo, 'cost')
+        feeCost = self.safe_number(feeInfo, 'cost')
         feeCurrencyId = self.safe_string(feeInfo, 'code')
         feeCode = self.safe_currency_code(feeCurrencyId, currency)
         fee = {
@@ -1059,7 +1138,7 @@ class bytetrade(Exchange):
     async def fetch_deposit_address(self, code, params={}):
         await self.load_markets()
         if not ('userid' in params) and (self.apiKey is None):
-            raise ArgumentsRequired('fetchDepositAddress requires self.apiKey or userid argument')
+            raise ArgumentsRequired('fetchDepositAddress() requires self.apiKey or userid argument')
         currency = self.currency(code)
         request = {
             'userid': self.apiKey,
@@ -1083,7 +1162,7 @@ class bytetrade(Exchange):
         self.check_address(address)
         await self.load_markets()
         if self.apiKey is None:
-            raise ArgumentsRequired('withdraw requires self.apiKey')
+            raise ArgumentsRequired(self.id + ' withdraw() requires self.apiKey')
         addressResponse = await self.fetch_deposit_address(code)
         chainTypeString = self.safe_string(addressResponse, 'chainType')
         chainId = self.safe_string(addressResponse['info'][0], 'chainId')
@@ -1101,76 +1180,77 @@ class bytetrade(Exchange):
         datetime = datetime.split('.')[0]
         expirationDatetime = self.iso8601(expiration)
         expirationDatetime = expirationDatetime.split('.')[0]
-        chainName = 'Sagittarius'
+        defaultDappId = 'Sagittarius'
+        dappId = self.safe_string(params, 'dappId', defaultDappId)
         feeAmount = '300000000000000'
         currency = self.currency(code)
         coinId = currency['id']
-        amountTruncate = self.decimal_to_precision(amount, TRUNCATE, currency['info']['transferPrecision'], DECIMAL_PLACES, NO_PADDING)
-        amountChain = self.toWei(amountTruncate, currency['info']['externalPrecision'])
+        amountTruncate = self.decimal_to_precision(amount, TRUNCATE, currency['info']['basePrecision'] - currency['info']['transferPrecision'], DECIMAL_PLACES, NO_PADDING)
+        amountChain = self.to_wei(amountTruncate, currency['info']['externalPrecision'])
         eightBytes = self.integer_pow('2', '64')
         assetFee = 0
         byteStringArray = []
         if operationId == 26:
             assetFee = currency['info']['fee']
             byteStringArray = [
-                self.numberToBE(1, 32),
-                self.numberToLE(int(math.floor(now / 1000)), 4),
-                self.numberToLE(1, 1),
-                self.numberToLE(int(math.floor(expiration / 1000)), 4),
-                self.numberToLE(1, 1),
-                self.numberToLE(operationId, 1),
-                self.numberToLE(0, 8),
-                self.numberToLE(feeAmount, 8),  # string for 32 bit php
-                self.numberToLE(len(self.apiKey), 1),
+                self.number_to_be(1, 32),
+                self.number_to_le(int(math.floor(now / 1000)), 4),
+                self.number_to_le(1, 1),
+                self.number_to_le(int(math.floor(expiration / 1000)), 4),
+                self.number_to_le(1, 1),
+                self.number_to_le(operationId, 1),
+                self.number_to_le(0, 8),
+                self.number_to_le(feeAmount, 8),  # string for 32 bit php
+                self.number_to_le(len(self.apiKey), 1),
                 self.encode(self.apiKey),
-                self.numberToLE(len(address), 1),
+                self.number_to_le(len(address), 1),
                 self.encode(address),
-                self.numberToLE(int(coinId), 4),
-                self.numberToLE(int(math.floor(int(float(self.integer_divide(amountChain, eightBytes))))), 8),
-                self.numberToLE(self.integer_modulo(amountChain, eightBytes), 8),
-                self.numberToLE(1, 1),
-                self.numberToLE(self.integer_divide(assetFee, eightBytes), 8),
-                self.numberToLE(self.integer_modulo(assetFee, eightBytes), 8),
-                self.numberToLE(0, 1),
-                self.numberToLE(1, 1),
-                self.numberToLE(len(chainName), 1),
-                self.encode(chainName),
-                self.numberToLE(0, 1),
+                self.number_to_le(int(coinId), 4),
+                self.number_to_le(self.integer_divide(amountChain, eightBytes), 8),
+                self.number_to_le(self.integer_modulo(amountChain, eightBytes), 8),
+                self.number_to_le(1, 1),
+                self.number_to_le(self.integer_divide(assetFee, eightBytes), 8),
+                self.number_to_le(self.integer_modulo(assetFee, eightBytes), 8),
+                self.number_to_le(0, 1),
+                self.number_to_le(1, 1),
+                self.number_to_le(len(dappId), 1),
+                self.encode(dappId),
+                self.number_to_le(0, 1),
             ]
         else:
             byteStringArray = [
-                self.numberToBE(1, 32),
-                self.numberToLE(int(math.floor(now / 1000)), 4),
-                self.numberToLE(1, 1),
-                self.numberToLE(int(math.floor(expiration / 1000)), 4),
-                self.numberToLE(1, 1),
-                self.numberToLE(operationId, 1),
-                self.numberToLE(0, 8),
-                self.numberToLE(feeAmount, 8),  # string for 32 bit php
-                self.numberToLE(len(self.apiKey), 1),
+                self.number_to_be(1, 32),
+                self.number_to_le(int(math.floor(now / 1000)), 4),
+                self.number_to_le(1, 1),
+                self.number_to_le(int(math.floor(expiration / 1000)), 4),
+                self.number_to_le(1, 1),
+                self.number_to_le(operationId, 1),
+                self.number_to_le(0, 8),
+                self.number_to_le(feeAmount, 8),  # string for 32 bit php
+                self.number_to_le(len(self.apiKey), 1),
                 self.encode(self.apiKey),
-                self.numberToLE(int(math.floor(now / 1000)), 4),
-                self.numberToLE(1, 1),
-                self.numberToLE(4, 1),
-                self.numberToLE(0, 8),
-                self.numberToLE(feeAmount, 8),
-                self.numberToLE(len(self.apiKey), 1),
+                self.number_to_le(int(math.floor(now / 1000)), 4),
+                self.number_to_le(1, 1),
+                self.number_to_le(4, 1),
+                self.number_to_le(0, 8),
+                self.number_to_le(feeAmount, 8),
+                self.number_to_le(len(self.apiKey), 1),
                 self.encode(self.apiKey),
-                self.numberToLE(len(middleAddress), 1),
+                self.number_to_le(len(middleAddress), 1),
                 self.encode(middleAddress),
-                self.numberToLE(int(coinId), 4),
-                self.numberToLE(int(math.floor(int(float(self.integer_divide(amountChain, eightBytes))))), 8),
-                self.numberToLE(self.integer_modulo(amountChain, eightBytes), 8),
-                self.numberToLE(0, 1),
-                self.numberToLE(1, 1),
-                self.numberToLE(len(chainName), 1),
-                self.encode(chainName),
-                self.numberToLE(0, 1),
+                self.number_to_le(int(coinId), 4),
+                self.number_to_le(self.integer_divide(amountChain, eightBytes), 8),
+                self.number_to_le(self.integer_modulo(amountChain, eightBytes), 8),
+                self.number_to_le(0, 1),
+                self.number_to_le(1, 1),
+                self.number_to_le(len(dappId), 1),
+                self.encode(dappId),
+                self.number_to_le(0, 1),
             ]
         bytestring = self.binary_concat_array(byteStringArray)
         hash = self.hash(bytestring, 'sha256', 'hex')
         signature = self.ecdsa(hash, self.secret, 'secp256k1', None, True)
-        recoveryParam = self.decode(base64.b16encode(self.numberToLE(self.sum(signature['v'], 31), 1)))
+        recoveryParam = self.binary_to_base16(self.number_to_le(self.sum(signature['v'], 31), 1))
         mySignature = recoveryParam + signature['r'] + signature['s']
         fatty = None
         request = None
@@ -1195,7 +1275,7 @@ class bytetrade(Exchange):
                     ],
                 ],
                 'validate_type': 0,
-                'dapp': 'Sagittarius',
+                'dapp': dappId,
                 'signatures': [
                     mySignature,
                 ],
@@ -1232,7 +1312,7 @@ class bytetrade(Exchange):
                     ],
                 ],
                 'validate_type': 0,
-                'dapp': 'Sagittarius',
+                'dapp': dappId,
                 'signatures': [
                     mySignature,
                 ],
@@ -1258,7 +1338,7 @@ class bytetrade(Exchange):
         }
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        url = self.urls['api']
+        url = self.urls['api'][api]
         url += '/' + path
         if params:
             url += '?' + self.urlencode(params)

@@ -20,10 +20,17 @@ class xbtce(Exchange):
             'rateLimit': 2000,  # responses are cached every 2 seconds
             'version': 'v1',
             'has': {
+                'cancelOrder': True,
                 'CORS': False,
-                'fetchTickers': True,
                 'createMarketOrder': False,
+                'createOrder': True,
+                'fetchBalance': True,
+                'fetchMarkets': True,
                 'fetchOHLCV': False,
+                'fetchOrderBook': True,
+                'fetchTicker': True,
+                'fetchTickers': True,
+                'fetchTrades': True,
             },
             'urls': {
                 'referral': 'https://xbtce.com/?agent=XX97BTCXXXG687021000B',
@@ -132,24 +139,30 @@ class xbtce(Exchange):
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'info': market,
+                'active': None,
+                'precision': self.precision,
+                'limits': self.limits,
             })
         return result
 
     def fetch_balance(self, params={}):
         self.load_markets()
         balances = self.privateGetAsset(params)
-        result = {'info': balances}
+        result = {
+            'info': balances,
+            'timestamp': None,
+            'datetime': None,
+        }
         for i in range(0, len(balances)):
             balance = balances[i]
             currencyId = self.safe_string(balance, 'Currency')
             code = self.safe_currency_code(currencyId)
-            account = {
-                'free': self.safe_float(balance, 'FreeAmount'),
-                'used': self.safe_float(balance, 'LockedAmount'),
-                'total': self.safe_float(balance, 'Amount'),
-            }
+            account = self.account()
+            account['free'] = self.safe_string(balance, 'FreeAmount')
+            account['used'] = self.safe_string(balance, 'LockedAmount')
+            account['total'] = self.safe_string(balance, 'Amount')
             result[code] = account
-        return self.parse_balance(result)
+        return self.parse_balance(result, False)
 
     def fetch_order_book(self, symbol, limit=None, params={}):
         self.load_markets()
@@ -160,7 +173,7 @@ class xbtce(Exchange):
         response = self.privateGetLevel2Filter(self.extend(request, params))
         orderbook = response[0]
         timestamp = self.safe_integer(orderbook, 'Timestamp')
-        return self.parse_order_book(orderbook, timestamp, 'Bids', 'Asks', 'Price', 'Volume')
+        return self.parse_order_book(orderbook, symbol, timestamp, 'Bids', 'Asks', 'Price', 'Volume')
 
     def parse_ticker(self, ticker, market=None):
         timestamp = 0
@@ -222,7 +235,7 @@ class xbtce(Exchange):
                 symbol = base + '/' + quote
             ticker = tickers[id]
             result[symbol] = self.parse_ticker(ticker, market)
-        return result
+        return self.filter_by_array(result, 'symbol', symbols)
 
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
@@ -243,14 +256,14 @@ class xbtce(Exchange):
         # no method for trades?
         return self.privateGetTrade(params)
 
-    def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
+    def parse_ohlcv(self, ohlcv, market=None):
         return [
-            ohlcv['Timestamp'],
-            ohlcv['Open'],
-            ohlcv['High'],
-            ohlcv['Low'],
-            ohlcv['Close'],
-            ohlcv['Volume'],
+            self.safe_integer(ohlcv, 'Timestamp'),
+            self.safe_number(ohlcv, 'Open'),
+            self.safe_number(ohlcv, 'High'),
+            self.safe_number(ohlcv, 'Low'),
+            self.safe_number(ohlcv, 'Close'),
+            self.safe_number(ohlcv, 'Volume'),
         ]
 
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
@@ -324,6 +337,6 @@ class xbtce(Exchange):
             if body:
                 auth += body
             signature = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256, 'base64')
-            credentials = self.uid + ':' + self.apiKey + ':' + nonce + ':' + self.decode(signature)
+            credentials = self.uid + ':' + self.apiKey + ':' + nonce + ':' + signature
             headers['Authorization'] = 'HMAC ' + credentials
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
