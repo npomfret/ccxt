@@ -42,7 +42,7 @@ class okex(Exchange):
         return self.deep_extend(super(okex, self).describe(), {
             'id': 'okex',
             'name': 'OKEX',
-            'countries': ['CN', 'US'],
+            'countries': ['CN'],
             'version': 'v3',
             'rateLimit': 1000,  # up to 3000 requests per 5 minutes ≈ 600 requests per minute ≈ 10 requests per second ≈ 100 ms
             'pro': True,
@@ -2371,7 +2371,7 @@ class okex(Exchange):
         #
         address = self.safe_string(depositAddress, 'address')
         tag = self.safe_string_2(depositAddress, 'tag', 'payment_id')
-        tag = self.safe_string(depositAddress, 'memo', tag)
+        tag = self.safe_string_2(depositAddress, 'memo', 'Memo', tag)
         currencyId = self.safe_string(depositAddress, 'currency')
         code = self.safe_currency_code(currencyId)
         self.check_address(address)

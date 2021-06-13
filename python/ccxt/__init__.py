@@ -22,7 +22,7 @@
 
 # ----------------------------------------------------------------------------
 
-__version__ = '1.50.8'
+__version__ = '1.51.40'
 
 # ----------------------------------------------------------------------------
 
@@ -89,7 +89,6 @@ from ccxt.bitflyer import bitflyer                          # noqa: F401
 from ccxt.bitforex import bitforex                          # noqa: F401
 from ccxt.bitget import bitget                              # noqa: F401
 from ccxt.bithumb import bithumb                            # noqa: F401
-from ccxt.bitkk import bitkk                                # noqa: F401
 from ccxt.bitmart import bitmart                            # noqa: F401
 from ccxt.bitmex import bitmex                              # noqa: F401
 from ccxt.bitpanda import bitpanda                          # noqa: F401
@@ -120,7 +119,6 @@ from ccxt.coinegg import coinegg                            # noqa: F401
 from ccxt.coinex import coinex                              # noqa: F401
 from ccxt.coinfalcon import coinfalcon                      # noqa: F401
 from ccxt.coinfloor import coinfloor                        # noqa: F401
-from ccxt.coingi import coingi                              # noqa: F401
 from ccxt.coinmarketcap import coinmarketcap                # noqa: F401
 from ccxt.coinmate import coinmate                          # noqa: F401
 from ccxt.coinone import coinone                            # noqa: F401
@@ -131,7 +129,6 @@ from ccxt.delta import delta                                # noqa: F401
 from ccxt.deribit import deribit                            # noqa: F401
 from ccxt.digifinex import digifinex                        # noqa: F401
 from ccxt.equos import equos                                # noqa: F401
-from ccxt.eterbase import eterbase                          # noqa: F401
 from ccxt.exmo import exmo                                  # noqa: F401
 from ccxt.exx import exx                                    # noqa: F401
 from ccxt.flowbtc import flowbtc                            # noqa: F401
@@ -151,7 +148,6 @@ from ccxt.itbit import itbit                                # noqa: F401
 from ccxt.kraken import kraken                              # noqa: F401
 from ccxt.kucoin import kucoin                              # noqa: F401
 from ccxt.kuna import kuna                                  # noqa: F401
-from ccxt.lakebtc import lakebtc                            # noqa: F401
 from ccxt.latoken import latoken                            # noqa: F401
 from ccxt.lbank import lbank                                # noqa: F401
 from ccxt.liquid import liquid                              # noqa: F401
@@ -164,6 +160,7 @@ from ccxt.novadax import novadax                            # noqa: F401
 from ccxt.oceanex import oceanex                            # noqa: F401
 from ccxt.okcoin import okcoin                              # noqa: F401
 from ccxt.okex import okex                                  # noqa: F401
+from ccxt.okex5 import okex5                                # noqa: F401
 from ccxt.paymium import paymium                            # noqa: F401
 from ccxt.phemex import phemex                              # noqa: F401
 from ccxt.poloniex import poloniex                          # noqa: F401
@@ -181,7 +178,6 @@ from ccxt.upbit import upbit                                # noqa: F401
 from ccxt.vcc import vcc                                    # noqa: F401
 from ccxt.wavesexchange import wavesexchange                # noqa: F401
 from ccxt.whitebit import whitebit                          # noqa: F401
-from ccxt.xbtce import xbtce                                # noqa: F401
 from ccxt.xena import xena                                  # noqa: F401
 from ccxt.yobit import yobit                                # noqa: F401
 from ccxt.zaif import zaif                                  # noqa: F401
@@ -209,7 +205,6 @@ exchanges = [
     'bitforex',
     'bitget',
     'bithumb',
-    'bitkk',
     'bitmart',
     'bitmex',
     'bitpanda',
@@ -240,7 +235,6 @@ exchanges = [
     'coinex',
     'coinfalcon',
     'coinfloor',
-    'coingi',
     'coinmarketcap',
     'coinmate',
     'coinone',
@@ -251,7 +245,6 @@ exchanges = [
     'deribit',
     'digifinex',
     'equos',
-    'eterbase',
     'exmo',
     'exx',
     'flowbtc',
@@ -271,7 +264,6 @@ exchanges = [
     'kraken',
     'kucoin',
     'kuna',
-    'lakebtc',
     'latoken',
     'lbank',
     'liquid',
@@ -284,6 +276,7 @@ exchanges = [
     'oceanex',
     'okcoin',
     'okex',
+    'okex5',
     'paymium',
     'phemex',
     'poloniex',
@@ -301,7 +294,6 @@ exchanges = [
     'vcc',
     'wavesexchange',
     'whitebit',
-    'xbtce',
     'xena',
     'yobit',
     'zaif',

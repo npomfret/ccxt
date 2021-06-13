@@ -129,6 +129,9 @@ module.exports = class bithumb extends Exchange {
                     },
                 },
             },
+            'commonCurrencies': {
+                'SOC': 'Soda Coin',
+            },
         });
     }
 
@@ -809,10 +812,10 @@ module.exports = class bithumb extends Exchange {
     async cancelOrder (id, symbol = undefined, params = {}) {
         const side_in_params = ('side' in params);
         if (!side_in_params) {
-            throw new ArgumentsRequired (this.id + ' cancelOrder() requires a `symbol` argument and a `side` parameter (sell or buy)');
+            throw new ArgumentsRequired (this.id + ' cancelOrder() requires a `side` parameter (sell or buy)');
         }
         if (symbol === undefined) {
-            throw new ArgumentsRequired (this.id + ' cancelOrder() requires a `symbol` argument and a `side` parameter (sell or buy)');
+            throw new ArgumentsRequired (this.id + ' cancelOrder() requires a `symbol` argument');
         }
         const market = this.market (symbol);
         const side = (params['side'] === 'buy') ? 'bid' : 'ask';
@@ -918,7 +921,7 @@ module.exports = class bithumb extends Exchange {
     async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         const response = await this.fetch2 (path, api, method, params, headers, body);
         if ('status' in response) {
-            if (response['status'] === '0000') {
+            if (response['status'] === '0000' || response['message'] === '거래 진행중인 내역이 존재하지 않습니다') {
                 return response;
             }
             throw new ExchangeError (this.id + ' ' + this.json (response));

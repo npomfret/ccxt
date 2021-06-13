@@ -50,6 +50,7 @@ class ftx extends Exchange {
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
                 'fetchOrders' => true,
+                'fetchPositions' => true,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
                 'fetchTrades' => true,
@@ -238,6 +239,9 @@ class ftx extends Exchange {
                     'Trigger price too high' => '\\ccxt\\InvalidOrder', // array("error":"Trigger price too high","success":false)
                     'Trigger price too low' => '\\ccxt\\InvalidOrder', // array("error":"Trigger price too low","success":false)
                     'Order already queued for cancellation' => '\\ccxt\\CancelPending', // array("error":"Order already queued for cancellation","success":false)
+                    'Duplicate client order ID' => '\\ccxt\\DuplicateOrderId', // array("error":"Duplicate client order ID","success":false)
+                    'Spot orders cannot be reduce-only' => '\\ccxt\\InvalidOrder', // array("error":"Spot orders cannot be reduce-only","success":false)
+                    'Invalid reduce-only order' => '\\ccxt\\InvalidOrder', // array("error":"Invalid reduce-only order","success":false)
                 ),
                 'broad' => array(
                     'Account does not have enough margin for order' => '\\ccxt\\InsufficientFunds',
@@ -249,6 +253,7 @@ class ftx extends Exchange {
                     'An unexpected error occurred' => '\\ccxt\\ExchangeNotAvailable', // array("error":"An unexpected error occurred, please try again later (58BC21C795).","success":false)
                     'Please retry request' => '\\ccxt\\ExchangeNotAvailable', // array("error":"Please retry request","success":false)
                     'Please try again' => '\\ccxt\\ExchangeNotAvailable', // array("error":"Please try again","success":false)
+                    'Try again' => '\\ccxt\\ExchangeNotAvailable', // array("error":"Try again","success":false)
                     'Only have permissions for subaccount' => '\\ccxt\\PermissionDenied', // array("success":false,"error":"Only have permissions for subaccount *sub_name*")
                 ),
             ),

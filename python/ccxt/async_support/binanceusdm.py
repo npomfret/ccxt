@@ -4,6 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.binance import binance
+from ccxt.base.errors import BadRequest
 
 
 class binanceusdm(binance):
@@ -15,8 +16,20 @@ class binanceusdm(binance):
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/117738721-668c8d80-b205-11eb-8c49-3fad84c4a07f.jpg',
             },
+            'has': {
+                'fetchPositions': True,
+                'fetchIsolatedPositions': True,
+                'fetchFundingRate': True,
+                'fetchFundingHistory': True,
+                'setLeverage': True,
+                'setMarginMode': True,
+            },
             'options': {
                 'defaultType': 'future',
+                # https://www.binance.com/en/support/faq/360033162192
+                # tier amount, maintenance margin, initial margin
+                'leverageBrackets': None,
+                'marginTypes': {},
             },
             # https://www.binance.com/en/fee/futureFee
             'fees': {
@@ -103,13 +116,12 @@ class binanceusdm(binance):
         # transfer from usdm futures wallet to spot wallet
         return await self.futuresTransfer(code, amount, 2, params)
 
-    async def fetch_funding_rate(self, symbol=None, params=None):
+    async def fetch_funding_rate(self, symbol, params={}):
         await self.load_markets()
-        market = None
-        request = {}
-        if symbol is not None:
-            market = self.market(symbol)
-            request['symbol'] = market['id']
+        market = self.market(symbol)
+        request = {
+            'symbol': market['id'],
+        }
         response = await self.fapiPublicGetPremiumIndex(self.extend(request, params))
         #
         #   {
@@ -123,12 +135,113 @@ class binanceusdm(binance):
         #     "time": "1621252344001"
         #  }
         #
-        if isinstance(response, list):
+        return self.parse_funding_rate(response)
+
+    async def fetch_funding_rates(self, symbols=None, params={}):
+        await self.load_markets()
+        response = await self.fapiPublicGetPremiumIndex(params)
+        result = []
+        for i in range(0, len(response)):
+            entry = response[i]
+            parsed = self.parse_funding_rate(entry)
+            result.append(parsed)
+        return self.filter_by_array(result, 'symbol', symbols)
+
+    async def load_leverage_brackets(self, reload=False, params={}):
+        await self.load_markets()
+        # by default cache the leverage bracket
+        # it contains useful stuff like the maintenance margin and initial margin for positions
+        leverageBrackets = self.safe_value(self.options, 'leverageBrackets')
+        if (leverageBrackets is None) or (reload):
+            response = await self.fapiPrivateGetLeverageBracket(params)
+            self.options['leverageBrackets'] = {}
+            for i in range(0, len(response)):
+                entry = response[i]
+                marketId = self.safe_string(entry, 'symbol')
+                symbol = self.safe_symbol(marketId)
+                brackets = self.safe_value(entry, 'brackets')
+                result = []
+                for j in range(0, len(brackets)):
+                    bracket = brackets[j]
+                    # we use floats here internally on purpose
+                    notionalFloor = self.safe_float(bracket, 'notionalFloor')
+                    maintenanceMarginPercentage = self.safe_string(bracket, 'maintMarginRatio')
+                    result.append([notionalFloor, maintenanceMarginPercentage])
+                self.options['leverageBrackets'][symbol] = result
+        return self.options['leverageBrackets']
+
+    async def fetch_positions(self, symbols=None, params={}):
+        await self.load_markets()
+        await self.load_leverage_brackets()
+        account = await self.fapiPrivateGetAccount(params)
+        result = self.parse_account_positions(account)
+        return self.filter_by_array(result, 'symbol', symbols, False)
+
+    async def fetch_isolated_positions(self, symbol=None, params={}):
+        # only supported in usdm futures
+        await self.load_markets()
+        await self.load_leverage_brackets()
+        request = {}
+        market = None
+        if symbol is not None:
+            market = self.market(symbol)
+            request['symbol'] = market['id']
+        response = await self.fapiPrivateGetPositionRisk(self.extend(request, params))
+        if symbol is None:
             result = []
-            values = list(response.values())
-            for i in range(0, len(values)):
-                parsed = self.parseFundingRate(values[i])
-                result.append(parsed)
+            for i in range(0, len(response)):
+                parsed = self.parse_position_risk(response[i], market)
+                if parsed['marginType'] == 'isolated':
+                    result.append(parsed)
             return result
         else:
-            return self.parseFundingRate(response)
+            return self.parse_position_risk(self.safe_value(response, 0), market)
+
+    async def fetch_funding_history(self, symbol=None, since=None, limit=None, params={}):
+        await self.load_markets()
+        market = None
+        # "TRANSFER"，"WELCOME_BONUS", "REALIZED_PNL"，"FUNDING_FEE", "COMMISSION" and "INSURANCE_CLEAR"
+        request = {
+            'incomeType': 'FUNDING_FEE',
+        }
+        if symbol is not None:
+            market = self.market(symbol)
+            request['symbol'] = market['id']
+        if since is not None:
+            request['startTime'] = since
+        if limit is not None:
+            request['limit'] = limit
+        response = await self.fapiPrivateGetIncome(self.extend(request, params))
+        return self.parse_incomes(response, market, since, limit)
+
+    async def set_leverage(self, symbol, leverage, params={}):
+        # WARNING: THIS WILL INCREASE LIQUIDATION PRICE FOR OPEN ISOLATED LONG POSITIONS
+        # AND DECREASE LIQUIDATION PRICE FOR OPEN ISOLATED SHORT POSITIONS
+        if (leverage < 1) or (leverage > 125):
+            raise BadRequest(self.id + ' leverage should be between 1 and 125')
+        await self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'symbol': market['id'],
+            'leverage': leverage,
+        }
+        return await self.fapiPrivatePostLeverage(self.extend(request, params))
+
+    async def set_margin_mode(self, symbol, marginType, params={}):
+        #
+        # {"code": -4048 , "msg": "Margin type cannot be changed if there exists position."}
+        #
+        # or
+        #
+        # {"code": 200, "msg": "success"}
+        #
+        marginType = marginType.upper()
+        if (marginType != 'ISOLATED') and (marginType != 'CROSSED'):
+            raise BadRequest(self.id + ' marginType must be either isolated or crossed')
+        await self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'symbol': market['id'],
+            'marginType': marginType,
+        }
+        return await self.fapiPrivatePostMarginType(self.extend(request, params))

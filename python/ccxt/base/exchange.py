@@ -4,7 +4,7 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '1.50.8'
+__version__ = '1.51.40'
 
 # -----------------------------------------------------------------------------
 
@@ -2321,3 +2321,10 @@ class Exchange(object):
         if precision is None:
             return None
         return '1e' + Precise.string_neg(precision)
+
+    def omit_zero(self, string_number):
+        if string_number is None:
+            return None
+        if float(string_number) == 0:
+            return None
+        return string_number

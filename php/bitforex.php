@@ -70,7 +70,9 @@ class bitforex extends Exchange {
                         'api/v1/trade/placeOrder',
                         'api/v1/trade/placeMultiOrder',
                         'api/v1/trade/cancelOrder',
+                        'api/v1/trade/cancelMultiOrder',
                         'api/v1/trade/orderInfo',
+                        'api/v1/trade/multiOrderInfo',
                         'api/v1/trade/orderInfos',
                     ),
                 ),
@@ -225,6 +227,7 @@ class bitforex extends Exchange {
             ),
             'commonCurrencies' => array(
                 'ACE' => 'ACE Entertainment',
+                'CAPP' => 'Crypto Application Token',
                 'CREDIT' => 'TerraCredit',
                 'CTC' => 'Culture Ticket Chain',
                 'GOT' => 'GoNetwork',

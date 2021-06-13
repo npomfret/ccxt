@@ -140,6 +140,9 @@ class bithumb(Exchange):
                     },
                 },
             },
+            'commonCurrencies': {
+                'SOC': 'Soda Coin',
+            },
         })
 
     def amount_to_precision(self, symbol, amount):
@@ -771,9 +774,9 @@ class bithumb(Exchange):
     def cancel_order(self, id, symbol=None, params={}):
         side_in_params = ('side' in params)
         if not side_in_params:
-            raise ArgumentsRequired(self.id + ' cancelOrder() requires a `symbol` argument and a `side` parameter(sell or buy)')
+            raise ArgumentsRequired(self.id + ' cancelOrder() requires a `side` parameter(sell or buy)')
         if symbol is None:
-            raise ArgumentsRequired(self.id + ' cancelOrder() requires a `symbol` argument and a `side` parameter(sell or buy)')
+            raise ArgumentsRequired(self.id + ' cancelOrder() requires a `symbol` argument')
         market = self.market(symbol)
         side = 'bid' if (params['side'] == 'buy') else 'ask'
         params = self.omit(params, ['side', 'currency'])
@@ -864,7 +867,7 @@ class bithumb(Exchange):
     def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
         response = self.fetch2(path, api, method, params, headers, body)
         if 'status' in response:
-            if response['status'] == '0000':
+            if response['status'] == '0000' or response['message'] == '거래 진행중인 내역이 존재하지 않습니다':
                 return response
             raise ExchangeError(self.id + ' ' + self.json(response))
         return response

@@ -20,7 +20,7 @@ class okex extends Exchange {
         return $this->deep_extend(parent::describe (), array(
             'id' => 'okex',
             'name' => 'OKEX',
-            'countries' => array( 'CN', 'US' ),
+            'countries' => array( 'CN' ),
             'version' => 'v3',
             'rateLimit' => 1000, // up to 3000 requests per 5 minutes ≈ 600 requests per minute ≈ 10 requests per second ≈ 100 ms
             'pro' => true,
@@ -2459,7 +2459,7 @@ class okex extends Exchange {
         //
         $address = $this->safe_string($depositAddress, 'address');
         $tag = $this->safe_string_2($depositAddress, 'tag', 'payment_id');
-        $tag = $this->safe_string($depositAddress, 'memo', $tag);
+        $tag = $this->safe_string_2($depositAddress, 'memo', 'Memo', $tag);
         $currencyId = $this->safe_string($depositAddress, 'currency');
         $code = $this->safe_currency_code($currencyId);
         $this->check_address($address);

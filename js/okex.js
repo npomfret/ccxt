@@ -14,7 +14,7 @@ module.exports = class okex extends Exchange {
         return this.deepExtend (super.describe (), {
             'id': 'okex',
             'name': 'OKEX',
-            'countries': [ 'CN', 'US' ],
+            'countries': [ 'CN' ],
             'version': 'v3',
             'rateLimit': 1000, // up to 3000 requests per 5 minutes ≈ 600 requests per minute ≈ 10 requests per second ≈ 100 ms
             'pro': true,
@@ -2453,7 +2453,7 @@ module.exports = class okex extends Exchange {
         //
         const address = this.safeString (depositAddress, 'address');
         let tag = this.safeString2 (depositAddress, 'tag', 'payment_id');
-        tag = this.safeString (depositAddress, 'memo', tag);
+        tag = this.safeString2 (depositAddress, 'memo', 'Memo', tag);
         const currencyId = this.safeString (depositAddress, 'currency');
         const code = this.safeCurrencyCode (currencyId);
         this.checkAddress (address);
