@@ -22,11 +22,10 @@ class xena(Exchange):
             'name': 'Xena Exchange',
             'countries': ['VC', 'UK'],
             'rateLimit': 100,
-            'certified': True,
             'has': {
-                'CORS': False,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
+                'CORS': None,
                 'createDepositAddress': True,
                 'createOrder': True,
                 'editOrder': True,
@@ -405,18 +404,10 @@ class xena(Exchange):
         symbol = self.safe_symbol(marketId, market)
         last = self.safe_number(ticker, 'lastPx')
         open = self.safe_number(ticker, 'firstPx')
-        percentage = None
-        change = None
-        average = None
-        if (last is not None) and (open is not None):
-            change = last - open
-            average = self.sum(last, open) / 2
-            if open > 0:
-                percentage = change / open * 100
         buyVolume = self.safe_number(ticker, 'buyVolume')
         sellVolume = self.safe_number(ticker, 'sellVolume')
         baseVolume = self.sum(buyVolume, sellVolume)
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -431,13 +422,13 @@ class xena(Exchange):
             'close': last,
             'last': last,
             'previousClose': None,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': None,
+            'percentage': None,
+            'average': None,
             'baseVolume': baseVolume,
             'quoteVolume': None,
             'info': ticker,
-        }
+        }, market)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
@@ -602,7 +593,7 @@ class xena(Exchange):
             result[code] = account
         result['timestamp'] = timestamp
         result['datetime'] = self.iso8601(timestamp)
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def parse_trade(self, trade, market=None):
         #
@@ -896,16 +887,16 @@ class xena(Exchange):
         status = self.parse_order_status(self.safe_string(order, 'ordStatus'))
         marketId = self.safe_string(order, 'symbol')
         symbol = self.safe_symbol(marketId, market)
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'orderQty')
-        filled = self.safe_number(order, 'cumQty')
-        remaining = self.safe_number(order, 'leavesQty')
-        side = self.safe_string_lower(order, 'side')
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'orderQty')
+        filled = self.safe_string(order, 'cumQty')
+        remaining = self.safe_string(order, 'leavesQty')
+        side = self.safe_string(order, 'side')
         if side == '1':
             side = 'buy'
-        elif side == '1':
+        elif side == '2':
             side = 'sell'
-        type = self.safe_string_lower(order, 'ordType')
+        type = self.safe_string(order, 'ordType')
         if type == '1':
             type = 'market'
         elif type == '2':
@@ -914,7 +905,7 @@ class xena(Exchange):
             type = 'stop'
         elif type == '4':
             type = 'stop-limit'
-        return self.safe_order({
+        return self.safe_order2({
             'id': id,
             'clientOrderId': clientOrderId,
             'info': order,
@@ -936,7 +927,7 @@ class xena(Exchange):
             'status': status,
             'fee': None,
             'trades': None,
-        })
+        }, market)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
@@ -1278,6 +1269,7 @@ class xena(Exchange):
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': None,
             'info': response,
         }
 
@@ -1431,6 +1423,7 @@ class xena(Exchange):
         return self.safe_string(statuses, status, status)
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         await self.load_markets()
         await self.load_accounts()

@@ -17,21 +17,21 @@ class lykke(Exchange):
             'version': 'v1',
             'rateLimit': 200,
             'has': {
-                'CORS': False,
-                'fetchOHLCV': False,
-                'fetchOpenOrders': True,
-                'fetchClosedOrders': True,
-                'fetchOrder': True,
-                'fetchOrders': True,
-                'fetchTrades': True,
-                'fetchMyTrades': True,
-                'createOrder': True,
-                'cancelOrder': True,
                 'cancelAllOrders': True,
+                'cancelOrder': True,
+                'CORS': None,
+                'createOrder': True,
                 'fetchBalance': True,
+                'fetchClosedOrders': True,
                 'fetchMarkets': True,
+                'fetchMyTrades': True,
+                'fetchOHLCV': None,
+                'fetchOpenOrders': True,
+                'fetchOrder': True,
                 'fetchOrderBook': True,
+                'fetchOrders': True,
                 'fetchTicker': True,
+                'fetchTrades': True,
             },
             'timeframes': {
                 '1m': 'Minute',
@@ -252,7 +252,7 @@ class lykke(Exchange):
             account['total'] = self.safe_string(balance, 'Balance')
             account['used'] = self.safe_string(balance, 'Reserved')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     async def cancel_order(self, id, symbol=None, params={}):
         request = {'id': id}
@@ -356,6 +356,8 @@ class lykke(Exchange):
                 'symbol': symbol,
                 'base': base,
                 'quote': quote,
+                'type': 'spot',
+                'spot': True,
                 'active': True,
                 'info': market,
                 'precision': precision,
@@ -457,17 +459,18 @@ class lykke(Exchange):
             timestamp = self.parse8601(order['Registered'])
         elif ('CreatedAt' in order) and (order['CreatedAt']):
             timestamp = self.parse8601(order['CreatedAt'])
-        price = self.safe_number(order, 'Price')
+        price = self.safe_string(order, 'Price')
         side = None
-        amount = self.safe_number(order, 'Volume')
-        if amount < 0:
+        amount = self.safe_string(order, 'Volume')
+        isAmountLessThanZero = Precise.string_lt(amount, '0')
+        if isAmountLessThanZero:
             side = 'sell'
-            amount = abs(amount)
+            amount = Precise.string_abs(amount)
         else:
             side = 'buy'
-        remaining = abs(self.safe_number(order, 'RemainingVolume'))
+        remaining = Precise.string_abs(self.safe_string(order, 'RemainingVolume'))
         id = self.safe_string(order, 'Id')
-        return self.safe_order({
+        return self.safe_order2({
             'info': order,
             'id': id,
             'clientOrderId': None,
@@ -489,7 +492,7 @@ class lykke(Exchange):
             'status': status,
             'fee': None,
             'trades': None,
-        })
+        }, market)
 
     async def fetch_order(self, id, symbol=None, params={}):
         await self.load_markets()

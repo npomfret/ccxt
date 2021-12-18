@@ -21,13 +21,13 @@ class yobit extends Exchange {
             'version' => '3',
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createDepositAddress' => true,
-                'createMarketOrder' => false,
+                'createMarketOrder' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchDepositAddress' => true,
-                'fetchDeposits' => false,
+                'fetchDeposits' => null,
                 'fetchMarkets' => true,
                 'fetchMyTrades' => true,
                 'fetchOpenOrders' => true,
@@ -37,8 +37,8 @@ class yobit extends Exchange {
                 'fetchTicker' => true,
                 'fetchTickers' => true,
                 'fetchTrades' => true,
-                'fetchTransactions' => false,
-                'fetchWithdrawals' => false,
+                'fetchTransactions' => null,
+                'fetchWithdrawals' => null,
                 'withdraw' => true,
             ),
             'urls' => array(
@@ -94,9 +94,11 @@ class yobit extends Exchange {
                 'BCS' => 'BitcoinStake',
                 'BITS' => 'Bitstar',
                 'BLN' => 'Bulleon',
+                'BNS' => 'Benefit Bonus Coin',
                 'BOT' => 'BOTcoin',
                 'BON' => 'BONES',
                 'BPC' => 'BitcoinPremium',
+                'BST' => 'BitStone',
                 'BTS' => 'Bitshares2',
                 'CAT' => 'BitClave',
                 'CBC' => 'CryptoBossCoin',
@@ -113,6 +115,7 @@ class yobit extends Exchange {
                 'DIRT' => 'DIRTY',
                 'DROP' => 'FaucetCoin',
                 'DSH' => 'DASH',
+                'EGG' => 'EggCoin',
                 'EKO' => 'EkoCoin',
                 'ENTER' => 'ENTRC',
                 'EPC' => 'ExperienceCoin',
@@ -121,11 +124,14 @@ class yobit extends Exchange {
                 'EXT' => 'LifeExtension',
                 'FUND' => 'FUNDChains',
                 'FUNK' => 'FUNKCoin',
+                'FX' => 'FCoin',
                 'GCC' => 'GlobalCryptocurrency',
                 'GEN' => 'Genstake',
                 'GENE' => 'Genesiscoin',
                 'GOLD' => 'GoldMint',
                 'GOT' => 'Giotto Coin',
+                'GSX' => 'GlowShares',
+                'GT' => 'GTcoin',
                 'HTML5' => 'HTML',
                 'HYPERX' => 'HYPER',
                 'ICN' => 'iCoin',
@@ -153,6 +159,7 @@ class yobit extends Exchange {
                 'PIVX' => 'Darknet',
                 'PRS' => 'PRE',
                 'PUTIN' => 'PutinCoin',
+                'SPACE' => 'Spacecoin',
                 'STK' => 'StakeCoin',
                 'SUB' => 'Subscriptio',
                 'PAY' => 'EPAY',
@@ -162,11 +169,14 @@ class yobit extends Exchange {
                 'REP' => 'Republicoin',
                 'RUR' => 'RUB',
                 'SBTC' => 'Super Bitcoin',
+                'SOLO' => 'SoloCoin',
+                'SUPER' => 'SuperCoin',
                 'TTC' => 'TittieCoin',
                 'UNI' => 'Universe',
                 'UST' => 'Uservice',
                 'VOL' => 'VolumeCoin',
                 'XIN' => 'XINCoin',
+                'XMT' => 'SummitCoin',
                 'XRA' => 'Ratecoin',
             ),
             'options' => array(
@@ -256,7 +266,7 @@ class yobit extends Exchange {
             $account['total'] = $this->safe_string($total, $currencyId);
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function fetch_markets($params = array ()) {
@@ -271,7 +281,7 @@ class yobit extends Exchange {
         //                 "max_price":10000,
         //                 "min_amount":0.0001,
         //                 "min_total":0.0001,
-        //                 "$hidden":0,
+        //                 "hidden":0,
         //                 "fee":0.2,
         //                 "fee_buyer":0.2,
         //                 "fee_seller":0.2
@@ -325,6 +335,8 @@ class yobit extends Exchange {
                 'quote' => $quote,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
+                'type' => 'spot',
+                'spot' => true,
                 'active' => $active,
                 'taker' => $takerFee,
                 'maker' => $makerFee,
@@ -381,7 +393,7 @@ class yobit extends Exchange {
         for ($i = 0; $i < count($ids); $i++) {
             $id = $ids[$i];
             $symbol = $this->safe_symbol($id);
-            $result[$symbol] = $this->parse_order_book($response[$id]);
+            $result[$symbol] = $this->parse_order_book($response[$id], $symbol);
         }
         return $result;
     }
@@ -546,8 +558,6 @@ class yobit extends Exchange {
             'amount' => $this->amount_to_precision($symbol, $amount),
             'rate' => $this->price_to_precision($symbol, $price),
         );
-        $price = floatval($price);
-        $amount = floatval($amount);
         $response = yield $this->privatePostTrade (array_merge($request, $params));
         $id = null;
         $status = 'open';
@@ -610,13 +620,13 @@ class yobit extends Exchange {
         $timestamp = $this->safe_timestamp($order, 'timestamp_created');
         $marketId = $this->safe_string($order, 'pair');
         $symbol = $this->safe_symbol($marketId, $market);
-        $remaining = $this->safe_number($order, 'amount');
-        $amount = $this->safe_number($order, 'start_amount');
-        $price = $this->safe_number($order, 'rate');
+        $remaining = $this->safe_string($order, 'amount');
+        $amount = $this->safe_string($order, 'start_amount');
+        $price = $this->safe_string($order, 'rate');
         $fee = null;
         $type = 'limit';
         $side = $this->safe_string($order, 'type');
-        return $this->safe_order(array(
+        return $this->safe_order2(array(
             'info' => $order,
             'id' => $id,
             'clientOrderId' => null,
@@ -638,7 +648,7 @@ class yobit extends Exchange {
             'fee' => $fee,
             'average' => null,
             'trades' => null,
-        ));
+        ), $market);
     }
 
     public function fetch_order($id, $symbol = null, $params = array ()) {
@@ -734,11 +744,13 @@ class yobit extends Exchange {
             'currency' => $code,
             'address' => $address,
             'tag' => null,
+            'network' => null,
             'info' => $response,
         );
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->check_address($address);
         yield $this->load_markets();
         $currency = $this->currency($code);
@@ -805,8 +817,8 @@ class yobit extends Exchange {
             //
             // 1 - Liqui only returns the integer 'success' key from their private API
             //
-            //     array( "$success" => 1, ... ) $httpCode === 200
-            //     array( "$success" => 0, ... ) $httpCode === 200
+            //     array( "success" => 1, ... ) $httpCode === 200
+            //     array( "success" => 0, ... ) $httpCode === 200
             //
             // 2 - However, exchanges derived from Liqui, can return non-integers
             //
@@ -815,12 +827,12 @@ class yobit extends Exchange {
             //     array( "sucesss" => "0", ... ), $httpCode >= 200 (can be 403, 502, etc)
             //
             //     Or just a string
-            //     array( "$success" => "true", ... )
-            //     array( "$success" => "false", ... ), $httpCode >= 200
+            //     array( "success" => "true", ... )
+            //     array( "success" => "false", ... ), $httpCode >= 200
             //
             //     Or a boolean
-            //     array( "$success" => true, ... )
-            //     array( "$success" => false, ... ), $httpCode >= 200
+            //     array( "success" => true, ... )
+            //     array( "success" => false, ... ), $httpCode >= 200
             //
             // 3 - Oversimplified, Python PEP8 forbids comparison operator (===) of different types
             //

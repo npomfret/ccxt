@@ -22,7 +22,7 @@ class bitflyer extends Exchange {
             'hostname' => 'bitflyer.com', // or bitflyer.com
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchClosedOrders' => 'emulated',
@@ -90,12 +90,8 @@ class bitflyer extends Exchange {
             ),
             'fees' => array(
                 'trading' => array(
-                    'maker' => 0.2 / 100,
-                    'taker' => 0.2 / 100,
-                ),
-                'BTC/JPY' => array(
-                    'maker' => 0.15 / 100,
-                    'taker' => 0.15 / 100,
+                    'maker' => $this->parse_number('0.002'),
+                    'taker' => $this->parse_number('0.002'),
                 ),
             ),
         ));
@@ -193,7 +189,7 @@ class bitflyer extends Exchange {
             $account['free'] = $this->safe_string($balance, 'available');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -205,12 +201,8 @@ class bitflyer extends Exchange {
         return $this->parse_order_book($orderbook, $symbol, null, 'bids', 'asks', 'price', 'size');
     }
 
-    public function fetch_ticker($symbol, $params = array ()) {
-        $this->load_markets();
-        $request = array(
-            'product_code' => $this->market_id($symbol),
-        );
-        $ticker = $this->publicGetGetticker (array_merge($request, $params));
+    public function parse_ticker($ticker, $market = null) {
+        $symbol = $this->safe_symbol(null, $market);
         $timestamp = $this->parse8601($this->safe_string($ticker, 'timestamp'));
         $last = $this->safe_number($ticker, 'ltp');
         return array(
@@ -237,7 +229,41 @@ class bitflyer extends Exchange {
         );
     }
 
+    public function fetch_ticker($symbol, $params = array ()) {
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $request = array(
+            'product_code' => $market['id'],
+        );
+        $response = $this->publicGetGetticker (array_merge($request, $params));
+        return $this->parse_ticker($response, $market);
+    }
+
     public function parse_trade($trade, $market = null) {
+        //
+        // fetchTrades (public) v1
+        //
+        //     {
+        //          "id":2278466664,
+        //          "side":"SELL",
+        //          "price":56810.7,
+        //          "size":0.08798,
+        //          "exec_date":"2021-11-19T11:46:39.323",
+        //          "buy_child_order_acceptance_id":"JRF20211119-114209-236525",
+        //          "sell_child_order_acceptance_id":"JRF20211119-114639-236919"
+        //      }
+        //
+        //      {
+        //          "id":2278463423,
+        //          "side":"BUY",
+        //          "price":56757.83,
+        //          "size":0.6003,"exec_date":"2021-11-19T11:28:00.523",
+        //          "buy_child_order_acceptance_id":"JRF20211119-112800-236526",
+        //          "sell_child_order_acceptance_id":"JRF20211119-112734-062017"
+        //      }
+        //
+        //
+        //
         $side = $this->safe_string_lower($trade, 'side');
         if ($side !== null) {
             if (strlen($side) < 1) {
@@ -257,15 +283,12 @@ class bitflyer extends Exchange {
         $timestamp = $this->parse8601($this->safe_string($trade, 'exec_date'));
         $priceString = $this->safe_string($trade, 'price');
         $amountString = $this->safe_string($trade, 'size');
-        $price = $this->parse_number($priceString);
-        $amount = $this->parse_number($amountString);
-        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         $id = $this->safe_string($trade, 'id');
         $symbol = null;
         if ($market !== null) {
             $symbol = $market['symbol'];
         }
-        return array(
+        return $this->safe_trade(array(
             'id' => $id,
             'info' => $trade,
             'timestamp' => $timestamp,
@@ -275,11 +298,11 @@ class bitflyer extends Exchange {
             'type' => null,
             'side' => $side,
             'takerOrMaker' => null,
-            'price' => $price,
-            'amount' => $amount,
-            'cost' => $cost,
+            'price' => $priceString,
+            'amount' => $amountString,
+            'cost' => null,
             'fee' => null,
-        );
+        ), $market);
     }
 
     public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
@@ -335,10 +358,10 @@ class bitflyer extends Exchange {
 
     public function parse_order($order, $market = null) {
         $timestamp = $this->parse8601($this->safe_string($order, 'child_order_date'));
-        $amount = $this->safe_number($order, 'size');
-        $remaining = $this->safe_number($order, 'outstanding_size');
-        $filled = $this->safe_number($order, 'executed_size');
-        $price = $this->safe_number($order, 'price');
+        $price = $this->safe_string($order, 'price');
+        $amount = $this->safe_string($order, 'size');
+        $filled = $this->safe_string($order, 'executed_size');
+        $remaining = $this->safe_string($order, 'outstanding_size');
         $status = $this->parse_order_status($this->safe_string($order, 'child_order_state'));
         $type = $this->safe_string_lower($order, 'child_order_type');
         $side = $this->safe_string_lower($order, 'side');
@@ -354,7 +377,7 @@ class bitflyer extends Exchange {
             );
         }
         $id = $this->safe_string($order, 'child_order_acceptance_id');
-        return $this->safe_order(array(
+        return $this->safe_order2(array(
             'id' => $id,
             'clientOrderId' => null,
             'info' => $order,
@@ -376,7 +399,7 @@ class bitflyer extends Exchange {
             'fee' => $fee,
             'average' => null,
             'trades' => null,
-        ));
+        ), $market);
     }
 
     public function fetch_orders($symbol = null, $since = null, $limit = 100, $params = array ()) {
@@ -500,7 +523,7 @@ class bitflyer extends Exchange {
                 $request .= '?' . $this->urlencode($params);
             }
         }
-        $baseUrl = $this->implode_params($this->urls['api'], array( 'hostname' => $this->hostname ));
+        $baseUrl = $this->implode_hostname($this->urls['api']);
         $url = $baseUrl . $request;
         if ($api === 'private') {
             $this->check_required_credentials();

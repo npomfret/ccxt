@@ -19,7 +19,7 @@ class flowbtc(Exchange):
             'rateLimit': 1000,
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
+                'CORS': None,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchMarkets': True,
@@ -100,6 +100,9 @@ class flowbtc(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
+                'active': None,
                 'precision': precision,
                 'limits': {
                     'amount': {
@@ -116,7 +119,6 @@ class flowbtc(Exchange):
                     },
                 },
                 'info': market,
-                'active': None,
             }
         return result
 
@@ -133,7 +135,7 @@ class flowbtc(Exchange):
             account['free'] = self.safe_string(balance, 'balance')
             account['total'] = self.safe_string(balance, 'hold')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def fetch_order_book(self, symbol, limit=None, params={}):
         self.load_markets()
@@ -234,7 +236,7 @@ class flowbtc(Exchange):
                 'serverOrderId': id,
             }
             return self.privatePostCancelOrder(self.extend(request, params))
-        raise ExchangeError(self.id + ' cancelOrder() requires an `ins` symbol parameter for cancelling an order')
+        raise ExchangeError(self.id + ' cancelOrder() requires an `ins` parameter for cancelling an order')
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = self.urls['api'] + '/' + self.version + '/' + path
@@ -256,9 +258,9 @@ class flowbtc(Exchange):
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        response = self.fetch2(path, api, method, params, headers, body)
-        if 'isAccepted' in response:
-            if response['isAccepted']:
-                return response
-        raise ExchangeError(self.id + ' ' + self.json(response))
+    def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        if response is None:
+            return
+        isAccepted = self.safe_value(response, 'isAccepted', True)
+        if not isAccepted:
+            raise ExchangeError(self.id + ' ' + self.json(response))

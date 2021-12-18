@@ -19,7 +19,7 @@ module.exports = class liquid extends Exchange {
             'rateLimit': 1000,
             'has': {
                 'cancelOrder': true,
-                'CORS': false,
+                'CORS': undefined,
                 'createOrder': true,
                 'editOrder': true,
                 'fetchBalance': true,
@@ -34,6 +34,7 @@ module.exports = class liquid extends Exchange {
                 'fetchTicker': true,
                 'fetchTickers': true,
                 'fetchTrades': true,
+                'fetchWithdrawals': true,
                 'withdraw': true,
             },
             'urls': {
@@ -66,7 +67,9 @@ module.exports = class liquid extends Exchange {
                         'accounts/{id}',
                         'accounts/{currency}/reserved_balance_details',
                         'crypto_accounts', // add fetchAccounts
-                        'crypto_withdrawals', // add fetchWithdrawals
+                        'crypto_withdrawal',
+                        'crypto_withdrawals',
+                        'crypto_withdrawals/crypto_networks',
                         'executions/me',
                         'fiat_accounts', // add fetchAccounts
                         'fund_infos', // add fetchDeposits
@@ -81,6 +84,11 @@ module.exports = class liquid extends Exchange {
                         'trading_accounts/{id}',
                         'transactions',
                         'withdrawals', // add fetchWithdrawals
+                        'user/fee_tier',
+                        'user/fees',
+                        'trading_accounts/{id}',
+                        'bank_accounts',
+                        'accounts/{currency}/reserved_balance_details',
                     ],
                     'post': [
                         'crypto_withdrawals',
@@ -89,6 +97,7 @@ module.exports = class liquid extends Exchange {
                         'loan_bids',
                         'orders',
                         'withdrawals',
+                        'fees/estimate',
                     ],
                     'put': [
                         'crypto_withdrawal/{id}/cancel',
@@ -195,12 +204,19 @@ module.exports = class liquid extends Exchange {
                 'product_disabled': BadSymbol, // {"errors":{"order":["product_disabled"]}}
             },
             'commonCurrencies': {
-                'WIN': 'WCOIN',
                 'HOT': 'HOT Token',
                 'MIOTA': 'IOTA', // https://github.com/ccxt/ccxt/issues/7487
+                'TON': 'Tokamak Network',
+                'BIFI': 'Bifrost Finance',
             },
             'options': {
                 'cancelOrderException': true,
+                'networks': {
+                    'ETH': 'ERC20',
+                    'TRX': 'TRC20',
+                    'XLM': 'Stellar',
+                    'ALGO': 'Algorand',
+                },
             },
         });
     }
@@ -223,6 +239,15 @@ module.exports = class liquid extends Exchange {
         //             depositable: true,
         //             withdrawable: true,
         //             discount_fee: 0.5,
+        //             credit_card_fundable: false,
+        //             lendable: false,
+        //             position_fundable: true,
+        //             has_memo: false,
+        //             stable_currency: null,
+        //             root_currency: 'USD',
+        //             minimum_loan_bid_quantity: '0.0',
+        //             maximum_order_taker_quantity: null,
+        //             name: 'United States Dollar'
         //         },
         //     ]
         //
@@ -231,13 +256,14 @@ module.exports = class liquid extends Exchange {
             const currency = response[i];
             const id = this.safeString (currency, 'currency');
             const code = this.safeCurrencyCode (id);
+            const name = this.safeString (currency, 'name');
             const active = currency['depositable'] && currency['withdrawable'];
             const amountPrecision = this.safeInteger (currency, 'assets_precision');
             result[code] = {
                 'id': id,
                 'code': code,
                 'info': currency,
-                'name': code,
+                'name': name,
                 'active': active,
                 'fee': this.safeNumber (currency, 'withdrawal_fee'),
                 'precision': amountPrecision,
@@ -496,7 +522,7 @@ module.exports = class liquid extends Exchange {
             account['used'] = this.safeString (balance, 'reserved_balance');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -537,18 +563,8 @@ module.exports = class liquid extends Exchange {
         if (market !== undefined) {
             symbol = market['symbol'];
         }
-        let change = undefined;
-        let percentage = undefined;
-        let average = undefined;
         const open = this.safeNumber (ticker, 'last_price_24h');
-        if (open !== undefined && last !== undefined) {
-            change = last - open;
-            average = this.sum (last, open) / 2;
-            if (open > 0) {
-                percentage = change / open * 100;
-            }
-        }
-        return {
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -563,13 +579,13 @@ module.exports = class liquid extends Exchange {
             'close': last,
             'last': last,
             'previousClose': undefined,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': undefined,
+            'percentage': undefined,
+            'average': undefined,
             'baseVolume': this.safeNumber (ticker, 'volume_24h'),
             'quoteVolume': undefined,
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchTickers (symbols = undefined, params = {}) {
@@ -965,29 +981,40 @@ module.exports = class liquid extends Exchange {
     }
 
     async withdraw (code, amount, address, tag = undefined, params = {}) {
+        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
         this.checkAddress (address);
         await this.loadMarkets ();
         const currency = this.currency (code);
         const request = {
             // 'auth_code': '', // optional 2fa code
-            'currency': currency['id'],
-            'address': address,
-            'amount': this.currencyToPrecision (code, amount),
-            // 'payment_id': tag, // for XRP only
-            // 'memo_type': 'text', // 'text', 'id' or 'hash', for XLM only
-            // 'memo_value': tag, // for XLM only
+            'crypto_withdrawal': {
+                'currency': currency['id'],
+                'address': address,
+                'amount': amount,
+                // 'payment_id': tag, // for XRP only
+                // 'memo_type': 'text', // 'text', 'id' or 'hash', for XLM only
+                // 'memo_value': tag, // for XLM only
+            },
         };
         if (tag !== undefined) {
             if (code === 'XRP') {
-                request['payment_id'] = tag;
+                request['crypto_withdrawal']['payment_id'] = tag;
             } else if (code === 'XLM') {
-                request['memo_type'] = 'text'; // overrideable via params
-                request['memo_value'] = tag;
+                request['crypto_withdrawal']['memo_type'] = 'text'; // overrideable via params
+                request['crypto_withdrawal']['memo_value'] = tag;
             } else {
                 throw new NotSupported (this.id + ' withdraw() only supports a tag along the address for XRP or XLM');
             }
         }
-        const response = await this.privatePostCryptoWithdrawals (this.extend (request, params));
+        const networks = this.safeValue (this.options, 'networks', {});
+        const paramsCwArray = this.safeValue (params, 'crypto_withdrawal', {});
+        let network = this.safeStringUpper (paramsCwArray, 'network'); // this line allows the user to specify either ERC20 or ETH
+        network = this.safeString (networks, network, network); // handle ERC20>ETH alias
+        if (network !== undefined) {
+            request['crypto_withdrawal']['network'] = network;
+            params['crypto_withdrawal'] = this.omit (params['crypto_withdrawal'], 'network');
+        }
+        const response = await this.privatePostCryptoWithdrawals (this.deepExtend (request, params));
         //
         //     {
         //         "id": 1353,
@@ -1004,11 +1031,55 @@ module.exports = class liquid extends Exchange {
         return this.parseTransaction (response, currency);
     }
 
+    async fetchWithdrawals (code = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const request = {
+            // state: 'processed', // optional: pending, filed, cancelled, processing, processed, reverted to_be_reviewed, declined, broadcasted
+        };
+        let currency = undefined;
+        if (code !== undefined) {
+            currency = this.currency (code);
+        }
+        const response = await this.privateGetCryptoWithdrawals (this.extend (request, params));
+        //
+        //     {
+        //         models: [
+        //             {
+        //                 id: '2',
+        //                 address: '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2',
+        //                 amount: '0.01',
+        //                 state: 'processed',
+        //                 currency: 'BTC',
+        //                 withdrawal_fee: '0.0005',
+        //                 created_at: '1614718276',
+        //                 updated_at: '1614720926',
+        //                 payment_id: null,
+        //                 transaction_hash: 'xxxxxxxx...',
+        //                 broadcasted_at: '1614720762',
+        //                 wallet_label: 'btc',
+        //                 chain_name: 'Bitcoin',
+        //                 network: null
+        //             },
+        //         ],
+        //         current_page: '1',
+        //         total_pages: '1'
+        //     }
+        //
+        const transactions = this.safeValue (response, 'models', []);
+        return this.parseTransactions (transactions, currency, since, limit);
+    }
+
     parseTransactionStatus (status) {
         const statuses = {
             'pending': 'pending',
             'cancelled': 'canceled',
             'approved': 'ok',
+            'processing': 'pending',
+            'processed': 'ok',
+            'reverted': 'failed',
+            'to_be_reviewed': 'pending',
+            'declined': 'failed',
+            'broadcasted': 'ok',
         };
         return this.safeString (statuses, status, status);
     }
@@ -1018,32 +1089,58 @@ module.exports = class liquid extends Exchange {
         // withdraw
         //
         //     {
-        //         "id": 1353,
-        //         "address": "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
-        //         "amount": 1.0,
-        //         "state": "pending",
-        //         "currency": "BTC",
-        //         "withdrawal_fee": 0.0,
-        //         "created_at": 1568016450,
-        //         "updated_at": 1568016450,
-        //         "payment_id": null
-        //     }
+        //         id: '1',
+        //         address: '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2',
+        //         amount: '0.01',
+        //         state: 'pending',
+        //         currency: 'BTC',
+        //         withdrawal_fee: '0.0007',
+        //         created_at: '1626000533',
+        //         updated_at: '1626000533',
+        //         payment_id: null,
+        //         transaction_hash: null,
+        //         broadcasted_at: null,
+        //         wallet_label: null,
+        //         chain_name: 'Bitcoin',
+        //         network: null
+        //     },
         //
-        // fetchDeposits, fetchWithdrawals
+        // fetchWithdrawals
+        //
+        //     {
+        //         id: '2',
+        //         address: '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2',
+        //         amount: '0.01',
+        //         state: 'processed',
+        //         currency: 'BTC',
+        //         withdrawal_fee: '0.0005',
+        //         created_at: '1614718276',
+        //         updated_at: '1614720926',
+        //         payment_id: '',
+        //         transaction_hash: 'xxxxxxxx...',
+        //         broadcasted_at: '1614720762',
+        //         wallet_label: 'btc',
+        //         chain_name: 'Bitcoin',
+        //         network: null
+        //     },
+        //
+        // fetchDeposits
         //
         //     ...
         //
         const id = this.safeString (transaction, 'id');
         const address = this.safeString (transaction, 'address');
         const tag = this.safeString2 (transaction, 'payment_id', 'memo_value');
-        const txid = undefined;
-        const currencyId = this.safeString (transaction, 'asset');
+        const txid = this.safeString (transaction, 'transaction_hash');
+        const currencyId = this.safeString2 (transaction, 'currency', 'asset');
         const code = this.safeCurrencyCode (currencyId, currency);
         const timestamp = this.safeTimestamp (transaction, 'created_at');
         const updated = this.safeTimestamp (transaction, 'updated_at');
         const type = 'withdrawal';
         const status = this.parseTransactionStatus (this.safeString (transaction, 'state'));
-        const amount = this.safeNumber (transaction, 'amount');
+        const amountString = this.safeString (transaction, 'amount');
+        const feeCostString = this.safeString (transaction, 'withdrawal_fee');
+        const amount = this.parseNumber (Precise.stringSub (amountString, feeCostString));
         return {
             'info': transaction,
             'id': id,
@@ -1057,7 +1154,10 @@ module.exports = class liquid extends Exchange {
             'currency': code,
             'status': status,
             'updated': updated,
-            'fee': undefined,
+            'fee': {
+                'currency': code,
+                'cost': this.parseNumber (feeCostString),
+            },
         };
     }
 

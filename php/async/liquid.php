@@ -24,7 +24,7 @@ class liquid extends Exchange {
             'rateLimit' => 1000,
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createOrder' => true,
                 'editOrder' => true,
                 'fetchBalance' => true,
@@ -39,6 +39,7 @@ class liquid extends Exchange {
                 'fetchTicker' => true,
                 'fetchTickers' => true,
                 'fetchTrades' => true,
+                'fetchWithdrawals' => true,
                 'withdraw' => true,
             ),
             'urls' => array(
@@ -71,7 +72,9 @@ class liquid extends Exchange {
                         'accounts/{id}',
                         'accounts/{currency}/reserved_balance_details',
                         'crypto_accounts', // add fetchAccounts
-                        'crypto_withdrawals', // add fetchWithdrawals
+                        'crypto_withdrawal',
+                        'crypto_withdrawals',
+                        'crypto_withdrawals/crypto_networks',
                         'executions/me',
                         'fiat_accounts', // add fetchAccounts
                         'fund_infos', // add fetchDeposits
@@ -86,6 +89,11 @@ class liquid extends Exchange {
                         'trading_accounts/{id}',
                         'transactions',
                         'withdrawals', // add fetchWithdrawals
+                        'user/fee_tier',
+                        'user/fees',
+                        'trading_accounts/{id}',
+                        'bank_accounts',
+                        'accounts/{currency}/reserved_balance_details',
                     ),
                     'post' => array(
                         'crypto_withdrawals',
@@ -94,6 +102,7 @@ class liquid extends Exchange {
                         'loan_bids',
                         'orders',
                         'withdrawals',
+                        'fees/estimate',
                     ),
                     'put' => array(
                         'crypto_withdrawal/{id}/cancel',
@@ -200,12 +209,19 @@ class liquid extends Exchange {
                 'product_disabled' => '\\ccxt\\BadSymbol', // array("errors":array("order":["product_disabled"]))
             ),
             'commonCurrencies' => array(
-                'WIN' => 'WCOIN',
                 'HOT' => 'HOT Token',
                 'MIOTA' => 'IOTA', // https://github.com/ccxt/ccxt/issues/7487
+                'TON' => 'Tokamak Network',
+                'BIFI' => 'Bifrost Finance',
             ),
             'options' => array(
                 'cancelOrderException' => true,
+                'networks' => array(
+                    'ETH' => 'ERC20',
+                    'TRX' => 'TRC20',
+                    'XLM' => 'Stellar',
+                    'ALGO' => 'Algorand',
+                ),
             ),
         ));
     }
@@ -228,6 +244,15 @@ class liquid extends Exchange {
         //             depositable => true,
         //             withdrawable => true,
         //             discount_fee => 0.5,
+        //             credit_card_fundable => false,
+        //             lendable => false,
+        //             position_fundable => true,
+        //             has_memo => false,
+        //             stable_currency => null,
+        //             root_currency => 'USD',
+        //             minimum_loan_bid_quantity => '0.0',
+        //             maximum_order_taker_quantity => null,
+        //             $name => 'United States Dollar'
         //         ),
         //     )
         //
@@ -236,13 +261,14 @@ class liquid extends Exchange {
             $currency = $response[$i];
             $id = $this->safe_string($currency, 'currency');
             $code = $this->safe_currency_code($id);
+            $name = $this->safe_string($currency, 'name');
             $active = $currency['depositable'] && $currency['withdrawable'];
             $amountPrecision = $this->safe_integer($currency, 'assets_precision');
             $result[$code] = array(
                 'id' => $id,
                 'code' => $code,
                 'info' => $currency,
-                'name' => $code,
+                'name' => $name,
                 'active' => $active,
                 'fee' => $this->safe_number($currency, 'withdrawal_fee'),
                 'precision' => $amountPrecision,
@@ -266,7 +292,7 @@ class liquid extends Exchange {
         //
         //     array(
         //         array(
-        //             "$id":"637",
+        //             "id":"637",
         //             "product_type":"CurrencyPair",
         //             "code":"CASH",
         //             "name":null,
@@ -275,7 +301,7 @@ class liquid extends Exchange {
         //             "indicator":null,
         //             "currency":"BTC",
         //             "currency_pair_code":"TFTBTC",
-        //             "$symbol":null,
+        //             "symbol":null,
         //             "btc_minimum_withdraw":null,
         //             "fiat_minimum_withdraw":null,
         //             "pusher_channel":"product_cash_tftbtc_637",
@@ -291,7 +317,7 @@ class liquid extends Exchange {
         //             "quoted_currency":"BTC",
         //             "base_currency":"TFT",
         //             "tick_size":"0.00000001",
-        //             "$disabled":false,
+        //             "disabled":false,
         //             "margin_enabled":false,
         //             "cfd_enabled":false,
         //             "perpetual_enabled":false,
@@ -307,7 +333,7 @@ class liquid extends Exchange {
         //
         //     array(
         //         array(
-        //             "$id":"604",
+        //             "id":"604",
         //             "product_type":"Perpetual",
         //             "code":"CASH",
         //             "name":null,
@@ -316,7 +342,7 @@ class liquid extends Exchange {
         //             "indicator":null,
         //             "currency":"USD",
         //             "currency_pair_code":"P-BTCUSD",
-        //             "$symbol":"$",
+        //             "symbol":"$",
         //             "btc_minimum_withdraw":null,
         //             "fiat_minimum_withdraw":null,
         //             "pusher_channel":"product_cash_p-btcusd_604",
@@ -332,7 +358,7 @@ class liquid extends Exchange {
         //             "quoted_currency":"USD",
         //             "base_currency":"P-BTC",
         //             "tick_size":"0.5",
-        //             "$disabled":false,
+        //             "disabled":false,
         //             "margin_enabled":false,
         //             "cfd_enabled":false,
         //             "perpetual_enabled":true,
@@ -501,7 +527,7 @@ class liquid extends Exchange {
             $account['used'] = $this->safe_string($balance, 'reserved_balance');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -542,18 +568,8 @@ class liquid extends Exchange {
         if ($market !== null) {
             $symbol = $market['symbol'];
         }
-        $change = null;
-        $percentage = null;
-        $average = null;
         $open = $this->safe_number($ticker, 'last_price_24h');
-        if ($open !== null && $last !== null) {
-            $change = $last - $open;
-            $average = $this->sum($last, $open) / 2;
-            if ($open > 0) {
-                $percentage = $change / $open * 100;
-            }
-        }
-        return array(
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -568,13 +584,13 @@ class liquid extends Exchange {
             'close' => $last,
             'last' => $last,
             'previousClose' => null,
-            'change' => $change,
-            'percentage' => $percentage,
-            'average' => $average,
+            'change' => null,
+            'percentage' => null,
+            'average' => null,
             'baseVolume' => $this->safe_number($ticker, 'volume_24h'),
             'quoteVolume' => null,
             'info' => $ticker,
-        );
+        ), $market);
     }
 
     public function fetch_tickers($symbols = null, $params = array ()) {
@@ -701,9 +717,9 @@ class liquid extends Exchange {
         //         "quantity" => "0.01",
         //         "disc_quantity" => "0.0",
         //         "iceberg_total_quantity" => "0.0",
-        //         "$side" => "sell",
+        //         "side" => "sell",
         //         "filled_quantity" => "0.0",
-        //         "$price" => "500.0",
+        //         "price" => "500.0",
         //         "created_at" => 1462123639,
         //         "updated_at" => 1462123639,
         //         "status" => "live",
@@ -770,12 +786,12 @@ class liquid extends Exchange {
         //         "quantity" => "0.01",
         //         "disc_quantity" => "0.0",
         //         "iceberg_total_quantity" => "0.0",
-        //         "$side" => "sell",
+        //         "side" => "sell",
         //         "filled_quantity" => "0.0",
-        //         "$price" => "500.0",
+        //         "price" => "500.0",
         //         "created_at" => 1462123639,
         //         "updated_at" => 1462123639,
-        //         "$status" => "live",
+        //         "status" => "live",
         //         "leverage_level" => 1,
         //         "source_exchange" => "QUOINE",
         //         "product_id" => 1,
@@ -794,12 +810,12 @@ class liquid extends Exchange {
         //         "quantity" => "0.01",
         //         "disc_quantity" => "0.0",
         //         "iceberg_total_quantity" => "0.0",
-        //         "$side" => "sell",
+        //         "side" => "sell",
         //         "filled_quantity" => "0.01",
-        //         "$price" => "500.0",
+        //         "price" => "500.0",
         //         "created_at" => 1462123639,
         //         "updated_at" => 1462123639,
-        //         "$status" => "$filled",
+        //         "status" => "filled",
         //         "leverage_level" => 2,
         //         "source_exchange" => "QUOINE",
         //         "product_id" => 1,
@@ -811,7 +827,7 @@ class liquid extends Exchange {
         //             {
         //                 "id" => 4566133,
         //                 "quantity" => "0.01",
-        //                 "$price" => "500.0",
+        //                 "price" => "500.0",
         //                 "taker_side" => "buy",
         //                 "my_side" => "sell",
         //                 "created_at" => 1465396785
@@ -931,7 +947,7 @@ class liquid extends Exchange {
         //         "models" => array(
         //             {
         //                 "id" => 2157474,
-        //                 "order_type" => "$limit",
+        //                 "order_type" => "limit",
         //                 "quantity" => "0.01",
         //                 "disc_quantity" => "0.0",
         //                 "iceberg_total_quantity" => "0.0",
@@ -970,36 +986,47 @@ class liquid extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->check_address($address);
         yield $this->load_markets();
         $currency = $this->currency($code);
         $request = array(
             // 'auth_code' => '', // optional 2fa $code
-            'currency' => $currency['id'],
-            'address' => $address,
-            'amount' => $this->currency_to_precision($code, $amount),
-            // 'payment_id' => $tag, // for XRP only
-            // 'memo_type' => 'text', // 'text', 'id' or 'hash', for XLM only
-            // 'memo_value' => $tag, // for XLM only
+            'crypto_withdrawal' => array(
+                'currency' => $currency['id'],
+                'address' => $address,
+                'amount' => $amount,
+                // 'payment_id' => $tag, // for XRP only
+                // 'memo_type' => 'text', // 'text', 'id' or 'hash', for XLM only
+                // 'memo_value' => $tag, // for XLM only
+            ),
         );
         if ($tag !== null) {
             if ($code === 'XRP') {
-                $request['payment_id'] = $tag;
+                $request['crypto_withdrawal']['payment_id'] = $tag;
             } else if ($code === 'XLM') {
-                $request['memo_type'] = 'text'; // overrideable via $params
-                $request['memo_value'] = $tag;
+                $request['crypto_withdrawal']['memo_type'] = 'text'; // overrideable via $params
+                $request['crypto_withdrawal']['memo_value'] = $tag;
             } else {
                 throw new NotSupported($this->id . ' withdraw() only supports a $tag along the $address for XRP or XLM');
             }
         }
-        $response = yield $this->privatePostCryptoWithdrawals (array_merge($request, $params));
+        $networks = $this->safe_value($this->options, 'networks', array());
+        $paramsCwArray = $this->safe_value($params, 'crypto_withdrawal', array());
+        $network = $this->safe_string_upper($paramsCwArray, 'network'); // this line allows the user to specify either ERC20 or ETH
+        $network = $this->safe_string($networks, $network, $network); // handle ERC20>ETH alias
+        if ($network !== null) {
+            $request['crypto_withdrawal']['network'] = $network;
+            $params['crypto_withdrawal'] = $this->omit($params['crypto_withdrawal'], 'network');
+        }
+        $response = yield $this->privatePostCryptoWithdrawals ($this->deep_extend($request, $params));
         //
         //     {
         //         "id" => 1353,
-        //         "$address" => "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
-        //         "$amount" => 1.0,
+        //         "address" => "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
+        //         "amount" => 1.0,
         //         "state" => "pending",
-        //         "$currency" => "BTC",
+        //         "currency" => "BTC",
         //         "withdrawal_fee" => 0.0,
         //         "created_at" => 1568016450,
         //         "updated_at" => 1568016450,
@@ -1009,11 +1036,55 @@ class liquid extends Exchange {
         return $this->parse_transaction($response, $currency);
     }
 
+    public function fetch_withdrawals($code = null, $since = null, $limit = null, $params = array ()) {
+        yield $this->load_markets();
+        $request = array(
+            // state => 'processed', // optional => pending, filed, cancelled, processing, processed, reverted to_be_reviewed, declined, broadcasted
+        );
+        $currency = null;
+        if ($code !== null) {
+            $currency = $this->currency($code);
+        }
+        $response = yield $this->privateGetCryptoWithdrawals (array_merge($request, $params));
+        //
+        //     {
+        //         models => array(
+        //             array(
+        //                 id => '2',
+        //                 address => '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2',
+        //                 amount => '0.01',
+        //                 state => 'processed',
+        //                 $currency => 'BTC',
+        //                 withdrawal_fee => '0.0005',
+        //                 created_at => '1614718276',
+        //                 updated_at => '1614720926',
+        //                 payment_id => null,
+        //                 transaction_hash => 'xxxxxxxx...',
+        //                 broadcasted_at => '1614720762',
+        //                 wallet_label => 'btc',
+        //                 chain_name => 'Bitcoin',
+        //                 network => null
+        //             ),
+        //         ),
+        //         current_page => '1',
+        //         total_pages => '1'
+        //     }
+        //
+        $transactions = $this->safe_value($response, 'models', array());
+        return $this->parse_transactions($transactions, $currency, $since, $limit);
+    }
+
     public function parse_transaction_status($status) {
         $statuses = array(
             'pending' => 'pending',
             'cancelled' => 'canceled',
             'approved' => 'ok',
+            'processing' => 'pending',
+            'processed' => 'ok',
+            'reverted' => 'failed',
+            'to_be_reviewed' => 'pending',
+            'declined' => 'failed',
+            'broadcasted' => 'ok',
         );
         return $this->safe_string($statuses, $status, $status);
     }
@@ -1022,33 +1093,59 @@ class liquid extends Exchange {
         //
         // withdraw
         //
-        //     {
-        //         "$id" => 1353,
-        //         "$address" => "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
-        //         "$amount" => 1.0,
-        //         "state" => "pending",
-        //         "$currency" => "BTC",
-        //         "withdrawal_fee" => 0.0,
-        //         "created_at" => 1568016450,
-        //         "updated_at" => 1568016450,
-        //         "payment_id" => null
-        //     }
+        //     array(
+        //         $id => '1',
+        //         $address => '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2',
+        //         $amount => '0.01',
+        //         state => 'pending',
+        //         $currency => 'BTC',
+        //         withdrawal_fee => '0.0007',
+        //         created_at => '1626000533',
+        //         updated_at => '1626000533',
+        //         payment_id => null,
+        //         transaction_hash => null,
+        //         broadcasted_at => null,
+        //         wallet_label => null,
+        //         chain_name => 'Bitcoin',
+        //         network => null
+        //     ),
         //
-        // fetchDeposits, fetchWithdrawals
+        // fetchWithdrawals
+        //
+        //     array(
+        //         $id => '2',
+        //         $address => '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2',
+        //         $amount => '0.01',
+        //         state => 'processed',
+        //         $currency => 'BTC',
+        //         withdrawal_fee => '0.0005',
+        //         created_at => '1614718276',
+        //         updated_at => '1614720926',
+        //         payment_id => '',
+        //         transaction_hash => 'xxxxxxxx...',
+        //         broadcasted_at => '1614720762',
+        //         wallet_label => 'btc',
+        //         chain_name => 'Bitcoin',
+        //         network => null
+        //     ),
+        //
+        // fetchDeposits
         //
         //     ...
         //
         $id = $this->safe_string($transaction, 'id');
         $address = $this->safe_string($transaction, 'address');
         $tag = $this->safe_string_2($transaction, 'payment_id', 'memo_value');
-        $txid = null;
-        $currencyId = $this->safe_string($transaction, 'asset');
+        $txid = $this->safe_string($transaction, 'transaction_hash');
+        $currencyId = $this->safe_string_2($transaction, 'currency', 'asset');
         $code = $this->safe_currency_code($currencyId, $currency);
         $timestamp = $this->safe_timestamp($transaction, 'created_at');
         $updated = $this->safe_timestamp($transaction, 'updated_at');
         $type = 'withdrawal';
         $status = $this->parse_transaction_status($this->safe_string($transaction, 'state'));
-        $amount = $this->safe_number($transaction, 'amount');
+        $amountString = $this->safe_string($transaction, 'amount');
+        $feeCostString = $this->safe_string($transaction, 'withdrawal_fee');
+        $amount = $this->parse_number(Precise::string_sub($amountString, $feeCostString));
         return array(
             'info' => $transaction,
             'id' => $id,
@@ -1062,7 +1159,10 @@ class liquid extends Exchange {
             'currency' => $code,
             'status' => $status,
             'updated' => $updated,
-            'fee' => null,
+            'fee' => array(
+                'currency' => $code,
+                'cost' => $this->parse_number($feeCostString),
+            ),
         );
     }
 
@@ -1125,14 +1225,14 @@ class liquid extends Exchange {
         $errors = $this->safe_value($response, 'errors');
         if ($message !== null) {
             //
-            //  array( "$message" => "Order not found" )
+            //  array( "message" => "Order not found" )
             //
             $this->throw_exactly_matched_exception($this->exceptions, $message, $feedback);
         } else if ($errors !== null) {
             //
-            //  array( "$errors" => array( "user" => ["not_enough_free_balance"] ))
-            //  array( "$errors" => array( "quantity" => ["less_than_order_size"] ))
-            //  array( "$errors" => array( "order" => ["Can not update partially filled order"] ))
+            //  array( "errors" => array( "user" => ["not_enough_free_balance"] ))
+            //  array( "errors" => array( "quantity" => ["less_than_order_size"] ))
+            //  array( "errors" => array( "order" => ["Can not update partially filled order"] ))
             //
             $types = is_array($errors) ? array_keys($errors) : array();
             for ($i = 0; $i < count($types); $i++) {

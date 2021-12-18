@@ -29,7 +29,7 @@ class timex(Exchange):
             'has': {
                 'cancelOrder': True,
                 'cancelOrders': True,
-                'CORS': False,
+                'CORS': None,
                 'createOrder': True,
                 'editOrder': True,
                 'fetchBalance': True,
@@ -457,7 +457,7 @@ class timex(Exchange):
             account['total'] = self.safe_string(balance, 'totalBalance')
             account['used'] = self.safe_string(balance, 'lockedBalance')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
@@ -778,6 +778,22 @@ class timex(Exchange):
         trades = self.safe_value(response, 'trades', [])
         return self.parse_trades(trades, market, since, limit)
 
+    def parse_trading_fee(self, fee, market=None):
+        #
+        #     {
+        #         "fee": 0.0075,
+        #         "market": "ETHBTC"
+        #     }
+        #
+        marketId = self.safe_string(fee, 'market')
+        rate = self.safe_number(fee, 'fee')
+        return {
+            'info': fee,
+            'symbol': self.safe_symbol(marketId, market),
+            'maker': rate,
+            'taker': rate,
+        }
+
     async def fetch_trading_fee(self, symbol, params={}):
         await self.load_markets()
         market = self.market(symbol)
@@ -794,11 +810,7 @@ class timex(Exchange):
         #     ]
         #
         result = self.safe_value(response, 0, {})
-        return {
-            'info': response,
-            'maker': self.safe_number(result, 'fee'),
-            'taker': None,
-        }
+        return self.parse_trading_fee(result, market)
 
     def parse_market(self, market):
         #
@@ -852,6 +864,7 @@ class timex(Exchange):
             'baseId': baseId,
             'quoteId': quoteId,
             'type': 'spot',
+            'spot': True,
             'active': active,
             'precision': precision,
             'limits': limits,
@@ -913,12 +926,12 @@ class timex(Exchange):
             if dotIndex > 0:
                 whole = feeString[0:dotIndex]
                 fraction = feeString[-dotIndex:]
-                fee = float(whole + '.' + fraction)
+                fee = self.parse_number(whole + '.' + fraction)
             else:
                 fraction = '.'
                 for i in range(0, -dotIndex):
                     fraction += '0'
-                fee = float(fraction + feeString)
+                fee = self.parse_number(fraction + feeString)
         return {
             'id': code,
             'code': code,
@@ -955,15 +968,7 @@ class timex(Exchange):
         timestamp = self.parse8601(self.safe_string(ticker, 'timestamp'))
         last = self.safe_number(ticker, 'last')
         open = self.safe_number(ticker, 'open')
-        change = None
-        average = None
-        if last is not None and open is not None:
-            change = last - open
-            average = self.sum(last, open) / 2
-        percentage = None
-        if change is not None and open:
-            percentage = (change / open) * 100
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'info': ticker,
             'timestamp': timestamp,
@@ -979,12 +984,12 @@ class timex(Exchange):
             'close': last,
             'last': last,
             'previousClose': None,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': None,
+            'percentage': None,
+            'average': None,
             'baseVolume': self.safe_number(ticker, 'volume'),
             'quoteVolume': self.safe_number(ticker, 'volumeQuote'),
-        }
+        }, market)
 
     def parse_trade(self, trade, market=None):
         #

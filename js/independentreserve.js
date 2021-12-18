@@ -16,7 +16,7 @@ module.exports = class independentreserve extends Exchange {
             'rateLimit': 1000,
             'has': {
                 'cancelOrder': true,
-                'CORS': false,
+                'CORS': undefined,
                 'createOrder': true,
                 'fetchBalance': true,
                 'fetchClosedOrders': true,
@@ -52,26 +52,31 @@ module.exports = class independentreserve extends Exchange {
                         'GetTradeHistorySummary',
                         'GetRecentTrades',
                         'GetFxRates',
+                        'GetOrderMinimumVolumes',
+                        'GetCryptoWithdrawalFees',
                     ],
                 },
                 'private': {
                     'post': [
-                        'PlaceLimitOrder',
-                        'PlaceMarketOrder',
-                        'CancelOrder',
                         'GetOpenOrders',
                         'GetClosedOrders',
                         'GetClosedFilledOrders',
                         'GetOrderDetails',
                         'GetAccounts',
                         'GetTransactions',
+                        'GetFiatBankAccounts',
                         'GetDigitalCurrencyDepositAddress',
                         'GetDigitalCurrencyDepositAddresses',
-                        'SynchDigitalCurrencyDepositAddressWithBlockchain',
-                        'WithdrawDigitalCurrency',
-                        'RequestFiatWithdrawal',
                         'GetTrades',
                         'GetBrokerageFees',
+                        'GetDigitalCurrencyWithdrawal',
+                        'PlaceLimitOrder',
+                        'PlaceMarketOrder',
+                        'CancelOrder',
+                        'SynchDigitalCurrencyDepositAddressWithBlockchain',
+                        'RequestFiatWithdrawal',
+                        'WithdrawFiatCurrency',
+                        'WithdrawDigitalCurrency',
                     ],
                 },
             },
@@ -92,10 +97,22 @@ module.exports = class independentreserve extends Exchange {
     async fetchMarkets (params = {}) {
         const baseCurrencies = await this.publicGetGetValidPrimaryCurrencyCodes (params);
         const quoteCurrencies = await this.publicGetGetValidSecondaryCurrencyCodes (params);
+        const limits = await this.publicGetGetOrderMinimumVolumes (params);
+        //
+        //     {
+        //         "Xbt": 0.0001,
+        //         "Bch": 0.001,
+        //         "Bsv": 0.001,
+        //         "Eth": 0.001,
+        //         "Ltc": 0.01,
+        //         "Xrp": 1,
+        //     }
+        //
         const result = [];
         for (let i = 0; i < baseCurrencies.length; i++) {
             const baseId = baseCurrencies[i];
             const base = this.safeCurrencyCode (baseId);
+            const minAmount = this.safeNumber (limits, baseId);
             for (let j = 0; j < quoteCurrencies.length; j++) {
                 const quoteId = quoteCurrencies[j];
                 const quote = this.safeCurrencyCode (quoteId);
@@ -109,9 +126,13 @@ module.exports = class independentreserve extends Exchange {
                     'baseId': baseId,
                     'quoteId': quoteId,
                     'info': id,
+                    'type': 'spot',
+                    'spot': true,
                     'active': undefined,
                     'precision': this.precision,
-                    'limits': this.limits,
+                    'limits': {
+                        'amount': { 'min': minAmount, 'max': undefined },
+                    },
                 });
             }
         }
@@ -131,7 +152,7 @@ module.exports = class independentreserve extends Exchange {
             account['total'] = this.safeString (balance, 'TotalBalance');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -250,12 +271,12 @@ module.exports = class independentreserve extends Exchange {
             orderType = 'limit';
         }
         const timestamp = this.parse8601 (this.safeString (order, 'CreatedTimestampUtc'));
-        const amount = this.safeNumber2 (order, 'VolumeOrdered', 'Volume');
-        const filled = this.safeNumber (order, 'VolumeFilled');
-        const remaining = this.safeNumber (order, 'Outstanding');
+        const amount = this.safeString2 (order, 'VolumeOrdered', 'Volume');
+        const filled = this.safeString (order, 'VolumeFilled');
+        const remaining = this.safeString (order, 'Outstanding');
         const feeRate = this.safeNumber (order, 'FeePercent');
         let feeCost = undefined;
-        if (feeRate !== undefined) {
+        if (feeRate !== undefined && filled !== undefined) {
             feeCost = feeRate * filled;
         }
         const fee = {
@@ -265,10 +286,10 @@ module.exports = class independentreserve extends Exchange {
         };
         const id = this.safeString (order, 'OrderGuid');
         const status = this.parseOrderStatus (this.safeString (order, 'Status'));
-        const cost = this.safeNumber (order, 'Value');
-        const average = this.safeNumber (order, 'AvgPrice');
-        const price = this.safeNumber (order, 'Price');
-        return this.safeOrder ({
+        const cost = this.safeString (order, 'Value');
+        const average = this.safeString (order, 'AvgPrice');
+        const price = this.safeString (order, 'Price');
+        return this.safeOrder2 ({
             'info': order,
             'id': id,
             'clientOrderId': undefined,
@@ -290,7 +311,7 @@ module.exports = class independentreserve extends Exchange {
             'status': status,
             'fee': fee,
             'trades': undefined,
-        });
+        }, market);
     }
 
     parseOrderStatus (status) {

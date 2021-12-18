@@ -19,14 +19,14 @@ class zaif extends Exchange {
             'version' => '1',
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
-                'createMarketOrder' => false,
+                'CORS' => null,
+                'createMarketOrder' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchClosedOrders' => true,
                 'fetchMarkets' => true,
-                'fetchOrderBook' => true,
                 'fetchOpenOrders' => true,
+                'fetchOrderBook' => true,
                 'fetchTicker' => true,
                 'fetchTrades' => true,
                 'withdraw' => true,
@@ -47,8 +47,8 @@ class zaif extends Exchange {
             'fees' => array(
                 'trading' => array(
                     'percentage' => true,
-                    'taker' => 0.1 / 100,
-                    'maker' => 0,
+                    'taker' => $this->parse_number('0.001'),
+                    'maker' => $this->parse_number('0'),
                 ),
             ),
             'api' => array(
@@ -142,9 +142,9 @@ class zaif extends Exchange {
         //             "is_token" => false,
         //             "aux_unit_min" => 5.0,
         //             "aux_japanese" => "\u65e5\u672c\u5186",
-        //             "$id" => 1,
+        //             "id" => 1,
         //             "item_unit_step" => 0.0001,
-        //             "$name" => "BTC/JPY",
+        //             "name" => "BTC/JPY",
         //             "seq" => 0,
         //             "title" => "BTC/JPY"
         //         }
@@ -173,6 +173,8 @@ class zaif extends Exchange {
                 'quote' => $quote,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
+                'type' => 'spot',
+                'spot' => true,
                 'active' => true, // can trade or not
                 'precision' => $precision,
                 'taker' => $taker,
@@ -223,7 +225,7 @@ class zaif extends Exchange {
             }
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -349,9 +351,9 @@ class zaif extends Exchange {
         //     {
         //         "currency_pair" => "btc_jpy",
         //         "action" => "ask",
-        //         "$amount" => 0.03,
-        //         "$price" => 56000,
-        //         "$timestamp" => 1402021125,
+        //         "amount" => 0.03,
+        //         "price" => 56000,
+        //         "timestamp" => 1402021125,
         //         "comment" : "demo"
         //     }
         //
@@ -360,10 +362,10 @@ class zaif extends Exchange {
         $timestamp = $this->safe_timestamp($order, 'timestamp');
         $marketId = $this->safe_string($order, 'currency_pair');
         $symbol = $this->safe_symbol($marketId, $market, '_');
-        $price = $this->safe_number($order, 'price');
-        $amount = $this->safe_number($order, 'amount');
+        $price = $this->safe_string($order, 'price');
+        $amount = $this->safe_string($order, 'amount');
         $id = $this->safe_string($order, 'id');
-        return $this->safe_order(array(
+        return $this->safe_order2(array(
             'id' => $id,
             'clientOrderId' => null,
             'timestamp' => $timestamp,
@@ -385,7 +387,7 @@ class zaif extends Exchange {
             'fee' => null,
             'info' => $order,
             'average' => null,
-        ));
+        ), $market);
     }
 
     public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -425,6 +427,7 @@ class zaif extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->check_address($address);
         $this->load_markets();
         $currency = $this->currency($code);
@@ -488,7 +491,7 @@ class zaif extends Exchange {
             return;
         }
         //
-        //     array("$error" => "unsupported currency_pair")
+        //     array("error" => "unsupported currency_pair")
         //
         $feedback = $this->id . ' ' . $body;
         $error = $this->safe_string($response, 'error');

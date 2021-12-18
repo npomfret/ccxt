@@ -17,6 +17,7 @@ from ccxt.base.errors import InvalidAddress
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import NotSupported
+from ccxt.base.errors import ExchangeNotAvailable
 from ccxt.base.errors import OnMaintenance
 from ccxt.base.errors import InvalidNonce
 from ccxt.base.precise import Precise
@@ -34,31 +35,34 @@ class bitfinex2(bitfinex):
             'pro': False,
             # new metainfo interface
             'has': {
-                'CORS': False,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
+                'CORS': None,
                 'createDepositAddress': True,
                 'createLimitOrder': True,
                 'createMarketOrder': True,
                 'createOrder': True,
-                'deposit': False,
-                'editOrder': False,
+                'deposit': None,
+                'editOrder': None,
                 'fetchBalance': True,
                 'fetchClosedOrder': True,
-                'fetchClosedOrders': False,
+                'fetchClosedOrders': None,
                 'fetchCurrencies': True,
                 'fetchDepositAddress': True,
-                'fetchFundingFees': False,
+                'fetchFundingFees': None,
+                'fetchIndexOHLCV': False,
+                'fetchMarkOHLCV': False,
                 'fetchMyTrades': True,
                 'fetchOHLCV': True,
                 'fetchOpenOrder': True,
                 'fetchOpenOrders': True,
-                'fetchOrder': False,
+                'fetchOrder': None,
                 'fetchOrderTrades': True,
                 'fetchStatus': True,
                 'fetchTickers': True,
-                'fetchTradingFee': False,
-                'fetchTradingFees': False,
+                'fetchTime': False,
+                'fetchTradingFee': None,
+                'fetchTradingFees': None,
                 'fetchTransactions': True,
                 'withdraw': True,
             },
@@ -156,6 +160,9 @@ class bitfinex2(bitfinex):
                         'liquidations/hist',
                         'rankings/{key}:{timeframe}:{symbol}/{section}',
                         'rankings/{key}:{timeframe}:{symbol}/hist',
+                        'pulse/hist',
+                        'pulse/profile/{nickname}',
+                        'funding/stats/{symbol}/hist',
                     ],
                     'post': [
                         'calc/trade/avg',
@@ -234,39 +241,42 @@ class bitfinex2(bitfinex):
             },
             'fees': {
                 'trading': {
-                    'maker': 0.1 / 100,
-                    'taker': 0.2 / 100,
+                    'feeSide': 'get',
+                    'percentage': True,
+                    'tierBased': True,
+                    'maker': self.parse_number('0.001'),
+                    'taker': self.parse_number('0.002'),
+                    'tiers': {
+                        'taker': [
+                            [self.parse_number('0'), self.parse_number('0.002')],
+                            [self.parse_number('500000'), self.parse_number('0.002')],
+                            [self.parse_number('1000000'), self.parse_number('0.002')],
+                            [self.parse_number('2500000'), self.parse_number('0.002')],
+                            [self.parse_number('5000000'), self.parse_number('0.002')],
+                            [self.parse_number('7500000'), self.parse_number('0.002')],
+                            [self.parse_number('10000000'), self.parse_number('0.0018')],
+                            [self.parse_number('15000000'), self.parse_number('0.0016')],
+                            [self.parse_number('20000000'), self.parse_number('0.0014')],
+                            [self.parse_number('25000000'), self.parse_number('0.0012')],
+                            [self.parse_number('30000000'), self.parse_number('0.001')],
+                        ],
+                        'maker': [
+                            [self.parse_number('0'), self.parse_number('0.001')],
+                            [self.parse_number('500000'), self.parse_number('0.0008')],
+                            [self.parse_number('1000000'), self.parse_number('0.0006')],
+                            [self.parse_number('2500000'), self.parse_number('0.0004')],
+                            [self.parse_number('5000000'), self.parse_number('0.0002')],
+                            [self.parse_number('7500000'), self.parse_number('0')],
+                            [self.parse_number('10000000'), self.parse_number('0')],
+                            [self.parse_number('15000000'), self.parse_number('0')],
+                            [self.parse_number('20000000'), self.parse_number('0')],
+                            [self.parse_number('25000000'), self.parse_number('0')],
+                            [self.parse_number('30000000'), self.parse_number('0')],
+                        ],
+                    },
                 },
                 'funding': {
-                    'withdraw': {
-                        'BTC': 0.0004,
-                        'BCH': 0.0001,
-                        'ETH': 0.00135,
-                        'EOS': 0.0,
-                        'LTC': 0.001,
-                        'OMG': 0.15097,
-                        'IOT': 0.0,
-                        'NEO': 0.0,
-                        'ETC': 0.01,
-                        'XRP': 0.02,
-                        'ETP': 0.01,
-                        'ZEC': 0.001,
-                        'BTG': 0.0,
-                        'DASH': 0.01,
-                        'XMR': 0.0001,
-                        'QTM': 0.01,
-                        'EDO': 0.23687,
-                        'DAT': 9.8858,
-                        'AVT': 1.1251,
-                        'SAN': 0.35977,
-                        'USDT': 5.0,
-                        'SPK': 16.971,
-                        'BAT': 1.1209,
-                        'GNT': 2.8789,
-                        'SNT': 9.0848,
-                        'QASH': 1.726,
-                        'YYW': 7.9464,
-                    },
+                    'withdraw': {},
                 },
             },
             'options': {
@@ -320,6 +330,8 @@ class bitfinex2(bitfinex):
                     '10100': AuthenticationError,
                     '10114': InvalidNonce,
                     '20060': OnMaintenance,
+                    # {"code":503,"error":"temporarily_unavailable","error_description":"Sorry, the service is temporarily unavailable. See https://www.bitfinex.com/ for more info."}
+                    'temporarily_unavailable': ExchangeNotAvailable,
                 },
                 'broad': {
                     'address': InvalidAddress,
@@ -338,6 +350,12 @@ class bitfinex2(bitfinex):
     def get_currency_id(self, code):
         return 'f' + code
 
+    def get_currency_name(self, code):
+        # temporary fix for transpiler recognition, even though self is in parent class
+        if code in self.options['currencyNames']:
+            return self.options['currencyNames'][code]
+        raise NotSupported(self.id + ' ' + code + ' not supported for withdrawal')
+
     async def fetch_status(self, params={}):
         #
         #    [1]  # operative
@@ -353,7 +371,7 @@ class bitfinex2(bitfinex):
         return self.status
 
     async def fetch_markets(self, params={}):
-        # todo drop v1 in favor of v2 configs
+        # todo drop v1 in favor of v2 configs  ( temp-reference for v2update: https://pastebin.com/raw/S8CmqSHQ )
         # pub:list:pair:exchange,pub:list:pair:margin,pub:list:pair:futures,pub:info:pair
         v2response = await self.publicGetConfPubListPairFutures(params)
         v1response = await self.v1GetSymbolsDetails(params)
@@ -542,6 +560,7 @@ class bitfinex2(bitfinex):
             fid = 'f' + id
             result[code] = {
                 'id': fid,
+                'uppercaseId': id,
                 'code': code,
                 'info': [id, label, pool, feeValues, undl],
                 'type': type,
@@ -590,7 +609,7 @@ class bitfinex2(bitfinex):
                 account['total'] = self.safe_string(balance, 2)
                 account['free'] = self.safe_string(balance, 4)
                 result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     async def transfer(self, code, amount, fromAccount, toAccount, params={}):
         # transferring between derivatives wallet and regular wallet is not documented in their API
@@ -703,12 +722,10 @@ class bitfinex2(bitfinex):
 
     def parse_ticker(self, ticker, market=None):
         timestamp = self.milliseconds()
-        symbol = None
-        if market is not None:
-            symbol = market['symbol']
+        symbol = self.safe_symbol(None, market)
         length = len(ticker)
         last = self.safe_number(ticker, length - 4)
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -729,7 +746,7 @@ class bitfinex2(bitfinex):
             'baseVolume': self.safe_number(ticker, length - 3),
             'quoteVolume': None,
             'info': ticker,
-        }
+        }, market)
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
@@ -900,7 +917,8 @@ class bitfinex2(bitfinex):
         if limit is None:
             limit = 100  # default 100, max 5000
         if since is None:
-            since = self.milliseconds() - self.parse_timeframe(timeframe) * limit * 1000
+            duration = self.parse_timeframe(timeframe)
+            since = self.milliseconds() - duration * limit * 1000
         request = {
             'symbol': market['id'],
             'timeframe': self.timeframes[timeframe],
@@ -929,6 +947,7 @@ class bitfinex2(bitfinex):
             'EXECUTED': 'closed',
             'CANCELED': 'canceled',
             'INSUFFICIENT': 'canceled',
+            'POSTONLY': 'canceled',
             'RSN_DUST': 'rejected',
             'RSN_PAUSE': 'rejected',
         }
@@ -947,10 +966,10 @@ class bitfinex2(bitfinex):
         # https://github.com/ccxt/ccxt/issues/6686
         # timestamp = self.safe_timestamp(order, 5)
         timestamp = self.safe_integer(order, 5)
-        remaining = abs(self.safe_number(order, 6))
-        signedAmount = self.safe_number(order, 7)
-        amount = abs(signedAmount)
-        side = 'sell' if (signedAmount < 0) else 'buy'
+        remaining = Precise.string_abs(self.safe_string(order, 6))
+        signedAmount = self.safe_string(order, 7)
+        amount = Precise.string_abs(signedAmount)
+        side = 'sell' if Precise.string_lt(signedAmount, '0') else 'buy'
         orderType = self.safe_string(order, 8)
         type = self.safe_string(self.safe_value(self.options, 'exchangeTypes'), orderType)
         status = None
@@ -958,10 +977,10 @@ class bitfinex2(bitfinex):
         if statusString is not None:
             parts = statusString.split(' @ ')
             status = self.parse_order_status(self.safe_string(parts, 0))
-        price = self.safe_number(order, 16)
-        average = self.safe_number(order, 17)
+        price = self.safe_string(order, 16)
+        average = self.safe_string(order, 17)
         clientOrderId = self.safe_string(order, 2)
-        return self.safe_order({
+        return self.safe_order2({
             'info': order,
             'id': id,
             'clientOrderId': clientOrderId,
@@ -983,19 +1002,35 @@ class bitfinex2(bitfinex):
             'status': status,
             'fee': None,
             'trades': None,
-        })
+        }, market)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
         orderTypes = self.safe_value(self.options, 'orderTypes', {})
         orderType = self.safe_string_upper(orderTypes, type, type)
+        postOnly = self.safe_value(params, 'postOnly', False)
+        params = self.omit(params, ['postOnly'])
         amount = -amount if (side == 'sell') else amount
         request = {
-            'symbol': market['id'],
+            # 'gid': 0123456789,  # int32,  optional group id for the order
+            # 'cid': 0123456789,  # int32 client order id
             'type': orderType,
+            'symbol': market['id'],
+            # 'price': self.number_to_string(price),
             'amount': self.number_to_string(amount),
+            # 'flags': 0,  # int32, https://docs.bitfinex.com/v2/docs/flag-values
+            # 'lev': 10,  # the value should be between 1 and 100 inclusive, optional, 10 by default
+            # 'price_trailing': self.number_to_string(priceTrailing),
+            # 'price_aux_limit': self.number_to_string(stopPrice),
+            # 'price_oco_stop': self.number_to_string(ocoStopPrice),
+            # 'tif': '2020-01-01 10:45:23',  # datetime for automatic order cancellation
+            # 'meta': {
+            #     'aff_code': 'AFF_CODE_HERE'
+            # },
         }
+        if postOnly:
+            request['flags'] = 4096
         if (orderType == 'LIMIT') or (orderType == 'EXCHANGE LIMIT'):
             request['price'] = self.number_to_string(price)
         elif (orderType == 'STOP') or (orderType == 'EXCHANGE STOP'):
@@ -1205,7 +1240,7 @@ class bitfinex2(bitfinex):
     async def fetch_deposit_address(self, code, params={}):
         await self.load_markets()
         # todo rewrite for https://api-pub.bitfinex.com//v2/conf/pub:map:tx:method
-        name = self.getCurrencyName(code)
+        name = self.get_currency_name(code)
         request = {
             'method': name,
             'wallet': 'exchange',  # 'exchange', 'margin', 'funding' and also old labels 'exchange', 'trading', 'deposit', respectively
@@ -1240,6 +1275,7 @@ class bitfinex2(bitfinex):
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': None,
             'info': response,
         }
 
@@ -1379,7 +1415,7 @@ class bitfinex2(bitfinex):
         method = 'privatePostAuthRMovementsHist'
         if code is not None:
             currency = self.currency(code)
-            request['currency'] = currency['id']
+            request['currency'] = currency['uppercaseId']
             method = 'privatePostAuthRMovementsCurrencyHist'
         if since is not None:
             request['start'] = since
@@ -1421,7 +1457,7 @@ class bitfinex2(bitfinex):
         await self.load_markets()
         currency = self.currency(code)
         # todo rewrite for https://api-pub.bitfinex.com//v2/conf/pub:map:tx:method
-        name = self.getCurrencyName(code)
+        name = self.get_currency_name(code)
         request = {
             'method': name,
             'wallet': 'exchange',  # 'exchange', 'margin', 'funding' and also old labels 'exchange', 'trading', 'deposit', respectively
@@ -1529,19 +1565,16 @@ class bitfinex2(bitfinex):
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    async def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        response = await self.fetch2(path, api, method, params, headers, body)
-        if response:
-            if 'message' in response:
-                if response['message'].find('not enough exchange balance') >= 0:
-                    raise InsufficientFunds(self.id + ' ' + self.json(response))
-                raise ExchangeError(self.id + ' ' + self.json(response))
-            return response
+    def handle_errors(self, statusCode, statusText, url, method, responseHeaders, responseBody, response, requestHeaders, requestBody):
+        if response is not None:
+            if not isinstance(response, list):
+                message = self.safe_string_2(response, 'message', 'error')
+                feedback = self.id + ' ' + responseBody
+                self.throw_exactly_matched_exception(self.exceptions['exact'], message, feedback)
+                self.throw_broadly_matched_exception(self.exceptions['broad'], message, feedback)
+                raise ExchangeError(self.id + ' ' + responseBody)
         elif response == '':
             raise ExchangeError(self.id + ' returned empty response')
-        return response
-
-    def handle_errors(self, statusCode, statusText, url, method, responseHeaders, responseBody, response, requestHeaders, requestBody):
         if statusCode == 500:
             # See https://docs.bitfinex.com/docs/abbreviations-glossary#section-errorinfo-codes
             errorCode = self.number_to_string(response[1])
@@ -1551,3 +1584,4 @@ class bitfinex2(bitfinex):
             self.throw_exactly_matched_exception(self.exceptions['exact'], errorText, feedback)
             self.throw_broadly_matched_exception(self.exceptions['broad'], errorText, feedback)
             raise ExchangeError(self.id + ' ' + errorText + '(#' + errorCode + ')')
+        return response

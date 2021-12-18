@@ -26,11 +26,12 @@ class coinone(Exchange):
             'version': 'v2',
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
-                'createMarketOrder': False,
+                'CORS': None,
+                'createMarketOrder': None,
                 'createOrder': True,
                 'fetchBalance': True,
-                'fetchCurrencies': False,
+                'fetchClosedOrders': None,  # the endpoint that should return closed orders actually returns trades, https://github.com/ccxt/ccxt/pull/7067
+                'fetchDepositAddresses': True,
                 'fetchMarkets': True,
                 'fetchMyTrades': True,
                 'fetchOpenOrders': True,
@@ -39,9 +40,6 @@ class coinone(Exchange):
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTrades': True,
-                # https://github.com/ccxt/ccxt/pull/7067
-                # the endpoint that should return closed orders actually returns trades
-                'fetchClosedOrders': False,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/38003300-adc12fba-323f-11e8-8525-725f53c4a659.jpg',
@@ -63,6 +61,7 @@ class coinone(Exchange):
                 },
                 'private': {
                     'post': [
+                        'account/deposit_address/',
                         'account/btc_deposit_address/',
                         'account/balance/',
                         'account/daily_balance/',
@@ -131,6 +130,8 @@ class coinone(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': True,
             })
         return result
@@ -153,7 +154,7 @@ class coinone(Exchange):
             account['free'] = self.safe_string(balance, 'avail')
             account['total'] = self.safe_string(balance, 'balance')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def fetch_order_book(self, symbol, limit=None, params={}):
         self.load_markets()
@@ -200,20 +201,11 @@ class coinone(Exchange):
 
     def parse_ticker(self, ticker, market=None):
         timestamp = self.safe_timestamp(ticker, 'timestamp')
-        first = self.safe_number(ticker, 'first')
+        open = self.safe_number(ticker, 'first')
         last = self.safe_number(ticker, 'last')
-        average = None
-        if first is not None and last is not None:
-            average = self.sum(first, last) / 2
         previousClose = self.safe_number(ticker, 'yesterday_last')
-        change = None
-        percentage = None
-        if last is not None and previousClose is not None:
-            change = last - previousClose
-            if previousClose != 0:
-                percentage = change / previousClose * 100
-        symbol = market['symbol'] if (market is not None) else None
-        return {
+        symbol = self.safe_symbol(None, market)
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -224,17 +216,17 @@ class coinone(Exchange):
             'ask': None,
             'askVolume': None,
             'vwap': None,
-            'open': first,
+            'open': open,
             'close': last,
             'last': last,
             'previousClose': previousClose,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': None,
+            'percentage': None,
+            'average': None,
             'baseVolume': self.safe_number(ticker, 'volume'),
             'quoteVolume': None,
             'info': ticker,
-        }
+        }, market)
 
     def parse_trade(self, trade, market=None):
         #
@@ -275,25 +267,22 @@ class coinone(Exchange):
                 side = 'buy'
         priceString = self.safe_string(trade, 'price')
         amountString = self.safe_string(trade, 'qty')
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         orderId = self.safe_string(trade, 'orderId')
-        feeCost = self.safe_number(trade, 'fee')
+        feeCostString = self.safe_string(trade, 'fee')
         fee = None
-        if feeCost is not None:
-            feeCost = abs(feeCost)
-            feeRate = self.safe_number(trade, 'feeRate')
-            feeRate = abs(feeRate)
+        if feeCostString is not None:
+            feeCostString = Precise.string_abs(feeCostString)
+            feeRateString = self.safe_string(trade, 'feeRate')
+            feeRateString = Precise.string_abs(feeRateString)
             feeCurrencyCode = None
             if market is not None:
                 feeCurrencyCode = market['quote'] if (side == 'sell') else market['base']
             fee = {
-                'cost': feeCost,
+                'cost': feeCostString,
                 'currency': feeCurrencyCode,
-                'rate': feeRate,
+                'rate': feeRateString,
             }
-        return {
+        return self.safe_trade({
             'id': self.safe_string(trade, 'id'),
             'info': trade,
             'timestamp': timestamp,
@@ -303,11 +292,11 @@ class coinone(Exchange):
             'type': None,
             'side': side,
             'takerOrMaker': None,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'fee': fee,
-        }
+        }, market)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
         self.load_markets()
@@ -434,20 +423,21 @@ class coinone(Exchange):
         #     }
         #
         id = self.safe_string(order, 'orderId')
-        price = self.safe_number(order, 'price')
+        priceString = self.safe_string(order, 'price')
         timestamp = self.safe_timestamp(order, 'timestamp')
         side = self.safe_string(order, 'type')
         if side == 'ask':
             side = 'sell'
         elif side == 'bid':
             side = 'buy'
-        remaining = self.safe_number(order, 'remainQty')
-        amount = self.safe_number(order, 'qty')
+        remainingString = self.safe_string(order, 'remainQty')
+        amountString = self.safe_string(order, 'qty')
         status = self.safe_string(order, 'status')
         # https://github.com/ccxt/ccxt/pull/7067
         if status == 'live':
-            if (remaining is not None) and (amount is not None):
-                if remaining < amount:
+            if (remainingString is not None) and (amountString is not None):
+                isLessThan = Precise.string_lt(remainingString, amountString)
+                if isLessThan:
                     status = 'canceled'
         status = self.parse_order_status(status)
         symbol = None
@@ -466,15 +456,15 @@ class coinone(Exchange):
             base = market['base']
             quote = market['quote']
         fee = None
-        feeCost = self.safe_number(order, 'fee')
-        if feeCost is not None:
+        feeCostString = self.safe_string(order, 'fee')
+        if feeCostString is not None:
             feeCurrencyCode = quote if (side == 'sell') else base
             fee = {
-                'cost': feeCost,
-                'rate': self.safe_number(order, 'feeRate'),
+                'cost': feeCostString,
+                'rate': self.safe_string(order, 'feeRate'),
                 'currency': feeCurrencyCode,
             }
-        return self.safe_order({
+        return self.safe_order2({
             'info': order,
             'id': id,
             'clientOrderId': None,
@@ -486,17 +476,17 @@ class coinone(Exchange):
             'timeInForce': None,
             'postOnly': None,
             'side': side,
-            'price': price,
+            'price': priceString,
             'stopPrice': None,
             'cost': None,
             'average': None,
-            'amount': amount,
+            'amount': amountString,
             'filled': None,
-            'remaining': amount,
+            'remaining': remainingString,
             'status': status,
             'fee': fee,
             'trades': None,
-        })
+        }, market)
 
     def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         # The returned amount might not be same as the ordered amount. If an order is partially filled, the returned amount means the remaining amount.
@@ -587,6 +577,53 @@ class coinone(Exchange):
         #     }
         #
         return response
+
+    def fetch_deposit_addresses(self, codes=None, params={}):
+        self.load_markets()
+        response = self.privatePostAccountDepositAddress(params)
+        #
+        #     {
+        #         result: 'success',
+        #         errorCode: '0',
+        #         walletAddress: {
+        #             matic: null,
+        #             btc: "mnobqu4i6qMCJWDpf5UimRmr8JCvZ8FLcN",
+        #             xrp: null,
+        #             xrp_tag: '-1',
+        #             kava: null,
+        #             kava_memo: null,
+        #         }
+        #     }
+        #
+        walletAddress = self.safe_value(response, 'walletAddress', {})
+        keys = list(walletAddress.keys())
+        result = {}
+        for i in range(0, len(keys)):
+            key = keys[i]
+            value = walletAddress[key]
+            if (not value) or (value == '-1'):
+                continue
+            parts = key.split('_')
+            currencyId = self.safe_value(parts, 0)
+            secondPart = self.safe_value(parts, 1)
+            code = self.safe_currency_code(currencyId)
+            depositAddress = self.safe_value(result, code)
+            if depositAddress is None:
+                depositAddress = {
+                    'currency': code,
+                    'address': None,
+                    'tag': None,
+                    'info': value,
+                }
+            address = self.safe_string(depositAddress, 'address', value)
+            self.check_address(address)
+            depositAddress['address'] = address
+            depositAddress['info'] = address
+            if (secondPart == 'tag' or secondPart == 'memo'):
+                depositAddress['tag'] = value
+                depositAddress['info'] = [address, value]
+            result[code] = depositAddress
+        return result
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         request = self.implode_params(path, params)

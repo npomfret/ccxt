@@ -20,11 +20,10 @@ class xena extends Exchange {
             'name' => 'Xena Exchange',
             'countries' => array( 'VC', 'UK' ),
             'rateLimit' => 100,
-            'certified' => true,
             'has' => array(
-                'CORS' => false,
                 'cancelAllOrders' => true,
                 'cancelOrder' => true,
+                'CORS' => null,
                 'createDepositAddress' => true,
                 'createOrder' => true,
                 'editOrder' => true,
@@ -168,7 +167,7 @@ class xena extends Exchange {
         //
         //     {
         //         "msgType":"0",
-        //         "$transactTime":1594774454112817637
+        //         "transactTime":1594774454112817637
         //     }
         //
         $transactTime = $this->safe_integer($response, 'transactTime');
@@ -180,10 +179,10 @@ class xena extends Exchange {
         //
         //     array(
         //         {
-        //             "$id":"ETHUSD_3M_250920",
-        //             "$type":"Margin",
-        //             "$marginType":"XenaFuture",
-        //             "$symbol":"ETHUSD_3M_250920",
+        //             "id":"ETHUSD_3M_250920",
+        //             "type":"Margin",
+        //             "marginType":"XenaFuture",
+        //             "symbol":"ETHUSD_3M_250920",
         //             "baseCurrency":"ETH",
         //             "quoteCurrency":"USD",
         //             "settlCurrency":"BTC",
@@ -231,7 +230,7 @@ class xena extends Exchange {
         //             "premium":array("enabled":true,"index":".XBTUSD_Premium_IR_Corrected"), // perpetual contracts only
         //             "riskAdjustment":array("enabled":true,"index":".RiskAdjustment_IR"),
         //             "expiration":array("enabled":true,"index":".ETHUSD_TWAP"), // futures only
-        //             "$pricePrecision":3,
+        //             "pricePrecision":3,
         //             "priceRange":array(
         //                 "enabled":true,
         //                 "distance":"0.03",
@@ -246,14 +245,14 @@ class xena extends Exchange {
         //                 "lowIndex":".ETHUSD_3M_250920_LOWLIMIT",
         //                 "highIndex":".ETHUSD_3M_250920_HIGHLIMIT"
         //             ),
-        //             "$inverse":true, // $inverse contracts only
+        //             "inverse":true, // $inverse contracts only
         //             "serie":"ETHUSD", // futures only
         //             "tradingStartDate":"2020-03-27 07:00:00",
         //             "expiryDate":"2020-09-25 08:00:00" // futures only
         //         ),
         //         array(
-        //             "$type":"Index",
-        //             "$symbol":".ETHUSD_Premium_IR_Corrected",
+        //             "type":"Index",
+        //             "symbol":".ETHUSD_Premium_IR_Corrected",
         //             "tickSize":6,
         //             "enabled":true,
         //             "basis":365
@@ -332,13 +331,13 @@ class xena extends Exchange {
         //
         //     {
         //         "BAB" => {
-        //             "$name":"BAB",
+        //             "name":"BAB",
         //             "title":"Bitcoin ABC",
         //             "blockchain":array(
-        //                 "$name":"BAB",
+        //                 "name":"BAB",
         //                 "title":"Bitcoin ABC",
         //                 "deposit":array("confirmations":6),
-        //                 "$withdraw":array("confirmations":1),
+        //                 "withdraw":array("confirmations":1),
         //                 "addressReuseAllowed":false,
         //                 "view":array(
         //                     "uriTemplate":"bitcoinabc:%s?message=Xena Exchange",
@@ -347,13 +346,13 @@ class xena extends Exchange {
         //                     "walletUrl":"https://blockchair.com/bitcoin-cash/address/${walletId}"
         //                 }
         //             ),
-        //             "$precision":5,
-        //             "$withdraw":array("minAmount":"0.01","commission":"0.001"),
+        //             "precision":5,
+        //             "withdraw":array("minAmount":"0.01","commission":"0.001"),
         //             "view":array(
         //                 "color":"#DC7C08",
         //                 "site":"https://www.bitcoinabc.org"
         //             ),
-        //             "$enabled":true
+        //             "enabled":true
         //         ),
         //     }
         $ids = is_array($response) ? array_keys($response) : array();
@@ -395,13 +394,13 @@ class xena extends Exchange {
         // fetchTicker, fetchTickers
         //
         //     {
-        //         "$symbol":".XBTUSD_3M_250920_MID",
+        //         "symbol":".XBTUSD_3M_250920_MID",
         //         "firstPx":"9337.49",
         //         "lastPx":"9355.81",
         //         "highPx":"9579.42",
         //         "lowPx":"9157.63",
-        //         "$buyVolume":"0",
-        //         "$sellVolume":"0",
+        //         "buyVolume":"0",
+        //         "sellVolume":"0",
         //         "bid":"0",
         //         "ask":"0"
         //     }
@@ -411,20 +410,10 @@ class xena extends Exchange {
         $symbol = $this->safe_symbol($marketId, $market);
         $last = $this->safe_number($ticker, 'lastPx');
         $open = $this->safe_number($ticker, 'firstPx');
-        $percentage = null;
-        $change = null;
-        $average = null;
-        if (($last !== null) && ($open !== null)) {
-            $change = $last - $open;
-            $average = $this->sum($last, $open) / 2;
-            if ($open > 0) {
-                $percentage = $change / $open * 100;
-            }
-        }
         $buyVolume = $this->safe_number($ticker, 'buyVolume');
         $sellVolume = $this->safe_number($ticker, 'sellVolume');
         $baseVolume = $this->sum($buyVolume, $sellVolume);
-        return array(
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -439,13 +428,13 @@ class xena extends Exchange {
             'close' => $last,
             'last' => $last,
             'previousClose' => null,
-            'change' => $change,
-            'percentage' => $percentage,
-            'average' => $average,
+            'change' => null,
+            'percentage' => null,
+            'average' => null,
             'baseVolume' => $baseVolume,
             'quoteVolume' => null,
             'info' => $ticker,
-        );
+        ), $market);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {
@@ -463,7 +452,7 @@ class xena extends Exchange {
         //
         //     array(
         //         {
-        //             "$symbol":".XBTUSD_3M_250920_MID",
+        //             "symbol":".XBTUSD_3M_250920_MID",
         //             "firstPx":"9337.49",
         //             "lastPx":"9355.81",
         //             "highPx":"9579.42",
@@ -497,9 +486,9 @@ class xena extends Exchange {
         //     {
         //         "msgType":"W",
         //         "mdStreamId":"DOM:XBTUSD:aggregated",
-        //         "$lastUpdateTime":1594772683037691997,
+        //         "lastUpdateTime":1594772683037691997,
         //         "mdBookType":"2",
-        //         "$symbol":"XBTUSD",
+        //         "symbol":"XBTUSD",
         //         "lowRangePx":"9132.24",
         //         "highRangePx":"9410.36",
         //         "lowLimitPx":"9132.24",
@@ -507,7 +496,7 @@ class xena extends Exchange {
         //         "clearingPx":"9253.4",
         //         "bestBid":"9269.8",
         //         "bestAsk":"9275.9",
-        //         "$mdEntry":array(
+        //         "mdEntry":array(
         //             array("mdEntryType":"1","mdEntryPx":"9275.9","mdEntrySize":"3000","numberOfOrders":1),
         //             array("mdEntryType":"1","mdEntryPx":"9277.7","mdEntrySize":"50000","numberOfOrders":1),
         //             array("mdEntryType":"1","mdEntryPx":"9277.8","mdEntrySize":"2000","numberOfOrders":1),
@@ -528,7 +517,7 @@ class xena extends Exchange {
         $response = yield $this->privateGetTradingAccounts ($params);
         //
         //     {
-        //         "$accounts" => array(
+        //         "accounts" => array(
         //             array( "id":8273231, "kind" => "Spot" ),
         //             array( "id":10012833469, "kind" => "Margin", "currency" => "BTC" )
         //         )
@@ -596,10 +585,10 @@ class xena extends Exchange {
         //
         //     {
         //         "msgType":"XAR",
-        //         "$balances":array(
+        //         "balances":array(
         //             {
         //                 "currency":"BTC",
-        //                 "$lastUpdateTime":1619384111905916598,
+        //                 "lastUpdateTime":1619384111905916598,
         //                 "available":"0.00549964",
         //                 "onHold":"0",
         //                 "settled":"0.00549964",
@@ -626,7 +615,7 @@ class xena extends Exchange {
         }
         $result['timestamp'] = $timestamp;
         $result['datetime'] = $this->iso8601($timestamp);
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function parse_trade($trade, $market = null) {
@@ -647,12 +636,12 @@ class xena extends Exchange {
         //         "msgType":"8",
         //         "account":1012838158,
         //         "clOrdId":"xXWKLQVl3",
-        //         "$orderId":"89eee8bd-98ae-4d06-97dc-ee2d12997fe7",
-        //         "$symbol":"ETHUSD",
+        //         "orderId":"89eee8bd-98ae-4d06-97dc-ee2d12997fe7",
+        //         "symbol":"ETHUSD",
         //         "transactTime":1595143349089739000,
         //         "execId":"c4bd0ee2330930924e0f6fdde4630e56751692a4",
         //         "tradeId":"30a394b2-6d53-4bc4-b276-d8e19f470ba1",
-        //         "$side":"2",
+        //         "side":"2",
         //         "lastQty":"1",
         //         "lastPx":"234.58",
         //         "avgPx":"234.58",
@@ -747,7 +736,7 @@ class xena extends Exchange {
         //             "account":1012838158,
         //             "clOrdId":"xXWKLQVl3",
         //             "orderId":"89eee8bd-98ae-4d06-97dc-ee2d12997fe7",
-        //             "$symbol":"ETHUSD",
+        //             "symbol":"ETHUSD",
         //             "transactTime":1595143349089739000,
         //             "execId":"c4bd0ee2330930924e0f6fdde4630e56751692a4",
         //             "tradeId":"30a394b2-6d53-4bc4-b276-d8e19f470ba1",
@@ -769,7 +758,7 @@ class xena extends Exchange {
         //             "account":1012838158,
         //             "clOrdId":"3ce8c305-9936-4e97-9206-71ae3ff40305",
         //             "orderId":"a93c686d-990e-44d9-9cbe-61107744b990",
-        //             "$symbol":"ETHUSD",
+        //             "symbol":"ETHUSD",
         //             "transactTime":1595143315369226000,
         //             "execId":"1c745881722ad966a4ce71600cd058d59da0d1c3",
         //             "tradeId":"77f75bd8-27c4-4b1a-a5e8-0d59239ce216",
@@ -794,13 +783,13 @@ class xena extends Exchange {
     public function parse_ohlcv($ohlcv, $market = null) {
         //
         //     {
-        //         "$transactTime":1594784700000000000,
+        //         "transactTime":1594784700000000000,
         //         "firstPx":"9246.3",
         //         "lastPx":"9232.8",
         //         "highPx":"9246.3",
         //         "lowPx":"9232.8",
-        //         "$buyVolume":"0",
-        //         "$sellVolume":"0"
+        //         "buyVolume":"0",
+        //         "sellVolume":"0"
         //     }
         //
         $transactTime = $this->safe_integer($ohlcv, 'transactTime');
@@ -842,7 +831,7 @@ class xena extends Exchange {
         $response = yield $this->publicGetMarketDataV2CandlesSymbolTimeframe (array_merge($request, $params));
         //
         //     {
-        //         "$mdEntry":array(
+        //         "mdEntry":array(
         //             array("transactTime":1594784700000000000,"firstPx":"9246.3","lastPx":"9232.8","highPx":"9246.3","lowPx":"9232.8","buyVolume":"0","sellVolume":"0"),
         //             array("transactTime":1594785600000000000,"firstPx":"9231.8","lastPx":"9227.3","highPx":"9232.8","lowPx":"9227.3","buyVolume":"0","sellVolume":"0"),
         //             array("transactTime":1594786500000000000,"firstPx":"9226.3","lastPx":"9230.3","highPx":"9230.3","lowPx":"9220.6","buyVolume":"0","sellVolume":"0")
@@ -874,8 +863,8 @@ class xena extends Exchange {
         //     {
         //         "msgType":"W",
         //         "lastUpdateTime":1594737830902223803,
-        //         "$symbol":"XBTUSD",
-        //         "$mdEntry":array(
+        //         "symbol":"XBTUSD",
+        //         "mdEntry":array(
         //             array(
         //                 "mdUpdateAction":"0",
         //                 "mdEntryType":"2",
@@ -915,14 +904,14 @@ class xena extends Exchange {
         //         "account":1012838720,
         //         "clOrdId":"XAq0pRQ1g",
         //         "orderId":"64d7a06a-27e5-422e-99d9-3cadc04f5a35",
-        //         "$symbol":"XBTUSD",
+        //         "symbol":"XBTUSD",
         //         "ordType":"2",
-        //         "$price":"9000",
-        //         "$transactTime":1593778763271127920,
+        //         "price":"9000",
+        //         "transactTime":1593778763271127920,
         //         "execId":"ff5fb8153652f0516bf07b6979255bed053c84b9",
         //         "execType":"I",
         //         "ordStatus":"0",
-        //         "$side":"1",
+        //         "side":"1",
         //         "orderQty":"1",
         //         "leavesQty":"1",
         //         "cumQty":"0",
@@ -938,17 +927,17 @@ class xena extends Exchange {
         $status = $this->parse_order_status($this->safe_string($order, 'ordStatus'));
         $marketId = $this->safe_string($order, 'symbol');
         $symbol = $this->safe_symbol($marketId, $market);
-        $price = $this->safe_number($order, 'price');
-        $amount = $this->safe_number($order, 'orderQty');
-        $filled = $this->safe_number($order, 'cumQty');
-        $remaining = $this->safe_number($order, 'leavesQty');
-        $side = $this->safe_string_lower($order, 'side');
+        $price = $this->safe_string($order, 'price');
+        $amount = $this->safe_string($order, 'orderQty');
+        $filled = $this->safe_string($order, 'cumQty');
+        $remaining = $this->safe_string($order, 'leavesQty');
+        $side = $this->safe_string($order, 'side');
         if ($side === '1') {
             $side = 'buy';
-        } else if ($side === '1') {
+        } else if ($side === '2') {
             $side = 'sell';
         }
-        $type = $this->safe_string_lower($order, 'ordType');
+        $type = $this->safe_string($order, 'ordType');
         if ($type === '1') {
             $type = 'market';
         } else if ($type === '2') {
@@ -958,7 +947,7 @@ class xena extends Exchange {
         } else if ($type === '4') {
             $type = 'stop-limit';
         }
-        return $this->safe_order(array(
+        return $this->safe_order2(array(
             'id' => $id,
             'clientOrderId' => $clientOrderId,
             'info' => $order,
@@ -980,7 +969,7 @@ class xena extends Exchange {
             'status' => $status,
             'fee' => null,
             'trades' => null,
-        ));
+        ), $market);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -1052,14 +1041,14 @@ class xena extends Exchange {
         //         "account":1012838720,
         //         "clOrdId":"XAq0pRQ1g",
         //         "orderId":"64d7a06a-27e5-422e-99d9-3cadc04f5a35",
-        //         "$symbol":"XBTUSD",
+        //         "symbol":"XBTUSD",
         //         "ordType":"2",
-        //         "$price":"9000",
+        //         "price":"9000",
         //         "transactTime":1593778763271127920,
         //         "execId":"ff5fb8153652f0516bf07b6979255bed053c84b9",
         //         "execType":"I",
         //         "ordStatus":"0",
-        //         "$side":"1",
+        //         "side":"1",
         //         "orderQty":"1",
         //         "leavesQty":"1",
         //         "cumQty":"0",
@@ -1155,7 +1144,7 @@ class xena extends Exchange {
         //         "clOrdId":"0fa3fb55-9dc0-4cfc-a1db-6aa8b7dd2d98",
         //         "origClOrdId":"3b2878bb-24d8-4922-9d2a-5b8009416677",
         //         "orderId":"665b418e-9d09-4461-b733-d317f6bff43f",
-        //         "$symbol":"ETHUSD",
+        //         "symbol":"ETHUSD",
         //         "ordType":"2",
         //         "price":"640",
         //         "transactTime":1595060080941618739,
@@ -1198,7 +1187,7 @@ class xena extends Exchange {
         //         "clOrdId":"b3e95759-e43e-4b3a-b664-a4d213e281a7",
         //         "massActionReportID":"e915b6f4-a7ca-4c5c-b8d6-e39862530248",
         //         "massCancelResponse":"1",
-        //         "$symbol":"ETHUSD",
+        //         "symbol":"ETHUSD",
         //         "transactTime":1595065630133756426,
         //         "totalAffectedOrders":2,
         //         "account":1012838158
@@ -1228,7 +1217,7 @@ class xena extends Exchange {
         //             "account":1012838720,
         //             "clOrdId":"XAq0pRQ1g",
         //             "orderId":"64d7a06a-27e5-422e-99d9-3cadc04f5a35",
-        //             "$symbol":"XBTUSD",
+        //             "symbol":"XBTUSD",
         //             "ordType":"2",
         //             "price":"9000",
         //             "transactTime":1593778763271127920,
@@ -1278,7 +1267,7 @@ class xena extends Exchange {
         //             "account":1012838720,
         //             "clOrdId":"XAq0pRQ1g",
         //             "orderId":"64d7a06a-27e5-422e-99d9-3cadc04f5a35",
-        //             "$symbol":"XBTUSD",
+        //             "symbol":"XBTUSD",
         //             "ordType":"2",
         //             "price":"9000",
         //             "transactTime":1593778763271127920,
@@ -1310,7 +1299,7 @@ class xena extends Exchange {
         $response = yield $this->privatePostTransfersAccountsAccountIdDepositAddressCurrency (array_merge($request, $params));
         //
         //     {
-        //         "$address" => "mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9",
+        //         "address" => "mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9",
         //         "uri" => "bitcoin:mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9?message=Xena Exchange",
         //         "allowsRenewal" => true
         //     }
@@ -1338,7 +1327,7 @@ class xena extends Exchange {
         $response = yield $this->privateGetTransfersAccountsAccountIdDepositAddressCurrency (array_merge($request, $params));
         //
         //     {
-        //         "$address" => "mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9",
+        //         "address" => "mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9",
         //         "uri" => "bitcoin:mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9?message=Xena Exchange",
         //         "allowsRenewal" => true
         //     }
@@ -1350,6 +1339,7 @@ class xena extends Exchange {
             'currency' => $code,
             'address' => $address,
             'tag' => $tag,
+            'network' => null,
             'info' => $response,
         );
     }
@@ -1380,7 +1370,7 @@ class xena extends Exchange {
         //                 "status" => 1,
         //                 "statusMessage" => "Pending confirmation",
         //                 "amount" => "10.2",
-        //                 "$currency" => "BTC",
+        //                 "currency" => "BTC",
         //                 "lastUpdated" => <UNIX nanoseconds>,
         //                 "blockchain" => "Bitcoin",
         //                 "address" => "mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9",
@@ -1392,7 +1382,7 @@ class xena extends Exchange {
         //     {
         //         "deposits" => array(
         //             {
-        //                 "$currency" => "BTC",
+        //                 "currency" => "BTC",
         //                 "amount" => "1.2",
         //                 "status" => 1,
         //                 "statusMessage" => "Processing",
@@ -1425,7 +1415,7 @@ class xena extends Exchange {
         //
         //     {
         //         "withdrawalRequestId" => 47383243,
-        //         "$status" => 1,
+        //         "status" => 1,
         //         "statusMessage" => "Pending confirmation"
         //     }
         //
@@ -1434,26 +1424,26 @@ class xena extends Exchange {
         //     {
         //         "withdrawalRequestId" => 47383243,
         //         "externalId" => "...",    // external ID submitted by the client when creating the request
-        //         "$status" => 1,
+        //         "status" => 1,
         //         "statusMessage" => "Pending confirmation",
-        //         "$amount" => "10.2",
-        //         "$currency" => "BTC",
+        //         "amount" => "10.2",
+        //         "currency" => "BTC",
         //         "lastUpdated" => <UNIX nanoseconds>,
         //         "blockchain" => "Bitcoin",
-        //         "$address" => "mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9",
+        //         "address" => "mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9",
         //         "txId" => "0xfbb1b73c4f0bda4f67dca266ce6ef42f520fbb98"
         //     }
         //
         // fetchDeposits
         //
         //     {
-        //         "$currency" => "BTC",
-        //         "$amount" => "1.2",
-        //         "$status" => 1,
+        //         "currency" => "BTC",
+        //         "amount" => "1.2",
+        //         "status" => 1,
         //         "statusMessage" => "Processing",
         //         "blockchain" => "Bitcoin",
         //         "txId" => "0xfbb1b73c4f0bda4f67dca266ce6ef42f520fbb98",
-        //         "$address" => "mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9",
+        //         "address" => "mu5GceHFAG38mGRYCFqafe5ZiNKLX3rKk9",
         //         "lastUpdated" => <UNIX nanoseconds>
         //         "confirmations" => 2,
         //         "requiredConfirmations" => 6
@@ -1512,6 +1502,7 @@ class xena extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->check_address($address);
         yield $this->load_markets();
         yield $this->load_accounts();
@@ -1555,11 +1546,11 @@ class xena extends Exchange {
         //     {
         //         "accountId":8263118,
         //         "ts":1551974415000000000,
-        //         "$amount":"-1",
-        //         "$currency":"BTC",
+        //         "amount":"-1",
+        //         "currency":"BTC",
         //         "kind":"internal withdrawal",
         //         "commission":"0",
-        //         "$id":96
+        //         "id":96
         //     }
         //
         $id = $this->safe_string($item, 'id');
@@ -1637,19 +1628,19 @@ class xena extends Exchange {
         //
         //     array(
         //         array(
-        //             "$accountId":8263118,
+        //             "accountId":8263118,
         //             "ts":1551974415000000000,
         //             "amount":"-1",
-        //             "$currency":"BTC",
+        //             "currency":"BTC",
         //             "kind":"internal withdrawal",
         //             "commission":"0",
         //             "id":96
         //         ),
         //         {
-        //             "$accountId":8263118,
+        //             "accountId":8263118,
         //             "ts":1551964677000000000,
         //             "amount":"-1",
-        //             "$currency":"BTC",
+        //             "currency":"BTC",
         //             "kind":"internal deposit",
         //             "commission":"0",
         //             "id":95

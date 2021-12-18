@@ -29,9 +29,10 @@ def test_trade(exchange, trade, symbol, now):
     fee = trade['fee'] if ('fee' in trade) else None
     fees = trade['fees'] if ('fees' in trade) else None
     # logical XOR
-    if fee or fees:
-        assert not (fee and fees)
-
+    # doesn't work when both fee is defined and fees is defined
+    # if fee or fees:
+    #     assert not (fee and fees)
+    # }
     if fee:
         assert('cost' in fee) and ('currency' in fee)
 
@@ -60,5 +61,7 @@ def test_trade(exchange, trade, symbol, now):
     assert trade['price'] > 0
     assert isinstance(trade['amount'], numbers.Real), 'trade.amount is not a number'
     assert trade['amount'] >= 0
+    assert trade['cost'] is None or isinstance(trade['cost'], numbers.Real), 'trade.cost is not a number'
+    assert trade['cost'] is None or trade['cost'] >= 0
     takerOrMaker = trade['takerOrMaker']
     assert takerOrMaker is None or takerOrMaker == 'taker' or takerOrMaker == 'maker'

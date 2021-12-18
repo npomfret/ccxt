@@ -3,7 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { ExchangeError, AuthenticationError, InvalidNonce, InsufficientFunds, InvalidOrder, OrderNotFound, PermissionDenied } = require ('./base/errors');
+const { ExchangeError, AuthenticationError, InvalidNonce, InsufficientFunds, InvalidOrder, OrderNotFound, PermissionDenied, ArgumentsRequired } = require ('./base/errors');
 const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
@@ -180,6 +180,8 @@ module.exports = class bitbank extends Exchange {
                 'quote': quote,
                 'precision': precision,
                 'limits': limits,
+                'type': 'spot',
+                'spot': true,
                 'active': active,
                 'maker': maker,
                 'taker': taker,
@@ -189,13 +191,10 @@ module.exports = class bitbank extends Exchange {
     }
 
     parseTicker (ticker, market = undefined) {
-        let symbol = undefined;
-        if (market !== undefined) {
-            symbol = market['symbol'];
-        }
+        const symbol = this.safeSymbol (undefined, market);
         const timestamp = this.safeInteger (ticker, 'timestamp');
         const last = this.safeNumber (ticker, 'last');
-        return {
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -216,7 +215,7 @@ module.exports = class bitbank extends Exchange {
             'baseVolume': this.safeNumber (ticker, 'vol'),
             'quoteVolume': undefined,
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -251,23 +250,20 @@ module.exports = class bitbank extends Exchange {
         }
         const priceString = this.safeString (trade, 'price');
         const amountString = this.safeString (trade, 'amount');
-        const price = this.parseNumber (priceString);
-        const amount = this.parseNumber (amountString);
-        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
         const id = this.safeString2 (trade, 'transaction_id', 'trade_id');
         const takerOrMaker = this.safeString (trade, 'maker_taker');
         let fee = undefined;
-        const feeCost = this.safeNumber (trade, 'fee_amount_quote');
-        if (feeCost !== undefined) {
+        const feeCostString = this.safeString (trade, 'fee_amount_quote');
+        if (feeCostString !== undefined) {
             fee = {
                 'currency': feeCurrency,
-                'cost': feeCost,
+                'cost': feeCostString,
             };
         }
         const orderId = this.safeString (trade, 'order_id');
         const type = this.safeString (trade, 'type');
         const side = this.safeString (trade, 'side');
-        return {
+        return this.safeTrade ({
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'symbol': symbol,
@@ -276,12 +272,12 @@ module.exports = class bitbank extends Exchange {
             'type': type,
             'side': side,
             'takerOrMaker': takerOrMaker,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': undefined,
             'fee': fee,
             'info': trade,
-        };
+        }, market);
     }
 
     async fetchTrades (symbol, since = undefined, limit = undefined, params = {}) {
@@ -318,15 +314,15 @@ module.exports = class bitbank extends Exchange {
     }
 
     async fetchOHLCV (symbol, timeframe = '5m', since = undefined, limit = undefined, params = {}) {
+        if (since === undefined) {
+            throw new ArgumentsRequired (this.id + ' fetchOHLCV requires a since argument');
+        }
         await this.loadMarkets ();
         const market = this.market (symbol);
-        let date = this.milliseconds ();
-        date = this.ymd (date);
-        date = date.split ('-');
         const request = {
             'pair': market['id'],
             'candletype': this.timeframes[timeframe],
-            'yyyymmdd': date.join (''),
+            'yyyymmdd': this.yyyymmdd (since, ''),
         };
         const response = await this.publicGetPairCandlestickCandletypeYyyymmdd (this.extend (request, params));
         //
@@ -407,7 +403,7 @@ module.exports = class bitbank extends Exchange {
             account['total'] = this.safeString (balance, 'onhand_amount');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     parseOrderStatus (status) {
@@ -425,22 +421,22 @@ module.exports = class bitbank extends Exchange {
         const id = this.safeString (order, 'order_id');
         const marketId = this.safeString (order, 'pair');
         let symbol = undefined;
-        if (marketId && !market && (marketId in this.marketsById)) {
-            market = this.marketsById[marketId];
+        if (marketId && !market && (marketId in this.markets_by_id)) {
+            market = this.markets_by_id[marketId];
         }
         if (market !== undefined) {
             symbol = market['symbol'];
         }
         const timestamp = this.safeInteger (order, 'ordered_at');
-        const price = this.safeNumber (order, 'price');
-        const amount = this.safeNumber (order, 'start_amount');
-        const filled = this.safeNumber (order, 'executed_amount');
-        const remaining = this.safeNumber (order, 'remaining_amount');
-        const average = this.safeNumber (order, 'average_price');
+        const price = this.safeString (order, 'price');
+        const amount = this.safeString (order, 'start_amount');
+        const filled = this.safeString (order, 'executed_amount');
+        const remaining = this.safeString (order, 'remaining_amount');
+        const average = this.safeString (order, 'average_price');
         const status = this.parseOrderStatus (this.safeString (order, 'status'));
         const type = this.safeStringLower (order, 'type');
         const side = this.safeStringLower (order, 'side');
-        return this.safeOrder ({
+        return this.safeOrder2 ({
             'id': id,
             'clientOrderId': undefined,
             'datetime': this.iso8601 (timestamp),
@@ -462,22 +458,21 @@ module.exports = class bitbank extends Exchange {
             'trades': undefined,
             'fee': undefined,
             'info': order,
-        });
+        }, market);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
-        if (price === undefined) {
-            throw new InvalidOrder (this.id + ' createOrder() requires a price argument for both market and limit orders');
-        }
         const request = {
             'pair': market['id'],
             'amount': this.amountToPrecision (symbol, amount),
-            'price': this.priceToPrecision (symbol, price),
             'side': side,
             'type': type,
         };
+        if (type === 'limit') {
+            request['price'] = this.priceToPrecision (symbol, price);
+        }
         const response = await this.privatePostUserSpotOrder (this.extend (request, params));
         const data = this.safeValue (response, 'data');
         return this.parseOrder (data, market);
@@ -563,11 +558,13 @@ module.exports = class bitbank extends Exchange {
             'currency': currency,
             'address': address,
             'tag': undefined,
+            'network': undefined,
             'info': response,
         };
     }
 
     async withdraw (code, amount, address, tag = undefined, params = {}) {
+        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
         if (!('uuid' in params)) {
             throw new ExchangeError (this.id + ' uuid is required for withdrawal');
         }
@@ -592,7 +589,7 @@ module.exports = class bitbank extends Exchange {
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         let query = this.omit (params, this.extractParams (path));
-        let url = this.implodeParams (this.urls['api'][api], { 'hostname': this.hostname }) + '/';
+        let url = this.implodeHostname (this.urls['api'][api]) + '/';
         if ((api === 'public') || (api === 'markets')) {
             url += this.implodeParams (path, params);
             if (Object.keys (query).length) {
@@ -624,8 +621,10 @@ module.exports = class bitbank extends Exchange {
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
-    async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
-        const response = await this.fetch2 (path, api, method, params, headers, body);
+    handleErrors (httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {
+        if (response === undefined) {
+            return;
+        }
         const success = this.safeInteger (response, 'success');
         const data = this.safeValue (response, 'data');
         if (!success || !data) {
@@ -701,6 +700,5 @@ module.exports = class bitbank extends Exchange {
                 throw new ExchangeError (this.id + ' ' + this.json (response));
             }
         }
-        return response;
     }
 };

@@ -11,7 +11,6 @@ from ccxt.base.errors import BadSymbol
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import RateLimitExceeded
 from ccxt.base.errors import ExchangeNotAvailable
-from ccxt.base.precise import Precise
 
 
 class bw(Exchange):
@@ -24,44 +23,42 @@ class bw(Exchange):
             'rateLimit': 1500,
             'version': 'v1',
             'has': {
-                'cancelAllOrders': False,
+                'cancelAllOrders': None,
                 'cancelOrder': True,
-                'cancelOrders': False,
-                'CORS': False,
-                'createDepositAddress': False,
+                'cancelOrders': None,
+                'CORS': None,
+                'createDepositAddress': None,
                 'createLimitOrder': True,
-                'createMarketOrder': False,
+                'createMarketOrder': None,
                 'createOrder': True,
-                'deposit': False,
-                'editOrder': False,
+                'deposit': None,
+                'editOrder': None,
                 'fetchBalance': True,
-                'fetchBidsAsks': False,
+                'fetchBidsAsks': None,
                 'fetchClosedOrders': True,
                 'fetchCurrencies': True,
                 'fetchDepositAddress': True,
                 'fetchDeposits': True,
-                'fetchFundingFees': False,
-                'fetchL2OrderBook': False,
-                'fetchLedger': False,
+                'fetchFundingFees': None,
+                'fetchL2OrderBook': None,
+                'fetchLedger': None,
                 'fetchMarkets': True,
-                'fetchMyTrades': False,
+                'fetchMyTrades': None,
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
-                'fetchOrderBooks': False,
+                'fetchOrderBooks': None,
                 'fetchOrders': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTrades': True,
-                'fetchTradingFee': False,
-                'fetchTradingFees': False,
-                'fetchTradingLimits': False,
-                'fetchTransactions': False,
+                'fetchTradingFee': None,
+                'fetchTradingFees': None,
+                'fetchTradingLimits': None,
+                'fetchTransactions': None,
                 'fetchWithdrawals': True,
-                'privateAPI': False,
-                'publicAPI': False,
-                'withdraw': False,
+                'withdraw': None,
             },
             'timeframes': {
                 '1m': '1M',
@@ -88,8 +85,8 @@ class bw(Exchange):
                 'trading': {
                     'tierBased': False,
                     'percentage': True,
-                    'taker': 0.2 / 100,
-                    'maker': 0.2 / 100,
+                    'taker': self.parse_number('0.002'),
+                    'maker': self.parse_number('0.002'),
                 },
                 'funding': {
                 },
@@ -195,7 +192,6 @@ class bw(Exchange):
             fee = self.safe_number(market, 'defaultFee')
             result.append({
                 'id': id,
-                'active': active,
                 'numericId': numericId,
                 'symbol': symbol,
                 'base': base,
@@ -204,6 +200,9 @@ class bw(Exchange):
                 'quoteId': quoteId,
                 'baseNumericId': baseNumericId,
                 'quoteNumericId': quoteNumericId,
+                'type': 'spot',
+                'spot': True,
+                'active': active,
                 'maker': fee,
                 'taker': fee,
                 'info': market,
@@ -331,29 +330,29 @@ class bw(Exchange):
         marketId = self.safe_string(ticker, 0)
         symbol = self.safe_symbol(marketId, market)
         timestamp = self.milliseconds()
-        close = float(self.safe_value(ticker, 1))
+        close = self.safe_number(ticker, 1)
         bid = self.safe_value(ticker, 'bid', {})
         ask = self.safe_value(ticker, 'ask', {})
         return {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': float(self.safe_value(ticker, 2)),
-            'low': float(self.safe_value(ticker, 3)),
-            'bid': float(self.safe_value(ticker, 7)),
+            'high': self.safe_number(ticker, 2),
+            'low': self.safe_number(ticker, 3),
+            'bid': self.safe_number(ticker, 7),
             'bidVolume': self.safe_number(bid, 'quantity'),
-            'ask': float(self.safe_value(ticker, 8)),
+            'ask': self.safe_number(ticker, 8),
             'askVolume': self.safe_number(ask, 'quantity'),
             'vwap': None,
             'open': None,
             'close': close,
             'last': close,
             'previousClose': None,
-            'change': float(self.safe_value(ticker, 5)),
+            'change': self.safe_number(ticker, 5),
             'percentage': None,
             'average': None,
-            'baseVolume': float(self.safe_value(ticker, 4)),
-            'quoteVolume': float(self.safe_value(ticker, 9)),
+            'baseVolume': self.safe_number(ticker, 4),
+            'quoteVolume': self.safe_number(ticker, 9),
             'info': ticker,
         }
 
@@ -467,9 +466,6 @@ class bw(Exchange):
         timestamp = self.safe_timestamp(trade, 2)
         priceString = self.safe_string(trade, 5)
         amountString = self.safe_string(trade, 6)
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         marketId = self.safe_string(trade, 1)
         symbol = None
         if marketId is not None:
@@ -485,7 +481,7 @@ class bw(Exchange):
             symbol = market['symbol']
         sideString = self.safe_string(trade, 4)
         side = 'sell' if (sideString == 'ask') else 'buy'
-        return {
+        return self.safe_trade({
             'id': None,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -494,12 +490,12 @@ class bw(Exchange):
             'type': 'limit',
             'side': side,
             'takerOrMaker': None,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'fee': None,
             'info': trade,
-        }
+        }, market)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
         self.load_markets()
@@ -612,7 +608,7 @@ class bw(Exchange):
             account['free'] = self.safe_string(balance, 'amount')
             account['used'] = self.safe_string(balance, 'freeze')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         if price is None:
@@ -703,13 +699,13 @@ class bw(Exchange):
             side = 'sell'
         elif side == '1':
             side = 'buy'
-        amount = self.safe_number(order, 'amount')
-        price = self.safe_number(order, 'price')
-        filled = self.safe_number(order, 'completeAmount')
-        remaining = self.safe_number_2(order, 'availabelAmount', 'availableAmount')  # typo in the docs or in the API, availabel vs available
-        cost = self.safe_number(order, 'totalMoney')
+        amount = self.safe_string(order, 'amount')
+        price = self.safe_string(order, 'price')
+        filled = self.safe_string(order, 'completeAmount')
+        remaining = self.safe_string_2(order, 'availabelAmount', 'availableAmount')  # typo in the docs or in the API, availabel vs available
+        cost = self.safe_string(order, 'totalMoney')
         status = self.parse_order_status(self.safe_string(order, 'status'))
-        return self.safe_order({
+        return self.safe_order2({
             'info': order,
             'id': self.safe_string(order, 'entrustId'),
             'clientOrderId': None,
@@ -731,7 +727,7 @@ class bw(Exchange):
             'status': status,
             'fee': None,
             'trades': None,
-        })
+        }, market)
 
     def fetch_order(self, id, symbol=None, params={}):
         if symbol is None:
@@ -899,7 +895,7 @@ class bw(Exchange):
         return self.parse_orders(orders, market, since, limit)
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        url = self.implode_params(self.urls['api'], {'hostname': self.hostname}) + '/' + path
+        url = self.implode_hostname(self.urls['api']) + '/' + path
         if method == 'GET':
             if params:
                 url += '?' + self.urlencode(params)
@@ -951,6 +947,7 @@ class bw(Exchange):
             'currency': code,
             'address': self.check_address(address),
             'tag': tag,
+            'network': None,
             'info': response,
         }
 

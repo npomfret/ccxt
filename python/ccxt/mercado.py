@@ -34,7 +34,7 @@ class mercado(Exchange):
                 'fetchOrderBook': True,
                 'fetchOrders': True,
                 'fetchTicker': True,
-                'fetchTickers': False,
+                'fetchTickers': None,
                 'fetchTrades': True,
                 'withdraw': True,
             },
@@ -160,6 +160,8 @@ class mercado(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': None,
                 'info': coin,
                 'precision': precision,
@@ -290,7 +292,7 @@ class mercado(Exchange):
                 account['free'] = self.safe_string(balance, 'available')
                 account['total'] = self.safe_string(balance, 'total')
                 result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         self.load_markets()
@@ -451,6 +453,7 @@ class mercado(Exchange):
         return self.parse_order(order, market)
 
     def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         self.load_markets()
         currency = self.currency(code)
@@ -583,8 +586,14 @@ class mercado(Exchange):
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        response = self.fetch2(path, api, method, params, headers, body)
-        if 'error_message' in response:
+    def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        if response is None:
+            return
+        #
+        # todo add a unified standard handleErrors with self.exceptions in describe()
+        #
+        #     {"status":503,"message":"Maintenancing, try again later","result":null}
+        #
+        errorMessage = self.safe_value(response, 'error_message')
+        if errorMessage is not None:
             raise ExchangeError(self.id + ' ' + self.json(response))
-        return response

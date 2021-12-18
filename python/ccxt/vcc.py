@@ -33,7 +33,7 @@ class vcc(Exchange):
                 'cancelAllOrders': True,
                 'cancelOrder': True,
                 'createOrder': True,
-                'editOrder': False,
+                'editOrder': None,
                 'fetchBalance': True,
                 'fetchClosedOrders': True,
                 'fetchCurrencies': True,
@@ -45,11 +45,11 @@ class vcc(Exchange):
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
-                'fetchOrders': False,
+                'fetchOrders': None,
                 'fetchTicker': 'emulated',
                 'fetchTickers': True,
                 'fetchTrades': True,
-                'fetchTradingFees': False,
+                'fetchTradingFees': None,
                 'fetchTransactions': True,
                 'fetchWithdrawals': True,
             },
@@ -117,8 +117,8 @@ class vcc(Exchange):
                 'trading': {
                     'tierBased': False,
                     'percentage': True,
-                    'maker': 0.2 / 100,
-                    'taker': 0.2 / 100,
+                    'maker': self.parse_number('0.002'),
+                    'taker': self.parse_number('0.002'),
                 },
             },
             'exceptions': {
@@ -200,6 +200,8 @@ class vcc(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': active,
                 'precision': {
                     'price': self.safe_integer(precision, 'price'),
@@ -320,7 +322,7 @@ class vcc(Exchange):
             account['free'] = self.safe_string(balance, 'available_balance')
             account['total'] = self.safe_string(balance, 'balance')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def parse_ohlcv(self, ohlcv, market=None):
         #
@@ -428,17 +430,9 @@ class vcc(Exchange):
         quoteVolume = self.safe_number(ticker, 'quote_volume')
         open = self.safe_number(ticker, 'open_price')
         last = self.safe_number(ticker, 'last_price')
-        change = None
-        percentage = None
-        average = None
-        if last is not None and open is not None:
-            change = last - open
-            average = self.sum(last, open) / 2
-            if open > 0:
-                percentage = change / open * 100
         vwap = self.vwap(baseVolume, quoteVolume)
-        symbol = None if (market is None) else market['symbol']
-        return {
+        symbol = self.safe_symbol(None, market)
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -453,13 +447,13 @@ class vcc(Exchange):
             'close': last,
             'last': last,
             'previousClose': None,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': None,
+            'percentage': None,
+            'average': None,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }
+        }, market)
 
     def fetch_tickers(self, symbols=None, params={}):
         self.load_markets()
@@ -790,7 +784,7 @@ class vcc(Exchange):
         if stopPrice is not None:
             request['is_stop'] = 1
             request['stop_condition'] = 'le' if (side == 'buy') else 'ge'  # ge = greater than or equal, le = less than or equal
-            request['stop_price'] = self.price_to_precision(symbol, price)
+            request['stop_price'] = self.price_to_precision(symbol, stopPrice)
         params = self.omit(params, ['stop_price', 'stopPrice'])
         response = self.privatePostOrders(self.extend(request, params))
         #
@@ -950,14 +944,14 @@ class vcc(Exchange):
         marketId = baseId + '_' + quoteId
         market = self.safe_market(marketId, market, '_')
         symbol = market['symbol']
-        amount = self.safe_number(order, 'quantity')
-        filled = self.safe_number(order, 'executed_quantity')
+        amount = self.safe_string(order, 'quantity')
+        filled = self.safe_string(order, 'executed_quantity')
         status = self.parse_order_status(self.safe_string(order, 'status'))
-        cost = self.safe_number(order, 'ceiling')
+        cost = self.safe_string(order, 'ceiling')
         id = self.safe_string(order, 'id')
-        price = self.safe_number(order, 'price')
-        average = self.safe_number(order, 'executed_price')
-        remaining = self.safe_number(order, 'remaining')
+        price = self.safe_string(order, 'price')
+        average = self.safe_string(order, 'executed_price')
+        remaining = self.safe_string(order, 'remaining')
         type = self.safe_string(order, 'type')
         side = self.safe_string(order, 'trade_type')
         fee = {
@@ -969,7 +963,7 @@ class vcc(Exchange):
         if updated != created:
             lastTradeTimestamp = updated
         stopPrice = self.safe_number(order, 'stopPrice')
-        return self.safe_order({
+        return self.safe_order2({
             'id': id,
             'clientOrderId': id,
             'timestamp': created,
@@ -991,7 +985,7 @@ class vcc(Exchange):
             'fee': fee,
             'trades': None,
             'info': order,
-        })
+        }, market)
 
     def fetch_order(self, id, symbol=None, params={}):
         self.load_markets()
@@ -1198,6 +1192,7 @@ class vcc(Exchange):
             'currency': self.safe_currency_code(currencyId),
             'address': address,
             'tag': tag,
+            'network': None,
             'info': data,
         }
 

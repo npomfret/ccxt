@@ -18,13 +18,13 @@ class paymium(Exchange):
             'rateLimit': 2000,
             'version': 'v1',
             'has': {
+                'cancelOrder': True,
                 'CORS': True,
+                'createOrder': True,
                 'fetchBalance': True,
+                'fetchOrderBook': True,
                 'fetchTicker': True,
                 'fetchTrades': True,
-                'fetchOrderBook': True,
-                'createOrder': True,
-                'cancelOrder': True,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/51840849/87153930-f0f02200-c2c0-11ea-9c0a-40337375ae89.jpg',
@@ -75,12 +75,12 @@ class paymium(Exchange):
                 },
             },
             'markets': {
-                'BTC/EUR': {'id': 'eur', 'symbol': 'BTC/EUR', 'base': 'BTC', 'quote': 'EUR', 'baseId': 'btc', 'quoteId': 'eur'},
+                'BTC/EUR': {'id': 'eur', 'symbol': 'BTC/EUR', 'base': 'BTC', 'quote': 'EUR', 'baseId': 'btc', 'quoteId': 'eur', 'type': 'spot', 'spot': True},
             },
             'fees': {
                 'trading': {
-                    'maker': 0.002,
-                    'taker': 0.002,
+                    'maker': self.parse_number('0.002'),
+                    'taker': self.parse_number('0.002'),
                 },
             },
         })
@@ -92,7 +92,8 @@ class paymium(Exchange):
         currencies = list(self.currencies.keys())
         for i in range(0, len(currencies)):
             code = currencies[i]
-            currencyId = self.currency_id(code)
+            currency = self.currency(code)
+            currencyId = currency['id']
             free = 'balance_' + currencyId
             if free in response:
                 account = self.account()
@@ -100,7 +101,7 @@ class paymium(Exchange):
                 account['free'] = self.safe_string(response, free)
                 account['used'] = self.safe_string(response, used)
                 result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -233,8 +234,9 @@ class paymium(Exchange):
             headers['Api-Signature'] = self.hmac(self.encode(auth), self.encode(self.secret))
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    async def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        response = await self.fetch2(path, api, method, params, headers, body)
-        if 'errors' in response:
+    def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        if response is None:
+            return
+        errors = self.safe_value(response, 'errors')
+        if errors is not None:
             raise ExchangeError(self.id + ' ' + self.json(response))
-        return response

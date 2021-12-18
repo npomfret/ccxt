@@ -4,7 +4,7 @@
 
 const Exchange = require ('./base/Exchange');
 const { ExchangeError, ArgumentsRequired, BadRequest, AuthenticationError, DDoSProtection, BadResponse } = require ('./base/errors');
-const { TRUNCATE, NO_PADDING, DECIMAL_PLACES } = require ('./base/functions/number');
+const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -16,11 +16,11 @@ module.exports = class bytetrade extends Exchange {
             'countries': ['HK'],
             'rateLimit': 500,
             'requiresWeb3': true,
-            'certified': true,
+            'certified': false,
             // new metainfo interface
             'has': {
                 'cancelOrder': true,
-                'CORS': false,
+                'CORS': undefined,
                 'createOrder': true,
                 'fetchBalance': true,
                 'fetchBidsAsks': true,
@@ -39,7 +39,7 @@ module.exports = class bytetrade extends Exchange {
                 'fetchTickers': true,
                 'fetchTrades': true,
                 'fetchWithdrawals': true,
-                'withdraw': true,
+                'withdraw': undefined,
             },
             'timeframes': {
                 '1m': '1m',
@@ -60,8 +60,8 @@ module.exports = class bytetrade extends Exchange {
                 },
                 'logo': 'https://user-images.githubusercontent.com/1294454/67288762-2f04a600-f4e6-11e9-9fd6-c60641919491.jpg',
                 'api': {
-                    'market': 'https://api-v2.byte-trade.com',
-                    'public': 'https://api-v2.byte-trade.com',
+                    'market': 'https://api-v2.bttcdn.com',
+                    'public': 'https://api-v2.bttcdn.com',
                 },
                 'www': 'https://www.byte-trade.com',
                 'doc': 'https://docs.byte-trade.com/#description',
@@ -115,6 +115,9 @@ module.exports = class bytetrade extends Exchange {
                 'verify error': AuthenticationError, // private key signature is incorrect
                 'transaction already in network': BadRequest, // same transaction submited
                 'invalid argument': BadRequest,
+            },
+            'options': {
+                'orderExpiration': 31536000000, // one year
             },
         });
     }
@@ -255,6 +258,8 @@ module.exports = class bytetrade extends Exchange {
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'info': market,
+                'type': 'spot',
+                'spot': true,
                 'active': active,
                 'precision': {
                     'amount': this.safeInteger (precision, 'amount'),
@@ -559,12 +564,12 @@ module.exports = class bytetrade extends Exchange {
         const timestamp = this.safeInteger (order, 'timestamp');
         const datetime = this.safeString (order, 'datetime');
         const lastTradeTimestamp = this.safeInteger (order, 'lastTradeTimestamp');
-        const price = this.safeNumber (order, 'price');
-        const amount = this.safeNumber (order, 'amount');
-        const filled = this.safeNumber (order, 'filled');
-        const remaining = this.safeNumber (order, 'remaining');
-        const cost = this.safeNumber (order, 'cost');
-        const average = this.safeNumber (order, 'average');
+        const price = this.safeString (order, 'price');
+        const amount = this.safeString (order, 'amount');
+        const filled = this.safeString (order, 'filled');
+        const remaining = this.safeString (order, 'remaining');
+        const cost = this.safeString (order, 'cost');
+        const average = this.safeString (order, 'average');
         const id = this.safeString (order, 'id');
         const type = this.safeString (order, 'type');
         const side = this.safeString (order, 'side');
@@ -578,7 +583,7 @@ module.exports = class bytetrade extends Exchange {
             'cost': feeCost,
             'rate': feeRate,
         };
-        return {
+        return this.safeOrder2 ({
             'info': order,
             'id': id,
             'clientOrderId': undefined,
@@ -600,7 +605,7 @@ module.exports = class bytetrade extends Exchange {
             'status': status,
             'fee': fee,
             'trades': undefined,
-        };
+        }, market);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -628,12 +633,15 @@ module.exports = class bytetrade extends Exchange {
         const baseCurrency = this.currency (market['base']);
         const amountTruncated = this.amountToPrecision (symbol, amount);
         const amountChain = this.toWei (amountTruncated, baseCurrency['precision']);
+        const amountChainString = this.numberToString (amountChain);
         const quoteId = market['quoteId'];
         const quoteCurrency = this.currency (market['quote']);
         const priceRounded = this.priceToPrecision (symbol, price);
         const priceChain = this.toWei (priceRounded, quoteCurrency['precision']);
+        const priceChainString = this.numberToString (priceChain);
         const now = this.milliseconds ();
-        const expiration = this.milliseconds ();
+        const expiryDelta = this.safeInteger (this.options, 'orderExpiration', 31536000000);
+        const expiration = this.milliseconds () + expiryDelta;
         let datetime = this.iso8601 (now);
         datetime = datetime.split ('.')[0];
         let expirationDatetime = this.iso8601 (expiration);
@@ -644,7 +652,7 @@ module.exports = class bytetrade extends Exchange {
         const totalFeeRate = this.safeString (params, 'totalFeeRate', 8);
         const chainFeeRate = this.safeString (params, 'chainFeeRate', 1);
         const fee = this.safeString (params, 'fee', defaultFee);
-        const eightBytes = this.integerPow ('2', '64');
+        const eightBytes = Precise.stringPow ('2', '64');
         const allByteStringArray = [
             this.numberToBE (1, 32),
             this.numberToLE (Math.floor (now / 1000), 4),
@@ -660,10 +668,10 @@ module.exports = class bytetrade extends Exchange {
             this.numberToLE (typeNum, 1),
             this.numberToLE (normalSymbol.length, 1),
             this.stringToBinary (this.encode (normalSymbol)),
-            this.numberToLE (this.integerDivide (amountChain, eightBytes), 8),
-            this.numberToLE (this.integerModulo (amountChain, eightBytes), 8),
-            this.numberToLE (this.integerDivide (priceChain, eightBytes), 8),
-            this.numberToLE (this.integerModulo (priceChain, eightBytes), 8),
+            this.numberToLE (Precise.stringDiv (amountChainString, eightBytes, 0), 8),
+            this.numberToLE (Precise.stringMod (amountChainString, eightBytes), 8),
+            this.numberToLE (Precise.stringDiv (priceChainString, eightBytes, 0), 8),
+            this.numberToLE (Precise.stringMod (priceChainString, eightBytes), 8),
             this.numberToLE (0, 2),
             this.numberToLE (Math.floor (now / 1000), 4),
             this.numberToLE (Math.floor (expiration / 1000), 4),
@@ -693,10 +701,10 @@ module.exports = class bytetrade extends Exchange {
             this.numberToLE (typeNum, 1),
             this.numberToLE (normalSymbol.length, 1),
             this.stringToBinary (this.encode (normalSymbol)),
-            this.numberToLE (this.integerDivide (amountChain, eightBytes), 8),
-            this.numberToLE (this.integerModulo (amountChain, eightBytes), 8),
-            this.numberToLE (this.integerDivide (priceChain, eightBytes), 8),
-            this.numberToLE (this.integerModulo (priceChain, eightBytes), 8),
+            this.numberToLE (Precise.stringDiv (amountChainString, eightBytes, 0), 8),
+            this.numberToLE (Precise.stringMod (amountChainString, eightBytes), 8),
+            this.numberToLE (Precise.stringDiv (priceChainString, eightBytes, 0), 8),
+            this.numberToLE (Precise.stringMod (priceChainString, eightBytes), 8),
             this.numberToLE (0, 2),
             this.numberToLE (Math.floor (now / 1000), 4),
             this.numberToLE (Math.floor (expiration / 1000), 4),
@@ -764,7 +772,7 @@ module.exports = class bytetrade extends Exchange {
         };
         const response = await this.publicPostTransactionCreateorder (request);
         const timestamp = this.milliseconds ();
-        const statusCode = this.safe_string (response, 'code');
+        const statusCode = this.safeString (response, 'code');
         const status = (statusCode === '0') ? 'open' : 'failed';
         return {
             'info': response,
@@ -951,7 +959,7 @@ module.exports = class bytetrade extends Exchange {
         };
         const response = await this.publicPostTransactionCancelorder (request);
         const timestamp = this.milliseconds ();
-        const statusCode = this.safe_string (response, 'code');
+        const statusCode = this.safeString (response, 'code');
         const status = (statusCode === '0') ? 'canceled' : 'failed';
         return {
             'info': response,
@@ -972,114 +980,6 @@ module.exports = class bytetrade extends Exchange {
             'fee': undefined,
             'clientOrderId': undefined,
             'average': undefined,
-        };
-    }
-
-    async transfer (code, amount, fromAccount, toAccount, params = {}) {
-        this.checkRequiredDependencies ();
-        if (this.apiKey === undefined) {
-            throw new ArgumentsRequired ('transfer() requires this.apiKey');
-        }
-        await this.loadMarkets ();
-        const currency = this.currency (code);
-        const amountTruncate = this.decimalToPrecision (amount, TRUNCATE, currency['info']['basePrecision'] - currency['info']['transferPrecision'], DECIMAL_PLACES, NO_PADDING);
-        const amountChain = this.toWei (amountTruncate, currency['precision']);
-        const assetType = parseInt (currency['id']);
-        const now = this.milliseconds ();
-        const expiration = now;
-        let datetime = this.iso8601 (now);
-        datetime = datetime.split ('.')[0];
-        let expirationDatetime = this.iso8601 (expiration);
-        expirationDatetime = expirationDatetime.split ('.')[0];
-        const feeAmount = '300000000000000';
-        const defaultDappId = 'Sagittarius';
-        const message = this.safeString (params, 'message', '');
-        const dappId = this.safeString (params, 'dappId', defaultDappId);
-        const eightBytes = this.integerPow ('2', '64');
-        const byteStringArray = [
-            this.numberToBE (1, 32),
-            this.numberToLE (Math.floor (now / 1000), 4),
-            this.numberToLE (1, 1),
-            this.numberToLE (Math.floor (expiration / 1000), 4),
-            this.numberToLE (1, 1),
-            this.numberToLE (28, 1),
-            this.numberToLE (0, 8),
-            this.numberToLE (feeAmount, 8),  // string for 32 bit php
-            this.numberToLE (this.apiKey.length, 1),
-            this.stringToBinary (this.encode (this.apiKey)),
-            this.numberToLE (toAccount.length, 1),
-            this.stringToBinary (this.encode (toAccount)),
-            this.numberToLE (assetType, 4),
-            this.numberToLE (this.integerDivide (amountChain, eightBytes), 8),
-            this.numberToLE (this.integerModulo (amountChain, eightBytes), 8),
-            this.numberToLE (1, 1),
-            this.numberToLE (message.length, 1),
-            this.stringToBinary (this.encode (message)),
-            this.numberToLE (0, 1),
-            this.numberToLE (1, 1),
-            this.numberToLE (dappId.length, 1),
-            this.stringToBinary (this.encode (dappId)),
-            this.numberToLE (0, 1),
-        ];
-        const bytestring = this.binaryConcatArray (byteStringArray);
-        const hash = this.hash (bytestring, 'sha256', 'hex');
-        const signature = this.ecdsa (hash, this.secret, 'secp256k1', undefined, true);
-        const recoveryParam = this.binaryToBase16 (this.numberToLE (this.sum (signature['v'], 31), 1));
-        const mySignature = recoveryParam + signature['r'] + signature['s'];
-        const operation = {
-            'fee': '300000000000000',
-            'from': this.apiKey,
-            'to': toAccount,
-            'asset_type': parseInt (currency['id']),
-            'amount': amountChain.toString (),
-            'message': message,
-        };
-        const fatty = {
-            'timestamp': datetime,
-            'expiration': expirationDatetime,
-            'operations': [
-                [
-                    28,
-                    operation,
-                ],
-            ],
-            'validate_type': 0,
-            'dapp': dappId,
-            'signatures': [
-                mySignature,
-            ],
-        };
-        const request = {
-            'trObj': this.json (fatty),
-        };
-        const response = await this.publicPostTransactionTransfer (request);
-        const timestamp = this.milliseconds ();
-        const statusCode = this.safe_string (response, 'code');
-        let status = '';
-        if (statusCode === '0') {
-            status = 'submit success';
-        } else {
-            status = 'submit fail';
-        }
-        return {
-            'info': response,
-            'id': '',
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'lastTradeTimestamp': undefined,
-            'status': status,
-            'symbol': undefined,
-            'type': undefined,
-            'side': undefined,
-            'price': undefined,
-            'amount': undefined,
-            'filled': undefined,
-            'remaining': undefined,
-            'cost': undefined,
-            'fee': undefined,
-            'clientOrderId': undefined,
-            'average': undefined,
-            'trades': undefined,
         };
     }
 
@@ -1231,195 +1131,8 @@ module.exports = class bytetrade extends Exchange {
             'currency': code,
             'address': address,
             'tag': tag,
-            'chainType': chainType,
+            'network': chainType,
             'info': response,
-        };
-    }
-
-    async withdraw (code, amount, address, tag = undefined, params = {}) {
-        this.checkRequiredDependencies ();
-        this.checkAddress (address);
-        await this.loadMarkets ();
-        if (this.apiKey === undefined) {
-            throw new ArgumentsRequired (this.id + ' withdraw() requires this.apiKey');
-        }
-        const addressResponse = await this.fetchDepositAddress (code);
-        const chainTypeString = this.safeString (addressResponse, 'chainType');
-        const chainId = this.safeString (addressResponse['info'][0], 'chainId');
-        let middleAddress = '';
-        if (chainTypeString === 'eos') {
-            middleAddress = address;
-        } else {
-            middleAddress = this.safeString (addressResponse, 'address');
-        }
-        let operationId = 18;
-        if (chainTypeString !== 'ethereum' && chainTypeString !== 'etc' && chainTypeString !== 'eos' && chainTypeString !== 'cmt' && chainTypeString !== 'naka') {
-            operationId = 26;
-        }
-        const now = this.milliseconds ();
-        const expiration = 0;
-        let datetime = this.iso8601 (now);
-        datetime = datetime.split ('.')[0];
-        let expirationDatetime = this.iso8601 (expiration);
-        expirationDatetime = expirationDatetime.split ('.')[0];
-        const defaultDappId = 'Sagittarius';
-        const dappId = this.safeString (params, 'dappId', defaultDappId);
-        const feeAmount = '300000000000000';
-        const currency = this.currency (code);
-        const coinId = currency['id'];
-        const amountTruncate = this.decimalToPrecision (amount, TRUNCATE, currency['info']['basePrecision'] - currency['info']['transferPrecision'], DECIMAL_PLACES, NO_PADDING);
-        const amountChain = this.toWei (amountTruncate, currency['info']['externalPrecision']);
-        const eightBytes = this.integerPow ('2', '64');
-        let assetFee = 0;
-        let byteStringArray = [];
-        if (operationId === 26) {
-            assetFee = currency['info']['fee'];
-            byteStringArray = [
-                this.numberToBE (1, 32),
-                this.numberToLE (Math.floor (now / 1000), 4),
-                this.numberToLE (1, 1),
-                this.numberToLE (Math.floor (expiration / 1000), 4),
-                this.numberToLE (1, 1),
-                this.numberToLE (operationId, 1),
-                this.numberToLE (0, 8),
-                this.numberToLE (feeAmount, 8),  // string for 32 bit php
-                this.numberToLE (this.apiKey.length, 1),
-                this.stringToBinary (this.encode (this.apiKey)),
-                this.numberToLE (address.length, 1),
-                this.stringToBinary (this.encode (address)),
-                this.numberToLE (parseInt (coinId), 4),
-                this.numberToLE (this.integerDivide (amountChain, eightBytes), 8),
-                this.numberToLE (this.integerModulo (amountChain, eightBytes), 8),
-                this.numberToLE (1, 1),
-                this.numberToLE (this.integerDivide (assetFee, eightBytes), 8),
-                this.numberToLE (this.integerModulo (assetFee, eightBytes), 8),
-                this.numberToLE (0, 1),
-                this.numberToLE (1, 1),
-                this.numberToLE (dappId.length, 1),
-                this.stringToBinary (this.encode (dappId)),
-                this.numberToLE (0, 1),
-            ];
-        } else {
-            byteStringArray = [
-                this.numberToBE (1, 32),
-                this.numberToLE (Math.floor (now / 1000), 4),
-                this.numberToLE (1, 1),
-                this.numberToLE (Math.floor (expiration / 1000), 4),
-                this.numberToLE (1, 1),
-                this.numberToLE (operationId, 1),
-                this.numberToLE (0, 8),
-                this.numberToLE (feeAmount, 8),  // string for 32 bit php
-                this.numberToLE (this.apiKey.length, 1),
-                this.stringToBinary (this.encode (this.apiKey)),
-                this.numberToLE (Math.floor (now / 1000), 4),
-                this.numberToLE (1, 1),
-                this.numberToLE (4, 1),
-                this.numberToLE (0, 8),
-                this.numberToLE (feeAmount, 8),
-                this.numberToLE (this.apiKey.length, 1),
-                this.stringToBinary (this.encode (this.apiKey)),
-                this.numberToLE (middleAddress.length, 1),
-                this.stringToBinary (this.encode (middleAddress)),
-                this.numberToLE (parseInt (coinId), 4),
-                this.numberToLE (this.integerDivide (amountChain, eightBytes), 8),
-                this.numberToLE (this.integerModulo (amountChain, eightBytes), 8),
-                this.numberToLE (0, 1),
-                this.numberToLE (1, 1),
-                this.numberToLE (dappId.length, 1),
-                this.stringToBinary (this.encode (dappId)),
-                this.numberToLE (0, 1),
-            ];
-        }
-        const bytestring = this.binaryConcatArray (byteStringArray);
-        const hash = this.hash (bytestring, 'sha256', 'hex');
-        const signature = this.ecdsa (hash, this.secret, 'secp256k1', undefined, true);
-        const recoveryParam = this.binaryToBase16 (this.numberToLE (this.sum (signature['v'], 31), 1));
-        const mySignature = recoveryParam + signature['r'] + signature['s'];
-        let fatty = undefined;
-        let request = undefined;
-        let operation = undefined;
-        const chainContractAddress = this.safeString (currency['info'], 'chainContractAddress');
-        if (operationId === 26) {
-            operation = {
-                'fee': feeAmount,
-                'from': this.apiKey,
-                'to_external_address': address,
-                'asset_type': parseInt (coinId),
-                'amount': amountChain,
-                'asset_fee': assetFee,
-            };
-            fatty = {
-                'timestamp': datetime,
-                'expiration': expirationDatetime,
-                'operations': [
-                    [
-                        operationId,
-                        operation,
-                    ],
-                ],
-                'validate_type': 0,
-                'dapp': dappId,
-                'signatures': [
-                    mySignature,
-                ],
-            };
-            request = {
-                'chainType': chainId,
-                'trObj': this.json (fatty),
-                'chainContractAddress': chainContractAddress,
-            };
-        } else {
-            operation = {
-                'fee': feeAmount,
-                'from': this.apiKey,
-                'to_external_address': middleAddress,
-                'asset_type': parseInt (coinId),
-                'amount': amountChain,
-                'asset_fee': assetFee,
-            };
-            const middle = {
-                'fee': feeAmount,
-                'proposaler': this.apiKey,
-                'expiration_time': datetime,
-                'proposed_ops': [{
-                    'op': [4, operation],
-                }],
-            };
-            fatty = {
-                'timestamp': datetime,
-                'expiration': expirationDatetime,
-                'operations': [
-                    [
-                        operationId,
-                        middle,
-                    ],
-                ],
-                'validate_type': 0,
-                'dapp': dappId,
-                'signatures': [
-                    mySignature,
-                ],
-            };
-            if (chainTypeString === 'eos') {
-                request = {
-                    'chainType': chainId,
-                    'toExternalAddress': 'noneed',
-                    'trObj': this.json (fatty),
-                    'chainContractAddress': chainContractAddress,
-                };
-            } else {
-                request = {
-                    'chainType': chainId,
-                    'toExternalAddress': address,
-                    'trObj': this.json (fatty),
-                    'chainContractAddress': chainContractAddress,
-                };
-            }
-        }
-        const response = await this.publicPostTransactionWithdraw (request);
-        return {
-            'info': response,
-            'id': this.safeString (response, 'id'),
         };
     }
 

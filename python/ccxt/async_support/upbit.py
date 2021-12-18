@@ -38,17 +38,17 @@ class upbit(Exchange):
                 'fetchDepositAddress': True,
                 'fetchDeposits': True,
                 'fetchMarkets': True,
-                'fetchMyTrades': False,
+                'fetchMyTrades': None,
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
                 'fetchOrderBooks': True,
-                'fetchOrders': False,
+                'fetchOrders': None,
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTrades': True,
-                'fetchTransactions': False,
+                'fetchTransactions': None,
                 'fetchWithdrawals': True,
                 'withdraw': True,
             },
@@ -126,8 +126,8 @@ class upbit(Exchange):
                 'trading': {
                     'tierBased': False,
                     'percentage': True,
-                    'maker': 0.0025,
-                    'taker': 0.0025,
+                    'maker': self.parse_number('0.0025'),
+                    'taker': self.parse_number('0.0025'),
                 },
                 'funding': {
                     'tierBased': False,
@@ -329,6 +329,8 @@ class upbit(Exchange):
             'quote': quote,
             'baseId': baseId,
             'quoteId': quoteId,
+            'type': 'spot',
+            'spot': True,
             'active': active,
             'precision': precision,
             'maker': fee,
@@ -441,7 +443,7 @@ class upbit(Exchange):
             account['free'] = self.safe_string(balance, 'balance')
             account['used'] = self.safe_string(balance, 'locked')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     async def fetch_order_books(self, symbols=None, limit=None, params={}):
         await self.load_markets()
@@ -1308,6 +1310,7 @@ class upbit(Exchange):
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': None,
             'info': depositAddress,
         }
 
@@ -1355,6 +1358,7 @@ class upbit(Exchange):
         return self.parse_deposit_address(response)
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         await self.load_markets()
         currency = self.currency(code)

@@ -54,6 +54,7 @@ class Transpiler {
             [ /\.binaryConcatArray\s/g, '.binary_concat_array'],
             [ /\.binaryToString\s/g, '.binary_to_string' ],
             [ /\.precisionFromString\s/g, '.precision_from_string'],
+            [ /\.implodeHostname\s/g, '.implode_hostname'],
             [ /\.implodeParams\s/g, '.implode_params'],
             [ /\.extractParams\s/g, '.extract_params'],
             [ /\.parseBalance\s/g, '.parse_balance'],
@@ -87,6 +88,7 @@ class Transpiler {
             [ /\.getVersionString\s/g, '.get_version_string'],
             [ /\.indexBy\s/g, '.index_by'],
             [ /\.sortBy\s/g, '.sort_by'],
+            [ /\.sortBy2\s/g, '.sort_by_2'],
             [ /\.filterBy\s/g, '.filter_by'],
             [ /\.groupBy\s/g, '.group_by'],
             [ /\.marketIds\s/g, '.market_ids'],
@@ -146,9 +148,7 @@ class Transpiler {
             [ /\.safeOrder\s/g, '.safe_order'],
             [ /\.safeTicker\s/g, '.safe_ticker'],
             [ /\.roundTimeframe/g, '.round_timeframe'],
-            [ /\.integerDivide/g, '.integer_divide'],
-            [ /\.integerModulo/g, '.integer_modulo'],
-            [ /\.integerPow/g, '.integer_pow'],
+            [ /\.calculateRateLimiterCost/g, '.calculate_rate_limiter_cost' ],
             [ /\.parseAccountPosition/g, '.parse_account_position' ],
             [ /\.parsePositionRisk/g, '.parse_position_risk' ],
             [ /\.parseIncome/g, '.parse_income' ],
@@ -171,6 +171,7 @@ class Transpiler {
         return [
 
             [ /Array\.isArray\s*\(([^\)]+)\)/g, 'isinstance($1, list)' ],
+            [ /([^\(\s]+)\s+instanceof\s+String/g, 'isinstance($1, str)' ],
             [ /([^\(\s]+)\s+instanceof\s+([^\)\s]+)/g, 'isinstance($1, $2)' ],
 
             [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\=\=\=?\s+\'undefined\'/g, '$1[$2] is None' ],
@@ -181,9 +182,9 @@ class Transpiler {
             [ /typeof\s+(.+?)\s+\!\=\=?\s+\'undefined\'/g, '$1 is not None' ],
 
             [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\=\=\=?\s+\'number\'/g, "isinstance($1[$2], numbers.Real)" ],
-            [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\!\=\=?\s+\'number\'/g, "isinstance($1[$2], numbers.Real)'" ],
+            [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\!\=\=?\s+\'number\'/g, "(not isinstance($1[$2], numbers.Real))" ],
             [ /typeof\s+([^\s]+)\s+\=\=\=?\s+\'number\'/g, "isinstance($1, numbers.Real)" ],
-            [ /typeof\s+([^\s]+)\s+\!\=\=?\s+\'number\'/g, "isinstance($1, numbers.Real)" ],
+            [ /typeof\s+([^\s]+)\s+\!\=\=?\s+\'number\'/g, "(not isinstance($1, numbers.Real))" ],
 
             [ /([^\s\[]+)(?:\s|\[(.+?)\])\s+\=\=\=?\s+undefined/g, '$1[$2] is None' ],
             [ /([^\s\[]+)(?:\s|\[(.+?)\])\s+\!\=\=?\s+undefined/g, '$1[$2] is not None' ],
@@ -196,6 +197,12 @@ class Transpiler {
             [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\!\=\=?\s+\'string\'/g, 'not isinstance($1[$2], basestring)' ],
             [ /typeof\s+([^\s]+)\s+\=\=\=?\s+\'string\'/g, 'isinstance($1, basestring)' ],
             [ /typeof\s+([^\s]+)\s+\!\=\=?\s+\'string\'/g, 'not isinstance($1, basestring)' ],
+
+            [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\=\=\=?\s+\'object\'/g, 'isinstance($1[$2], dict)' ],
+            [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\!\=\=?\s+\'object\'/g, 'not isinstance($1[$2], dict)' ],
+            [ /typeof\s+([^\s]+)\s+\=\=\=?\s+\'object\'/g, 'isinstance($1, dict)' ],
+            [ /typeof\s+([^\s]+)\s+\!\=\=?\s+\'object\'/g, 'not isinstance($1, dict)' ],
+
             [ /undefined/g, 'None' ],
             [ /\=\=\=?/g, '==' ],
             [ /\!\=\=?/g, '!=' ],
@@ -203,6 +210,7 @@ class Transpiler {
             [ /\.shift\s*\(\)/g, '.pop(0)' ],
             [ /Number\.MAX_SAFE_INTEGER/g, 'float(\'inf\')'],
             [ /function\s*(\w+\s*\([^)]+\))\s*{/g, 'def $1:'],
+            // [ /\.replaceAll\s*\(([^)]+)\)/g, '.replace($1)' ], // still not a part of the standard
             [ /assert\s*\((.+)\);/g, 'assert $1'],
             [ /Precise\.stringAdd\s/g, 'Precise.string_add' ],
             [ /Precise\.stringMul\s/g, 'Precise.string_mul' ],
@@ -210,6 +218,14 @@ class Transpiler {
             [ /Precise\.stringSub\s/g, 'Precise.string_sub' ],
             [ /Precise\.stringAbs\s/g, 'Precise.string_abs' ],
             [ /Precise\.stringNeg\s/g, 'Precise.string_neg' ],
+            [ /Precise\.stringMod\s/g, 'Precise.string_mod' ],
+            [ /Precise\.stringEquals\s/g, 'Precise.string_equals' ],
+            [ /Precise\.stringMin\s/g, 'Precise.string_min' ],
+            [ /Precise\.stringMax\s/g, 'Precise.string_max' ],
+            [ /Precise\.stringGt\s/g, 'Precise.string_gt' ],
+            [ /Precise\.stringGe\s/g, 'Precise.string_ge' ],
+            [ /Precise\.stringLt\s/g, 'Precise.string_lt' ],
+            [ /Precise\.stringLe\s/g, 'Precise.string_le' ],
 
         // insert common regexes in the middle (critical)
         ].concat (this.getCommonRegexes ()).concat ([
@@ -217,6 +233,7 @@ class Transpiler {
             // [ /this\.urlencode\s/g, '_urlencode.urlencode ' ], // use self.urlencode instead
             [ /this\./g, 'self.' ],
             [ /([^a-zA-Z\'])this([^a-zA-Z])/g, '$1self$2' ],
+            [ /\[\s*([^\]]+)\s\]\s=/g, '$1 =' ],
             [ /(^|[^a-zA-Z0-9_])(?:let|const|var)\s\[\s*([^\]]+)\s\]/g, '$1$2' ],
             [ /(^|[^a-zA-Z0-9_])(?:let|const|var)\s\{\s*([^\}]+)\s\}\s\=\s([^\;]+)/g, '$1$2 = (lambda $2: ($2))(**$3)' ],
             [ /(^|[^a-zA-Z0-9_])(?:let|const|var)\s/g, '$1' ],
@@ -313,6 +330,7 @@ class Transpiler {
             [ /\{([a-zA-Z0-9_-]+?)\}/g, '~$1~' ], // resolve the "arrays vs url params" conflict (both are in {}-brackets)
             [ /\!Array\.isArray\s*\(([^\)]+)\)/g, "gettype($1) === 'array' && count(array_filter(array_keys($1), 'is_string')) != 0" ],
             [ /Array\.isArray\s*\(([^\)]+)\)/g, "gettype($1) === 'array' && count(array_filter(array_keys($1), 'is_string')) == 0" ],
+            [ /([^\(\s]+)\s+instanceof\s+String/g, 'is_string($1)' ],
 
             [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\=\=\=?\s+\'undefined\'/g, '$1[$2] === null' ],
             [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\!\=\=?\s+\'undefined\'/g, '$1[$2] !== null' ],
@@ -333,10 +351,15 @@ class Transpiler {
             [ /typeof\s+([^\s]+)\s+\=\=\=?\s+\'string\'/g, "gettype($1) === 'string'" ],
             [ /typeof\s+([^\s]+)\s+\!\=\=?\s+\'string\'/g, "gettype($1) !== 'string'" ],
 
+            [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\=\=\=?\s+\'object\'/g, "gettype($1[$2]) === 'array'" ],
+            [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\!\=\=?\s+\'object\'/g, "gettype($1[$2]) !== 'array'" ],
+            [ /typeof\s+([^\s]+)\s+\=\=\=?\s+\'object\'/g, "gettype($1) === 'array'" ],
+            [ /typeof\s+([^\s]+)\s+\!\=\=?\s+\'object\'/g, "gettype($1) !== 'array'" ],
+
             [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\=\=\=?\s+\'number\'/g, "(is_float($1[$2]) || is_int($1[$2]))" ], // same as above but for number
-            [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\!\=\=?\s+\'number\'/g, "(is_float($1[$2]) || is_int($1[$2]))'" ],
+            [ /typeof\s+([^\s\[]+)(?:\s|\[(.+?)\])\s+\!\=\=?\s+\'number\'/g, "!(is_float($1[$2]) || is_int($1[$2]))" ],
             [ /typeof\s+([^\s]+)\s+\=\=\=?\s+\'number\'/g, "(is_float($1) || is_int($1))" ],
-            [ /typeof\s+([^\s]+)\s+\!\=\=?\s+\'number\'/g, "(is_float($1) || is_int($1))" ],
+            [ /typeof\s+([^\s]+)\s+\!\=\=?\s+\'number\'/g, "!(is_float($1) || is_int($1))" ],
 
             [ /undefined/g, 'null' ],
             [ /this\.extend\s/g, 'array_merge' ],
@@ -357,6 +380,14 @@ class Transpiler {
             [ /Precise\.stringSub\s/g, 'Precise::string_sub' ],
             [ /Precise\.stringAbs\s/g, 'Precise::string_abs' ],
             [ /Precise\.stringNeg\s/g, 'Precise::string_neg' ],
+            [ /Precise\.stringMod\s/g, 'Precise::string_mod' ],
+            [ /Precise\.stringEquals\s/g, 'Precise::string_equals' ],
+            [ /Precise\.stringMin\s/g, 'Precise::string_min' ],
+            [ /Precise\.stringMax\s/g, 'Precise::string_max' ],
+            [ /Precise\.stringGt\s/g, 'Precise::string_gt' ],
+            [ /Precise\.stringGe\s/g, 'Precise::string_ge' ],
+            [ /Precise\.stringLt\s/g, 'Precise::string_lt' ],
+            [ /Precise\.stringLe\s/g, 'Precise::string_le' ],
 
         // insert common regexes in the middle (critical)
         ].concat (this.getCommonRegexes ()).concat ([
@@ -369,7 +400,7 @@ class Transpiler {
 
         // add {}-array syntax conversions up to 20 levels deep in the same line
         ]).concat ([ ... Array (20) ].map (x => [ /\{([^\n\}]+)\}/g, 'array($1)' ] )).concat ([
-
+            [ /\[\s*([^\]]+)\s\]\s=/g, 'list($1) =' ],
             [ /(^|[^a-zA-Z0-9_])(?:let|const|var)\s\[\s*([^\]]+)\s\]/g, '$1list($2)' ],
             [ /(^|[^a-zA-Z0-9_])(?:let|const|var)\s\{\s*([^\}]+)\s\}/g, '$1array_values(list($2))' ],
             [ /(^|[^a-zA-Z0-9_])(?:let|const|var)\s/g, '$1' ],
@@ -410,6 +441,7 @@ class Transpiler {
             [ / \+\= (?!\d)/g, ' .= ' ],
             [ /([^\s\(]+(?:\s*\(.+\))?)\.toUpperCase\s*\(\)/g, 'strtoupper($1)' ],
             [ /([^\s\(]+(?:\s*\(.+\))?)\.toLowerCase\s*\(\)/g, 'strtolower($1)' ],
+            // [ /([^\s\(]+(?:\s*\(.+\))?)\.replaceAll\s*\(([^)]+)\)/g, 'str_replace($2, $1)' ], // still not a part of the standard in Node.js 13
             [ /([^\s\(]+(?:\s*\(.+\))?)\.replace\s*\(([^)]+)\)/g, 'str_replace($2, $1)' ],
             [ /this\[([^\]+]+)\]/g, '$$this->$$$1' ],
             [ /([^\s\(]+).slice \(([^\)\:,]+)\)/g, 'mb_substr($1, $2)' ],
@@ -582,6 +614,10 @@ class Transpiler {
             const regex = new RegExp ("[^\\'a-zA-Z]" + library + "[^\\'a-zA-Z]")
             if (bodyAsString.match (regex))
                 libraries.push ('import ' + pythonStandardLibraries[library])
+        }
+
+        if (body.indexOf ('numbers') >= 0) {
+            libraries.push ('import numbers')
         }
 
         const errorImports = []
@@ -780,11 +816,11 @@ class Transpiler {
         allVariables = allVariables.map (error => this.regexAll (error, this.getCommonRegexes ()))
 
         // append $ to all variables in the method (PHP syntax demands $ at the beginning of a variable name)
-        let phpVariablesRegexes = allVariables.map (x => [ "(^|[^$$a-zA-Z0-9\\.\\>'_/])" + x + "([^a-zA-Z0-9'_/])", '$1$$' + x + '$2' ])
+        let phpVariablesRegexes = allVariables.map (x => [ "(^|[^$$a-zA-Z0-9\\.\\>'\"_/])" + x + "([^a-zA-Z0-9'_/])", '$1$$' + x + '$2' ])
 
         // support for php syntax for object-pointer dereference
         // convert all $variable.property to $variable->property
-        let variablePropertiesRegexes = allVariables.map (x => [ "(^|[^a-zA-Z0-9\\.\\>'_])" + x + '\\.', '$1' + x + '->' ])
+        let variablePropertiesRegexes = allVariables.map (x => [ "(^|[^a-zA-Z0-9\\.\\>'\"_])" + x + '\\.', '$1' + x + '->' ])
 
         // transpile JS → PHP
         const phpRegexes = this.getPHPRegexes ()
@@ -826,6 +862,7 @@ class Transpiler {
             .map (line => {
                 return (
                     line.replace ('asyncio.get_event_loop().run_until_complete(main())', 'main()')
+                        .replace ('asyncio.run(main())', 'main()')
                         .replace ('import ccxt.async_support as ccxt', 'import ccxt')
                         .replace (/.*token\_bucket.*/g, '')
                         .replace ('await asyncio.sleep', 'time.sleep')
@@ -931,7 +968,7 @@ class Transpiler {
             let variables = args.map (arg => arg.split ('=').map (x => x.trim ()) [0])
 
             // add $ to each argument name in PHP method signature
-            let phpArgs = args.join (', $').trim ().replace (/undefined/g, 'null').replace ('{}', 'array ()')
+            let phpArgs = args.join (', $').trim ().replace (/undefined/g, 'null').replace (/\{\}/g, 'array ()')
             phpArgs = phpArgs.length ? ('$' + phpArgs) : ''
 
             // remove excessive spacing from argument defaults in Python method signature
@@ -1116,7 +1153,7 @@ class Transpiler {
 
         const regex = /\/[\n]{2}(?:    export class [^\s]+ extends [^\s]+ \{\}[\r]?[\n])+/
         const replacement = "/\n\n" + Object.keys (classes).map (className => {
-            const baseClass = classes[className].replace (/ccxt\.[a-z_]+/, 'Exchange')
+            const baseClass = classes[className].replace (/ccxt\.[a-z0-9_]+/, 'Exchange')
             return '    export class ' + className + ' extends ' + baseClass + " {}"
         }).join ("\n") + "\n"
 
@@ -1331,14 +1368,6 @@ class Transpiler {
             "from ccxt.base.precise import Precise                            # noqa F401",
             "",
             "",
-            "def toWei(amount, decimals):",
-            "    return Exchange.to_wei(amount, decimals)",
-            "",
-            "",
-            "def fromWei(amount, decimals):",
-            "    return Exchange.from_wei(amount, decimals)",
-            "",
-            "",
         ].join ("\n")
 
         const phpHeader = [
@@ -1362,12 +1391,6 @@ class Transpiler {
             "}",
             "function number_to_string ($x) {",
             "    return Exchange::number_to_string ($x);",
-            "}",
-            "function toWei ($amount, $decimals) {",
-            "    return Exchange::to_wei ($amount, $decimals);",
-            "}",
-            "function fromWei ($amount, $decimals) {",
-            "    return Exchange::from_wei ($amount, $decimals);",
             "}",
             "",
         ].join ("\n")

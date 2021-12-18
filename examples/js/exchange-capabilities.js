@@ -1,71 +1,111 @@
 "use strict";
 
 /*  ------------------------------------------------------------------------ */
+// node ./examples/js/exchange-capabilities.js --csv
 
+const isCsvStyle  = process.argv.includes ('--csv')
+const delimiter   = isCsvStyle ? ',' : '|'
 const ccxt        = require ('../../ccxt.js')
-    , asTable     = require ('as-table') // .configure ({ print: require ('string.ify').noPretty })
+    , asTable     = require ('as-table').configure ({ delimiter: ' '+delimiter+' ', /* print: require ('string.ify').noPretty  */ })
     , log         = require ('ololog').noLocate
     , ansi        = require ('ansicolor').nice
 
 console.log (ccxt.iso8601 (ccxt.milliseconds ()))
 console.log ('CCXT v' + ccxt.version)
+const isWindows = process.platform == 'win32' // fix for windows, as it doesn't show darkred-VS-red well enough
 
 ;(async function test () {
-
     let total = 0
-    let missing = 0
+    let notImplemented = 0
+    let inexistentApi = 0
     let implemented = 0
     let emulated = 0
 
-    log (asTable (ccxt.exchanges.map (id => new ccxt[id]()).map (exchange => {
+    const table = asTable (ccxt.exchanges.map (id => new ccxt[id]()).map (exchange => {
 
         let result = {};
 
         [
             'publicAPI',
             'privateAPI',
+            'margin',
+            'swap',
+            'future',
             'CORS',
+            'fetchCurrencies',
+            'fetchFundingFees',
+            'fetchFundingRate',
+            'fetchFundingRates',
+            'fetchFundingRateHistory',
+            'fetchIndexOHLCV',
+            'fetchMarkOHLCV',
+            'fetchMarkets',
+            'fetchOHLCV',
+            'fetchOrderBook',
+            'fetchOrderBooks',
+            'fetchStatus',
             'fetchTicker',
             'fetchTickers',
-            'fetchOrderBook',
+            'fetchTime',
             'fetchTrades',
-            'fetchOHLCV',
-            'fetchBalance',
-            'createOrder',
-            'createMarketOrder',
-            'createLimitOrder',
-            'editOrder',
+            'fetchTradingLimits',
+            'cancelAllOrders',
             'cancelOrder',
             'cancelOrders',
-            'cancelAllOrders',
-            'fetchOrder',
-            'fetchOrders',
-            'fetchOpenOrders',
-            'fetchClosedOrders',
-            'fetchMyTrades',
-            'fetchOrderTrades',
-            'fetchCurrencies',
-            'fetchDepositAddress',
             'createDepositAddress',
-            'fetchTransactions',
+            'createOrder',
+            'deposit',
+            'editOrder',
+            'fetchAccounts',
+            'fetchBalance',
+            'fetchBorrowRate',
+            'fetchBorrowRates',
+            'fetchCanceledOrders',
+            'fetchClosedOrder',
+            'fetchClosedOrders',
+            'fetchDeposit',
+            'fetchDepositAddress',
+            'fetchDepositAddresses',
             'fetchDeposits',
-            'fetchWithdrawals',
-            'withdraw',
+            'fetchFees',
+            'fetchFundingFee',
+            'fetchFundingHistory',
+            'fetchIsolatedPositions',
             'fetchLedger',
-            'fetchFundingFees',
+            'fetchLedgerEntry',
+            'fetchMyTrades',
+            'fetchOpenOrder',
+            'fetchOpenOrders',
+            'fetchOrder',
+            'fetchOrderTrades',
+            'fetchOrders',
+            'fetchPosition',
+            'fetchPositions',
+            'fetchPremiumIndexOHLCV',
+            'fetchTradingFee',
             'fetchTradingFees',
-            'fetchTradingLimits',
-
+            'fetchTransactions',
+            'fetchTransfers',
+            'fetchWithdrawal',
+            'fetchWithdrawals',
+            'setLeverage',
+            'setMarginMode',
+            'signIn',
+            'transfer',
+            'withdraw',
         ].forEach (key => {
 
             total += 1
 
-            let capability = exchange.has[key].toString ()
+            let capability = exchange.has[key]
 
-            if (!exchange.has[key]) {
-                capability = exchange.id.red.dim
-                missing += 1
-            } else if (exchange.has[key] === 'emulated') {
+            if (capability === undefined) {
+                capability = isWindows ? exchange.id.red : exchange.id.red.dim
+                notImplemented += 1
+            } else if (capability === false) {
+                capability = isWindows ? exchange.id.lightMagenta : exchange.id.red 
+                inexistentApi += 1
+            } else if (capability.toString () === 'emulated') {
                 capability = exchange.id.yellow
                 emulated += 1
             } else {
@@ -77,13 +117,25 @@ console.log ('CCXT v' + ccxt.version)
         })
 
         return result
-    })))
+    }))
 
-    log ('Summary:',
-        ccxt.exchanges.length.toString (), 'exchanges,',
-        implemented.toString ().green, 'methods implemented,',
+    if (isCsvStyle) {
+        let lines = table.split ("\n")	
+        lines = lines.slice (0, 1).concat (lines.slice (2))	
+        log (lines.join ("\n"))
+    } else {
+        log(table)
+    }
+
+    log ('Summary: ',
+        ccxt.exchanges.length.toString (), 'exchanges; ',
+        'Methods [' + total.toString () + ' total]: ',
+        implemented.toString ().green, 'implemented,',
         emulated.toString ().yellow, 'emulated,',
-        missing.toString ().red, 'missing,',
-        total.toString (), 'total')
+        (isWindows ? inexistentApi.toString ().lightMagenta : inexistentApi.toString ().red), 'inexistentApi,',
+        (isWindows ? notImplemented.toString ().red : notImplemented.toString ().red.dim), 'notImplemented',
+    )
+
+    log("\nMessy? Try piping to less (e.g. node script.js | less -S -R)\n".red)
 
 }) ()

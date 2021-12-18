@@ -8,7 +8,6 @@ namespace ccxt\async;
 use Exception; // a common import
 use \ccxt\ExchangeError;
 use \ccxt\ArgumentsRequired;
-use \ccxt\Precise;
 
 class bw extends Exchange {
 
@@ -20,44 +19,42 @@ class bw extends Exchange {
             'rateLimit' => 1500,
             'version' => 'v1',
             'has' => array(
-                'cancelAllOrders' => false,
+                'cancelAllOrders' => null,
                 'cancelOrder' => true,
-                'cancelOrders' => false,
-                'CORS' => false,
-                'createDepositAddress' => false,
+                'cancelOrders' => null,
+                'CORS' => null,
+                'createDepositAddress' => null,
                 'createLimitOrder' => true,
-                'createMarketOrder' => false,
+                'createMarketOrder' => null,
                 'createOrder' => true,
-                'deposit' => false,
-                'editOrder' => false,
+                'deposit' => null,
+                'editOrder' => null,
                 'fetchBalance' => true,
-                'fetchBidsAsks' => false,
+                'fetchBidsAsks' => null,
                 'fetchClosedOrders' => true,
                 'fetchCurrencies' => true,
                 'fetchDepositAddress' => true,
                 'fetchDeposits' => true,
-                'fetchFundingFees' => false,
-                'fetchL2OrderBook' => false,
-                'fetchLedger' => false,
+                'fetchFundingFees' => null,
+                'fetchL2OrderBook' => null,
+                'fetchLedger' => null,
                 'fetchMarkets' => true,
-                'fetchMyTrades' => false,
+                'fetchMyTrades' => null,
                 'fetchOHLCV' => true,
                 'fetchOpenOrders' => true,
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
-                'fetchOrderBooks' => false,
+                'fetchOrderBooks' => null,
                 'fetchOrders' => true,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
                 'fetchTrades' => true,
-                'fetchTradingFee' => false,
-                'fetchTradingFees' => false,
-                'fetchTradingLimits' => false,
-                'fetchTransactions' => false,
+                'fetchTradingFee' => null,
+                'fetchTradingFees' => null,
+                'fetchTradingLimits' => null,
+                'fetchTransactions' => null,
                 'fetchWithdrawals' => true,
-                'privateAPI' => false,
-                'publicAPI' => false,
-                'withdraw' => false,
+                'withdraw' => null,
             ),
             'timeframes' => array(
                 '1m' => '1M',
@@ -84,8 +81,8 @@ class bw extends Exchange {
                 'trading' => array(
                     'tierBased' => false,
                     'percentage' => true,
-                    'taker' => 0.2 / 100,
-                    'maker' => 0.2 / 100,
+                    'taker' => $this->parse_number('0.002'),
+                    'maker' => $this->parse_number('0.002'),
                 ),
                 'funding' => array(
                 ),
@@ -150,14 +147,14 @@ class bw extends Exchange {
         //                 "marketId":"291",
         //                 "webId":"102",
         //                 "serverId":"entrust_bw_23",
-        //                 "$name":"eos_usdt",
+        //                 "name":"eos_usdt",
         //                 "leverType":"2",
         //                 "buyerCurrencyId":"11",
         //                 "sellerCurrencyId":"7",
         //                 "amountDecimal":4,
         //                 "priceDecimal":3,
         //                 "minAmount":"0.0100000000",
-        //                 "$state":1,
+        //                 "state":1,
         //                 "openTime":1572537600000,
         //                 "defaultFee":"0.00200000",
         //                 "createUid":null,
@@ -192,7 +189,6 @@ class bw extends Exchange {
             $fee = $this->safe_number($market, 'defaultFee');
             $result[] = array(
                 'id' => $id,
-                'active' => $active,
                 'numericId' => $numericId,
                 'symbol' => $symbol,
                 'base' => $base,
@@ -201,6 +197,9 @@ class bw extends Exchange {
                 'quoteId' => $quoteId,
                 'baseNumericId' => $baseNumericId,
                 'quoteNumericId' => $quoteNumericId,
+                'type' => 'spot',
+                'spot' => true,
+                'active' => $active,
                 'maker' => $fee,
                 'taker' => $fee,
                 'info' => $market,
@@ -244,7 +243,7 @@ class bw extends Exchange {
         //                 "createTime":1574068133762,
         //                 "modifyUid":null,
         //                 "modifyTime":0,
-        //                 "$state":1,
+        //                 "state":1,
         //                 "mark":"pan",
         //                 "totalNumber":"0",
         //                 "publishNumber":"0",
@@ -279,7 +278,7 @@ class bw extends Exchange {
         //                 "zone":1
         //             ),
         //         ),
-        //         "resMsg" => array( "message":"success !", "method":null, "$code":"1" )
+        //         "resMsg" => array( "message":"success !", "method":null, "code":"1" )
         //     }
         //
         $currencies = $this->safe_value($response, 'datas', array());
@@ -332,29 +331,29 @@ class bw extends Exchange {
         $marketId = $this->safe_string($ticker, 0);
         $symbol = $this->safe_symbol($marketId, $market);
         $timestamp = $this->milliseconds();
-        $close = floatval($this->safe_value($ticker, 1));
+        $close = $this->safe_number($ticker, 1);
         $bid = $this->safe_value($ticker, 'bid', array());
         $ask = $this->safe_value($ticker, 'ask', array());
         return array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => floatval($this->safe_value($ticker, 2)),
-            'low' => floatval($this->safe_value($ticker, 3)),
-            'bid' => floatval($this->safe_value($ticker, 7)),
+            'high' => $this->safe_number($ticker, 2),
+            'low' => $this->safe_number($ticker, 3),
+            'bid' => $this->safe_number($ticker, 7),
             'bidVolume' => $this->safe_number($bid, 'quantity'),
-            'ask' => floatval($this->safe_value($ticker, 8)),
+            'ask' => $this->safe_number($ticker, 8),
             'askVolume' => $this->safe_number($ask, 'quantity'),
             'vwap' => null,
             'open' => null,
             'close' => $close,
             'last' => $close,
             'previousClose' => null,
-            'change' => floatval($this->safe_value($ticker, 5)),
+            'change' => $this->safe_number($ticker, 5),
             'percentage' => null,
             'average' => null,
-            'baseVolume' => floatval($this->safe_value($ticker, 4)),
-            'quoteVolume' => floatval($this->safe_value($ticker, 9)),
+            'baseVolume' => $this->safe_number($ticker, 4),
+            'quoteVolume' => $this->safe_number($ticker, 9),
             'info' => $ticker,
         );
     }
@@ -392,7 +391,7 @@ class bw extends Exchange {
         $response = yield $this->publicGetApiDataV1Tickers ($params);
         //
         //     {
-        //         "$datas" => [
+        //         "datas" => [
         //             [
         //                 "4051",
         //                 "0.00194",
@@ -440,7 +439,7 @@ class bw extends Exchange {
         //             "bids" => array(
         //                 array( "9734.33", "0.0133" ),
         //             ),
-        //             "$timestamp" => "1569303520",
+        //             "timestamp" => "1569303520",
         //         ),
         //         "resMsg" => array(
         //             "message" => "success !",
@@ -464,8 +463,8 @@ class bw extends Exchange {
         //         "1569303302", // $timestamp
         //         "BTC_USDT",   // $market name
         //         "ask",        // $side
-        //         "9745.08",    // $price
-        //         "0.0026"      // $amount
+        //         "9745.08",    // price
+        //         "0.0026"      // amount
         //     )
         //
         // fetchMyTrades (private)
@@ -475,9 +474,6 @@ class bw extends Exchange {
         $timestamp = $this->safe_timestamp($trade, 2);
         $priceString = $this->safe_string($trade, 5);
         $amountString = $this->safe_string($trade, 6);
-        $price = $this->parse_number($priceString);
-        $amount = $this->parse_number($amountString);
-        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         $marketId = $this->safe_string($trade, 1);
         $symbol = null;
         if ($marketId !== null) {
@@ -496,7 +492,7 @@ class bw extends Exchange {
         }
         $sideString = $this->safe_string($trade, 4);
         $side = ($sideString === 'ask') ? 'sell' : 'buy';
-        return array(
+        return $this->safe_trade(array(
             'id' => null,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -505,12 +501,12 @@ class bw extends Exchange {
             'type' => 'limit',
             'side' => $side,
             'takerOrMaker' => null,
-            'price' => $price,
-            'amount' => $amount,
-            'cost' => $cost,
+            'price' => $priceString,
+            'amount' => $amountString,
+            'cost' => null,
             'fee' => null,
             'info' => $trade,
-        );
+        ), $market);
     }
 
     public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
@@ -615,7 +611,7 @@ class bw extends Exchange {
         //             ),
         //             "pageNum" => 1,
         //         ),
-        //         "resMsg" => array( "$code" => "1", "message" => "success !" )
+        //         "resMsg" => array( "code" => "1", "message" => "success !" )
         //     }
         //
         $data = $this->safe_value($response, 'datas', array());
@@ -630,7 +626,7 @@ class bw extends Exchange {
             $account['used'] = $this->safe_string($balance, 'freeze');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -703,16 +699,16 @@ class bw extends Exchange {
         //
         //     {
         //         "entrustId" => "E6581108027628212224", // Order id
-        //         "$price" => "1450",                     // $price
+        //         "price" => "1450",                     // $price
         //         "rangeType" => 0,                      // Commission type 0 => limit $price commission 1 => interval commission
-        //         "$amount" => "14.05",                   // Order quantity
+        //         "amount" => "14.05",                   // Order quantity
         //         "totalMoney" => "20372.50",            // Total $order $amount
         //         "completeAmount" => "0",               // Quantity sold
         //         "completeTotalMoney" => "0",           // Total dealt $amount
         //         "type" => 1,                           // 0 = sell, 1 = buy, -1 = cancel
         //         "entrustType" => 0,                    // 0 = ordinary current $price commission, 1 = lever commission
-        //         "$status" => 0,                         //
-        //         "$marketId" => "318",                   // The $market id
+        //         "status" => 0,                         //
+        //         "marketId" => "318",                   // The $market id
         //         "createTime" => 1569058424861,         // Create time
         //         "availabelAmount" => "14.05"           // Outstanding quantity, typo in the docs or in the API, availabel vs available
         //     }
@@ -726,13 +722,13 @@ class bw extends Exchange {
         } else if ($side === '1') {
             $side = 'buy';
         }
-        $amount = $this->safe_number($order, 'amount');
-        $price = $this->safe_number($order, 'price');
-        $filled = $this->safe_number($order, 'completeAmount');
-        $remaining = $this->safe_number_2($order, 'availabelAmount', 'availableAmount'); // typo in the docs or in the API, availabel vs available
-        $cost = $this->safe_number($order, 'totalMoney');
+        $amount = $this->safe_string($order, 'amount');
+        $price = $this->safe_string($order, 'price');
+        $filled = $this->safe_string($order, 'completeAmount');
+        $remaining = $this->safe_string_2($order, 'availabelAmount', 'availableAmount'); // typo in the docs or in the API, availabel vs available
+        $cost = $this->safe_string($order, 'totalMoney');
         $status = $this->parse_order_status($this->safe_string($order, 'status'));
-        return $this->safe_order(array(
+        return $this->safe_order2(array(
             'info' => $order,
             'id' => $this->safe_string($order, 'entrustId'),
             'clientOrderId' => null,
@@ -754,7 +750,7 @@ class bw extends Exchange {
             'status' => $status,
             'fee' => null,
             'trades' => null,
-        ));
+        ), $market);
     }
 
     public function fetch_order($id, $symbol = null, $params = array ()) {
@@ -938,7 +934,7 @@ class bw extends Exchange {
     }
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
-        $url = $this->implode_params($this->urls['api'], array( 'hostname' => $this->hostname )) . '/' . $path;
+        $url = $this->implode_hostname($this->urls['api']) . '/' . $path;
         if ($method === 'GET') {
             if ($params) {
                 $url .= '?' . $this->urlencode($params);
@@ -982,11 +978,11 @@ class bw extends Exchange {
         //     {
         //         "datas" => array(
         //             "isMemo" => true,                                // 是否为memo 格式，false：否，true ：是
-        //             "$address" => "bweosdeposit_787928102918558272",  // 充币地址
+        //             "address" => "bweosdeposit_787928102918558272",  // 充币地址
         //             "memo" => "787928102918558272",                  // 币种memo
         //             "account" => "bweosdeposit"                      // 币种账户
         //         ),
-        //         "resMsg" => array( "message" => "success !", "method" => null, "$code" => "1" )
+        //         "resMsg" => array( "message" => "success !", "method" => null, "code" => "1" )
         //     }
         //
         $data = $this->safe_value($response, 'datas', array());
@@ -997,6 +993,7 @@ class bw extends Exchange {
             'currency' => $code,
             'address' => $this->check_address($address),
             'tag' => $tag,
+            'network' => null,
             'info' => $response,
         );
     }
@@ -1016,12 +1013,12 @@ class bw extends Exchange {
         //
         //     {
         //         "depositId" => "D6574268549744189441",                  // Deposit ID
-        //         "$amount" => "54.753589700000000000",                    // Deposit $amount
+        //         "amount" => "54.753589700000000000",                    // Deposit $amount
         //         "txId" => "INNER_SYSTEM_TRANSFER_1198941",              // Trading ID
         //         "confirmTimes" => 0,                                    // Confirmation number
         //         "depositAddress" => "bweosdeposit_787928102918558272",  // Deposit $address
         //         "createTime" => "2019-09-02 20:36:08.0",                // Deposit time
-        //         "$status" => 1,                                          // Deposit $status, 0 => not received, 1 => received
+        //         "status" => 1,                                          // Deposit $status, 0 => not received, 1 => received
         //         "currencyTypeId" => 7,                                  // Token ID
         //     }
         //
@@ -1031,8 +1028,8 @@ class bw extends Exchange {
         //         "withdrawalId" => "W6527498439872634880",      // Withdrawal ID
         //         "fees" => "0.500000000000000000",              // Withdrawal $fee
         //         "withdrawalAddress" => "okbtothemoon_941657",  // Withdrawal $address
-        //         "$currencyId" => "7",                           // Token ID
-        //         "$amount" => "10.000000000000000000",           // Withdrawal $amount
+        //         "currencyId" => "7",                           // Token ID
+        //         "amount" => "10.000000000000000000",           // Withdrawal $amount
         //         "state" => 1,                                  // Status, 1 => normal, -1 => delete
         //         "verifyStatus" => 1,                           // Audit $status, 0 => to be audited, 1 => auditing passed, -1 => auditing failed
         //         "createTime" => 1556276903656,                 // WIthdrawal time
@@ -1119,7 +1116,7 @@ class bw extends Exchange {
         //                 ),
         //             )
         //         ),
-        //         "resMsg" => array( "message" => "success !", "method" => null, "$code" => "1" ),
+        //         "resMsg" => array( "message" => "success !", "method" => null, "code" => "1" ),
         //     }
         //
         $data = $this->safe_value($response, 'datas', array());
@@ -1164,7 +1161,7 @@ class bw extends Exchange {
         //                 ),
         //             ),
         //         ),
-        //         "resMsg" => array( "message" => "success !", "method" => null, "$code" => "1" ),
+        //         "resMsg" => array( "message" => "success !", "method" => null, "code" => "1" ),
         //     }
         //
         $data = $this->safe_value($response, 'datas', array());

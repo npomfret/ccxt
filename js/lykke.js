@@ -16,21 +16,21 @@ module.exports = class lykke extends Exchange {
             'version': 'v1',
             'rateLimit': 200,
             'has': {
-                'CORS': false,
-                'fetchOHLCV': false,
-                'fetchOpenOrders': true,
-                'fetchClosedOrders': true,
-                'fetchOrder': true,
-                'fetchOrders': true,
-                'fetchTrades': true,
-                'fetchMyTrades': true,
-                'createOrder': true,
-                'cancelOrder': true,
                 'cancelAllOrders': true,
+                'cancelOrder': true,
+                'CORS': undefined,
+                'createOrder': true,
                 'fetchBalance': true,
+                'fetchClosedOrders': true,
                 'fetchMarkets': true,
+                'fetchMyTrades': true,
+                'fetchOHLCV': undefined,
+                'fetchOpenOrders': true,
+                'fetchOrder': true,
                 'fetchOrderBook': true,
+                'fetchOrders': true,
                 'fetchTicker': true,
+                'fetchTrades': true,
             },
             'timeframes': {
                 '1m': 'Minute',
@@ -260,7 +260,7 @@ module.exports = class lykke extends Exchange {
             account['used'] = this.safeString (balance, 'Reserved');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     async cancelOrder (id, symbol = undefined, params = {}) {
@@ -370,6 +370,8 @@ module.exports = class lykke extends Exchange {
                 'symbol': symbol,
                 'base': base,
                 'quote': quote,
+                'type': 'spot',
+                'spot': true,
                 'active': true,
                 'info': market,
                 'precision': precision,
@@ -478,18 +480,19 @@ module.exports = class lykke extends Exchange {
         } else if (('CreatedAt' in order) && (order['CreatedAt'])) {
             timestamp = this.parse8601 (order['CreatedAt']);
         }
-        const price = this.safeNumber (order, 'Price');
+        const price = this.safeString (order, 'Price');
         let side = undefined;
-        let amount = this.safeNumber (order, 'Volume');
-        if (amount < 0) {
+        let amount = this.safeString (order, 'Volume');
+        const isAmountLessThanZero = Precise.stringLt (amount, '0');
+        if (isAmountLessThanZero) {
             side = 'sell';
-            amount = Math.abs (amount);
+            amount = Precise.stringAbs (amount);
         } else {
             side = 'buy';
         }
-        const remaining = Math.abs (this.safeNumber (order, 'RemainingVolume'));
+        const remaining = Precise.stringAbs (this.safeString (order, 'RemainingVolume'));
         const id = this.safeString (order, 'Id');
-        return this.safeOrder ({
+        return this.safeOrder2 ({
             'info': order,
             'id': id,
             'clientOrderId': undefined,
@@ -511,7 +514,7 @@ module.exports = class lykke extends Exchange {
             'status': status,
             'fee': undefined,
             'trades': undefined,
-        });
+        }, market);
     }
 
     async fetchOrder (id, symbol = undefined, params = {}) {

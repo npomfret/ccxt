@@ -18,9 +18,9 @@ module.exports = class hollaex extends Exchange {
             'rateLimit': 333,
             'version': 'v2',
             'has': {
-                'CORS': false,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
+                'CORS': undefined,
                 'createLimitBuyOrder': true,
                 'createLimitSellOrder': true,
                 'createMarketBuyOrder': true,
@@ -30,6 +30,7 @@ module.exports = class hollaex extends Exchange {
                 'fetchClosedOrders': true,
                 'fetchCurrencies': true,
                 'fetchDepositAddress': 'emulated',
+                'fetchDepositAddresses': true,
                 'fetchDeposits': true,
                 'fetchMarkets': true,
                 'fetchMyTrades': true,
@@ -43,10 +44,9 @@ module.exports = class hollaex extends Exchange {
                 'fetchTicker': true,
                 'fetchTickers': true,
                 'fetchTrades': true,
-                'fetchTransactions': false,
+                'fetchTransactions': undefined,
                 'fetchWithdrawals': true,
                 'withdraw': true,
-                'fetchDepositAddresses': true,
             },
             'timeframes': {
                 '1h': '1h',
@@ -205,6 +205,8 @@ module.exports = class hollaex extends Exchange {
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': true,
                 'active': active,
                 'precision': {
                     'price': this.safeNumber (market, 'increment_price'),
@@ -607,7 +609,7 @@ module.exports = class hollaex extends Exchange {
             account['total'] = this.safeString (response, currencyId + '_balance');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     async fetchOpenOrder (id, symbol = undefined, params = {}) {
@@ -806,11 +808,11 @@ module.exports = class hollaex extends Exchange {
         const timestamp = this.parse8601 (this.safeString (order, 'created_at'));
         const type = this.safeString (order, 'type');
         const side = this.safeString (order, 'side');
-        const price = this.safeNumber (order, 'price');
-        const amount = this.safeNumber (order, 'size');
-        const filled = this.safeNumber (order, 'filled');
+        const price = this.safeString (order, 'price');
+        const amount = this.safeString (order, 'size');
+        const filled = this.safeString (order, 'filled');
         const status = this.parseOrderStatus (this.safeString (order, 'status'));
-        return this.safeOrder ({
+        return this.safeOrder2 ({
             'id': id,
             'clientOrderId': undefined,
             'timestamp': timestamp,
@@ -832,7 +834,7 @@ module.exports = class hollaex extends Exchange {
             'fee': undefined,
             'info': order,
             'average': undefined,
-        });
+        }, market);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -1236,6 +1238,7 @@ module.exports = class hollaex extends Exchange {
     }
 
     async withdraw (code, amount, address, tag = undefined, params = {}) {
+        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
         this.checkAddress (address);
         await this.loadMarkets ();
         const currency = this.currency (code);

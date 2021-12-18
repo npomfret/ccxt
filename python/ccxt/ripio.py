@@ -29,8 +29,8 @@ class ripio(Exchange):
             'pro': True,
             # new metainfo interface
             'has': {
-                'CORS': False,
                 'cancelOrder': True,
+                'CORS': None,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchClosedOrders': True,
@@ -187,12 +187,14 @@ class ripio(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
+                'active': active,
                 'precision': precision,
                 'maker': maker,
                 'taker': taker,
                 'limits': limits,
                 'info': market,
-                'active': active,
             })
         return result
 
@@ -508,7 +510,7 @@ class ripio(Exchange):
             account['free'] = self.safe_string(balance, 'available')
             account['used'] = self.safe_string(balance, 'locked')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         self.load_markets()

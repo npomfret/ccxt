@@ -29,17 +29,17 @@ module.exports = class upbit extends Exchange {
                 'fetchDepositAddress': true,
                 'fetchDeposits': true,
                 'fetchMarkets': true,
-                'fetchMyTrades': false,
+                'fetchMyTrades': undefined,
                 'fetchOHLCV': true,
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
                 'fetchOrderBook': true,
                 'fetchOrderBooks': true,
-                'fetchOrders': false,
+                'fetchOrders': undefined,
                 'fetchTicker': true,
                 'fetchTickers': true,
                 'fetchTrades': true,
-                'fetchTransactions': false,
+                'fetchTransactions': undefined,
                 'fetchWithdrawals': true,
                 'withdraw': true,
             },
@@ -117,8 +117,8 @@ module.exports = class upbit extends Exchange {
                 'trading': {
                     'tierBased': false,
                     'percentage': true,
-                    'maker': 0.0025,
-                    'taker': 0.0025,
+                    'maker': this.parseNumber ('0.0025'),
+                    'taker': this.parseNumber ('0.0025'),
                 },
                 'funding': {
                     'tierBased': false,
@@ -326,6 +326,8 @@ module.exports = class upbit extends Exchange {
             'quote': quote,
             'baseId': baseId,
             'quoteId': quoteId,
+            'type': 'spot',
+            'spot': true,
             'active': active,
             'precision': precision,
             'maker': fee,
@@ -442,7 +444,7 @@ module.exports = class upbit extends Exchange {
             account['used'] = this.safeString (balance, 'locked');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     async fetchOrderBooks (symbols = undefined, limit = undefined, params = {}) {
@@ -1370,6 +1372,7 @@ module.exports = class upbit extends Exchange {
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': undefined,
             'info': depositAddress,
         };
     }
@@ -1421,6 +1424,7 @@ module.exports = class upbit extends Exchange {
     }
 
     async withdraw (code, amount, address, tag = undefined, params = {}) {
+        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
         this.checkAddress (address);
         await this.loadMarkets ();
         const currency = this.currency (code);

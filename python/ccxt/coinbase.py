@@ -4,6 +4,13 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.base.exchange import Exchange
+
+# -----------------------------------------------------------------------------
+
+try:
+    basestring  # Python 3
+except NameError:
+    basestring = str  # Python 2
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import ArgumentsRequired
@@ -26,35 +33,41 @@ class coinbase(Exchange):
                 'CB-VERSION': '2018-05-30',
             },
             'has': {
+                'cancelOrder': None,
                 'CORS': True,
-                'cancelOrder': False,
                 'createDepositAddress': True,
-                'createOrder': False,
-                'deposit': False,
+                'createOrder': None,
+                'deposit': None,
+                'fetchAccounts': True,
                 'fetchBalance': True,
-                'fetchClosedOrders': False,
+                'fetchBidsAsks': None,
+                'fetchBorrowRate': False,
+                'fetchBorrowRates': False,
+                'fetchClosedOrders': None,
                 'fetchCurrencies': True,
-                'fetchDepositAddress': False,
-                'fetchMarkets': True,
-                'fetchMyTrades': False,
-                'fetchOHLCV': False,
-                'fetchOpenOrders': False,
-                'fetchOrder': False,
-                'fetchOrderBook': False,
+                'fetchDepositAddress': None,
+                'fetchDeposits': True,
+                'fetchIndexOHLCV': False,
                 'fetchL2OrderBook': False,
                 'fetchLedger': True,
-                'fetchOrders': False,
-                'fetchTicker': True,
-                'fetchTickers': False,
-                'fetchTime': True,
-                'fetchBidsAsks': False,
-                'fetchTrades': False,
-                'withdraw': False,
-                'fetchTransactions': False,
-                'fetchDeposits': True,
-                'fetchWithdrawals': True,
-                'fetchMySells': True,
+                'fetchMarkets': True,
+                'fetchMarkOHLCV': False,
                 'fetchMyBuys': True,
+                'fetchMySells': True,
+                'fetchMyTrades': None,
+                'fetchOHLCV': False,
+                'fetchOpenOrders': None,
+                'fetchOrder': None,
+                'fetchOrderBook': False,
+                'fetchOrders': None,
+                'fetchPremiumIndexOHLCV': False,
+                'fetchTicker': True,
+                'fetchTickers': True,
+                'fetchTime': True,
+                'fetchTrades': None,
+                'fetchTransactions': None,
+                'fetchWithdrawals': True,
+                'withdraw': None,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/40811661-b6eceae2-653a-11e8-829e-10bfadb078cf.jpg',
@@ -140,6 +153,7 @@ class coinbase(Exchange):
                     'jumio_face_match_verification_required': AuthenticationError,  # 400 Document verification including face match is required to complete self request
                     'unverified_email': AuthenticationError,  # 400 User has not verified their email
                     'authentication_error': AuthenticationError,  # 401 Invalid auth(generic)
+                    'invalid_authentication_method': AuthenticationError,  # 401 API access is blocked for deleted users.
                     'invalid_token': AuthenticationError,  # 401 Invalid Oauth token
                     'revoked_token': AuthenticationError,  # 401 Revoked Oauth token
                     'expired_token': AuthenticationError,  # 401 Expired Oauth token
@@ -533,6 +547,8 @@ class coinbase(Exchange):
                         'quote': quote,
                         'baseId': baseId,
                         'quoteId': quoteId,
+                        'type': 'spot',
+                        'spot': True,
                         'active': None,
                         'info': quoteCurrency,
                         'precision': {
@@ -551,6 +567,9 @@ class coinbase(Exchange):
                             'cost': {
                                 'min': self.safe_number(quoteCurrency, 'min_size'),
                                 'max': None,
+                            },
+                            'leverage': {
+                                'max': 1,
                             },
                         },
                     })
@@ -636,20 +655,89 @@ class coinbase(Exchange):
             }
         return result
 
+    def fetch_tickers(self, symbols=None, params={}):
+        self.load_markets()
+        request = {
+            # 'currency': 'USD',
+        }
+        response = self.publicGetExchangeRates(self.extend(request, params))
+        #
+        #     {
+        #         "data":{
+        #             "currency":"USD",
+        #             "rates":{
+        #                 "AED":"3.6731",
+        #                 "AFN":"103.163942",
+        #                 "ALL":"106.973038",
+        #             }
+        #         }
+        #     }
+        #
+        data = self.safe_value(response, 'data', {})
+        rates = self.safe_value(data, 'rates', {})
+        quoteId = self.safe_string(data, 'currency')
+        result = {}
+        baseIds = list(rates.keys())
+        delimiter = '-'
+        for i in range(0, len(baseIds)):
+            baseId = baseIds[i]
+            marketId = baseId + delimiter + quoteId
+            market = self.safe_market(marketId, None, delimiter)
+            symbol = market['symbol']
+            result[symbol] = self.parse_ticker(rates[baseId], market)
+        return self.filter_by_array(result, 'symbol', symbols)
+
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
-        timestamp = self.seconds()
         market = self.market(symbol)
         request = self.extend({
             'symbol': market['id'],
         }, params)
-        buy = self.publicGetPricesSymbolBuy(request)
-        sell = self.publicGetPricesSymbolSell(request)
         spot = self.publicGetPricesSymbolSpot(request)
-        ask = self.safe_number(buy['data'], 'amount')
-        bid = self.safe_number(sell['data'], 'amount')
-        last = self.safe_number(spot['data'], 'amount')
-        return {
+        #
+        #     {"data":{"base":"BTC","currency":"USD","amount":"48691.23"}}
+        #
+        buy = self.publicGetPricesSymbolBuy(request)
+        #
+        #     {"data":{"base":"BTC","currency":"USD","amount":"48691.23"}}
+        #
+        sell = self.publicGetPricesSymbolSell(request)
+        #
+        #     {"data":{"base":"BTC","currency":"USD","amount":"48691.23"}}
+        #
+        return self.parse_ticker([spot, buy, sell], market)
+
+    def parse_ticker(self, ticker, market=None):
+        #
+        # fetchTicker
+        #
+        #     [
+        #         "48691.23",  # spot
+        #         "48691.23",  # buy
+        #         "48691.23",  # sell
+        #     ]
+        #
+        # fetchTickers
+        #
+        #     "48691.23"
+        #
+        symbol = self.safe_symbol(None, market)
+        ask = None
+        bid = None
+        last = None
+        timestamp = self.milliseconds()
+        if isinstance(ticker, basestring):
+            inverted = Precise.string_div('1', ticker)  # the currency requested, USD or other, is the base currency
+            last = self.parse_number(inverted)
+        else:
+            spot, buy, sell = ticker
+            spotData = self.safe_value(spot, 'data', {})
+            buyData = self.safe_value(buy, 'data', {})
+            sellData = self.safe_value(sell, 'data', {})
+            last = self.safe_number(spotData, 'amount')
+            bid = self.safe_number(buyData, 'amount')
+            ask = self.safe_number(sellData, 'amount')
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -669,12 +757,8 @@ class coinbase(Exchange):
             'average': None,
             'baseVolume': None,
             'quoteVolume': None,
-            'info': {
-                'buy': buy,
-                'sell': sell,
-                'spot': spot,
-            },
-        }
+            'info': ticker,
+        })
 
     def fetch_balance(self, params={}):
         self.load_markets()
@@ -704,7 +788,7 @@ class coinbase(Exchange):
                         account['free'] = Precise.string_add(account['free'], total)
                         account['total'] = Precise.string_add(account['total'], total)
                     result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def fetch_ledger(self, code=None, since=None, limit=None, params={}):
         self.load_markets()
@@ -1086,21 +1170,33 @@ class coinbase(Exchange):
                 fullPath += '?' + self.urlencode(query)
         url = self.urls['api'] + fullPath
         if api == 'private':
-            self.check_required_credentials()
-            nonce = str(self.nonce())
-            payload = ''
-            if method != 'GET':
-                if query:
-                    body = self.json(query)
-                    payload = body
-            auth = nonce + method + fullPath + payload
-            signature = self.hmac(self.encode(auth), self.encode(self.secret))
-            headers = {
-                'CB-ACCESS-KEY': self.apiKey,
-                'CB-ACCESS-SIGN': signature,
-                'CB-ACCESS-TIMESTAMP': nonce,
-                'Content-Type': 'application/json',
-            }
+            authorization = self.safe_string(self.headers, 'Authorization')
+            if authorization is not None:
+                headers = {
+                    'Authorization': authorization,
+                    'Content-Type': 'application/json',
+                }
+            elif self.token:
+                headers = {
+                    'Authorization': 'Bearer ' + self.token,
+                    'Content-Type': 'application/json',
+                }
+            else:
+                self.check_required_credentials()
+                nonce = str(self.nonce())
+                payload = ''
+                if method != 'GET':
+                    if query:
+                        body = self.json(query)
+                        payload = body
+                auth = nonce + method + fullPath + payload
+                signature = self.hmac(self.encode(auth), self.encode(self.secret))
+                headers = {
+                    'CB-ACCESS-KEY': self.apiKey,
+                    'CB-ACCESS-SIGN': signature,
+                    'CB-ACCESS-TIMESTAMP': nonce,
+                    'Content-Type': 'application/json',
+                }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):

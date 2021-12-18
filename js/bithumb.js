@@ -5,7 +5,6 @@
 const Exchange = require ('./base/Exchange');
 const { ExchangeError, ExchangeNotAvailable, AuthenticationError, BadRequest, PermissionDenied, InvalidAddress, ArgumentsRequired, InvalidOrder } = require ('./base/errors');
 const { DECIMAL_PLACES, SIGNIFICANT_DIGITS, TRUNCATE } = require ('./base/functions/number');
-const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -22,7 +21,9 @@ module.exports = class bithumb extends Exchange {
                 'createMarketOrder': true,
                 'createOrder': true,
                 'fetchBalance': true,
+                'fetchIndexOHLCV': false,
                 'fetchMarkets': true,
+                'fetchMarkOHLCV': false,
                 'fetchOHLCV': true,
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
@@ -78,8 +79,8 @@ module.exports = class bithumb extends Exchange {
             },
             'fees': {
                 'trading': {
-                    'maker': 0.25 / 100,
-                    'taker': 0.25 / 100,
+                    'maker': this.parseNumber ('0.0025'),
+                    'taker': this.parseNumber ('0.0025'),
                 },
             },
             'precisionMode': SIGNIFICANT_DIGITS,
@@ -130,6 +131,8 @@ module.exports = class bithumb extends Exchange {
                 },
             },
             'commonCurrencies': {
+                'FTC': 'FTC2',
+                'MIR': 'MIR COIN',
                 'SOC': 'Soda Coin',
             },
         });
@@ -171,6 +174,8 @@ module.exports = class bithumb extends Exchange {
                     'base': base,
                     'quote': quote,
                     'info': market,
+                    'type': 'spot',
+                    'spot': true,
                     'active': active,
                     'precision': {
                         'amount': 4,
@@ -215,7 +220,7 @@ module.exports = class bithumb extends Exchange {
             account['free'] = this.safeString (balances, 'available_' + lowerCurrencyId);
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -273,26 +278,13 @@ module.exports = class bithumb extends Exchange {
         //     }
         //
         const timestamp = this.safeInteger (ticker, 'date');
-        let symbol = undefined;
-        if (market !== undefined) {
-            symbol = market['symbol'];
-        }
+        const symbol = this.safeSymbol (undefined, market);
         const open = this.safeNumber (ticker, 'opening_price');
         const close = this.safeNumber (ticker, 'closing_price');
-        let change = undefined;
-        let percentage = undefined;
-        let average = undefined;
-        if ((close !== undefined) && (open !== undefined)) {
-            change = close - open;
-            if (open > 0) {
-                percentage = change / open * 100;
-            }
-            average = this.sum (open, close) / 2;
-        }
         const baseVolume = this.safeNumber (ticker, 'units_traded_24H');
         const quoteVolume = this.safeNumber (ticker, 'acc_trade_value_24H');
         const vwap = this.vwap (baseVolume, quoteVolume);
-        return {
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -307,13 +299,13 @@ module.exports = class bithumb extends Exchange {
             'close': close,
             'last': close,
             'previousClose': undefined,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': undefined,
+            'percentage': undefined,
+            'average': undefined,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchTickers (symbols = undefined, params = {}) {
@@ -502,23 +494,18 @@ module.exports = class bithumb extends Exchange {
         }
         const priceString = this.safeString (trade, 'price');
         const amountString = this.safeString2 (trade, 'units_traded', 'units');
-        const price = this.parseNumber (priceString);
-        const amount = this.parseNumber (amountString);
-        let cost = this.safeNumber (trade, 'total');
-        if (cost === undefined) {
-            cost = this.parseNumber (Precise.stringMul (priceString, amountString));
-        }
+        const costString = this.safeString (trade, 'total');
         let fee = undefined;
-        const feeCost = this.safeNumber (trade, 'fee');
-        if (feeCost !== undefined) {
+        const feeCostString = this.safeString (trade, 'fee');
+        if (feeCostString !== undefined) {
             const feeCurrencyId = this.safeString (trade, 'fee_currency');
             const feeCurrencyCode = this.commonCurrencyCode (feeCurrencyId);
             fee = {
-                'cost': feeCost,
+                'cost': feeCostString,
                 'currency': feeCurrencyCode,
             };
         }
-        return {
+        return this.safeTrade ({
             'id': id,
             'info': trade,
             'timestamp': timestamp,
@@ -528,11 +515,11 @@ module.exports = class bithumb extends Exchange {
             'type': type,
             'side': side,
             'takerOrMaker': undefined,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': costString,
             'fee': fee,
-        };
+        }, market);
     }
 
     async fetchTrades (symbol, since = undefined, limit = undefined, params = {}) {
@@ -838,6 +825,7 @@ module.exports = class bithumb extends Exchange {
     }
 
     async withdraw (code, amount, address, tag = undefined, params = {}) {
+        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
         this.checkAddress (address);
         await this.loadMarkets ();
         const currency = this.currency (code);
@@ -867,7 +855,7 @@ module.exports = class bithumb extends Exchange {
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         const endpoint = '/' + this.implodeParams (path, params);
-        let url = this.implodeParams (this.urls['api'][api], { 'hostname': this.hostname }) + endpoint;
+        let url = this.implodeHostname (this.urls['api'][api]) + endpoint;
         const query = this.omit (params, this.extractParams (path));
         if (api === 'public') {
             if (Object.keys (query).length) {
@@ -916,16 +904,5 @@ module.exports = class bithumb extends Exchange {
                 throw new ExchangeError (feedback);
             }
         }
-    }
-
-    async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
-        const response = await this.fetch2 (path, api, method, params, headers, body);
-        if ('status' in response) {
-            if (response['status'] === '0000' || response['message'] === '거래 진행중인 내역이 존재하지 않습니다') {
-                return response;
-            }
-            throw new ExchangeError (this.id + ' ' + this.json (response));
-        }
-        return response;
     }
 };

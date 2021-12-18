@@ -28,7 +28,7 @@ class lbank(Exchange):
                 'fetchClosedOrders': True,
                 'fetchMarkets': True,
                 'fetchOHLCV': True,
-                'fetchOpenOrders': False,  # status 0 API doesn't work
+                'fetchOpenOrders': None,  # status 0 API doesn't work
                 'fetchOrder': True,
                 'fetchOrderBook': True,
                 'fetchOrders': True,
@@ -86,34 +86,11 @@ class lbank(Exchange):
             },
             'fees': {
                 'trading': {
-                    'maker': 0.1 / 100,
-                    'taker': 0.1 / 100,
+                    'maker': self.parse_number('0.001'),
+                    'taker': self.parse_number('0.001'),
                 },
                 'funding': {
-                    'withdraw': {
-                        'BTC': None,
-                        'ZEC': 0.01,
-                        'ETH': 0.01,
-                        'ETC': 0.01,
-                        # 'QTUM': amount => max(0.01, amount * (0.1 / 100)),
-                        'VEN': 10.0,
-                        'BCH': 0.0002,
-                        'SC': 50.0,
-                        'BTM': 20.0,
-                        'NAS': 1.0,
-                        'EOS': 1.0,
-                        'XWC': 5.0,
-                        'BTS': 1.0,
-                        'INK': 10.0,
-                        'BOT': 3.0,
-                        'YOYOW': 15.0,
-                        'TGC': 10.0,
-                        'NEO': 0.0,
-                        'CMT': 20.0,
-                        'SEER': 2000.0,
-                        'FIL': None,
-                        'BTG': None,
-                    },
+                    'withdraw': {},
                 },
             },
             'commonCurrencies': {
@@ -156,6 +133,8 @@ class lbank(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': True,
                 'precision': precision,
                 'limits': {
@@ -181,7 +160,7 @@ class lbank(Exchange):
         if market is None:
             marketId = self.safe_string(ticker, 'symbol')
             if marketId in self.markets_by_id:
-                market = self.marketsById[marketId]
+                market = self.markets_by_id[marketId]
                 symbol = market['symbol']
             else:
                 parts = marketId.split('_')
@@ -402,7 +381,7 @@ class lbank(Exchange):
             account['used'] = self.safe_string(freeze, currencyId)
             account['total'] = self.safe_string(asset, currencyId)
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def parse_order_status(self, status):
         statuses = {
@@ -433,15 +412,15 @@ class lbank(Exchange):
         timestamp = self.safe_integer(order, 'create_time')
         # Limit Order Request Returns: Order Price
         # Market Order Returns: cny amount of market order
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'amount', 0.0)
-        filled = self.safe_number(order, 'deal_amount', 0.0)
-        average = self.safe_number(order, 'avg_price')
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'amount')
+        filled = self.safe_string(order, 'deal_amount')
+        average = self.safe_string(order, 'avg_price')
         status = self.parse_order_status(self.safe_string(order, 'status'))
         id = self.safe_string(order, 'order_id')
         type = self.safe_string(order, 'order_type')
         side = self.safe_string(order, 'type')
-        return self.safe_order({
+        return self.safe_order2({
             'id': id,
             'clientOrderId': None,
             'datetime': self.iso8601(timestamp),
@@ -463,7 +442,7 @@ class lbank(Exchange):
             'fee': None,
             'info': self.safe_value(order, 'info', order),
             'average': average,
-        })
+        }, market)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
@@ -535,6 +514,7 @@ class lbank(Exchange):
         return self.filter_by_symbol_since_limit(allOrders, symbol, since, limit)
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         # mark and fee are optional params, mark is a note and must be less than 255 characters
         self.check_address(address)
         await self.load_markets()
@@ -594,8 +574,9 @@ class lbank(Exchange):
             headers = {'Content-Type': 'application/x-www-form-urlencoded'}
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    async def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        response = await self.fetch2(path, api, method, params, headers, body)
+    def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        if response is None:
+            return
         success = self.safe_string(response, 'result')
         if success == 'false':
             errorCode = self.safe_string(response, 'error_code')
@@ -640,4 +621,3 @@ class lbank(Exchange):
                 '10022': AuthenticationError,
             }, errorCode, ExchangeError)
             raise ErrorClass(message)
-        return response

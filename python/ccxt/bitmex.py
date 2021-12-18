@@ -32,19 +32,23 @@ class bitmex(Exchange):
             'has': {
                 'cancelAllOrders': True,
                 'cancelOrder': True,
-                'CORS': False,
+                'CORS': None,
                 'createOrder': True,
                 'editOrder': True,
                 'fetchBalance': True,
                 'fetchClosedOrders': True,
+                'fetchIndexOHLCV': False,
                 'fetchLedger': True,
                 'fetchMarkets': True,
+                'fetchMarkOHLCV': False,
                 'fetchMyTrades': True,
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
                 'fetchOrders': True,
+                'fetchPositions': True,
+                'fetchPremiumIndexOHLCV': False,
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTrades': True,
@@ -230,6 +234,7 @@ class bitmex(Exchange):
                 precision['amount'] = lotSize
             if tickSize is not None:
                 precision['price'] = tickSize
+            maxLeverage = self.parse_number(Precise.string_div('1', self.safe_string(market, 'initMargin', '1')))
             limits = {
                 'amount': {
                     'min': None,
@@ -242,6 +247,9 @@ class bitmex(Exchange):
                 'cost': {
                     'min': None,
                     'max': None,
+                },
+                'leverage': {
+                    'max': maxLeverage,
                 },
             }
             limitField = 'cost' if (position == quote) else 'amount'
@@ -332,7 +340,7 @@ class bitmex(Exchange):
             account['free'] = free
             account['total'] = total
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def fetch_balance(self, params={}):
         self.load_markets()
@@ -741,14 +749,12 @@ class bitmex(Exchange):
             address = self.safe_string(transaction, 'address')
             addressFrom = self.safe_string(transaction, 'tx')
             addressTo = address
-        amount = self.safe_integer(transaction, 'amount')
-        if amount is not None:
-            amount = abs(amount) / 10000000
-        feeCost = self.safe_integer(transaction, 'fee')
-        if feeCost is not None:
-            feeCost = feeCost / 10000000
+        amountString = self.safe_string(transaction, 'amount')
+        amountString = Precise.string_div(Precise.string_abs(amountString), '1e8')
+        feeCostString = self.safe_string(transaction, 'fee')
+        feeCostString = Precise.string_div(feeCostString, '1e8')
         fee = {
-            'cost': feeCost,
+            'cost': self.parse_number(feeCostString),
             'currency': 'BTC',
         }
         status = self.safe_string(transaction, 'transactStatus')
@@ -767,7 +773,7 @@ class bitmex(Exchange):
             'tag': None,
             'tagTo': None,
             'type': type,
-            'amount': amount,
+            'amount': self.parse_number(amountString),
             # BTC is the only currency on Bitmex
             'currency': 'BTC',
             'status': status,
@@ -905,21 +911,12 @@ class bitmex(Exchange):
         #                            timestamp: "2019-02-13T08:40:30.000Z",
         #     }
         #
-        symbol = None
         marketId = self.safe_string(ticker, 'symbol')
-        market = self.safe_value(self.markets_by_id, marketId, market)
-        if market is not None:
-            symbol = market['symbol']
+        symbol = self.safe_symbol(marketId, market)
         timestamp = self.parse8601(self.safe_string(ticker, 'timestamp'))
         open = self.safe_number(ticker, 'prevPrice24h')
         last = self.safe_number(ticker, 'lastPrice')
-        change = None
-        percentage = None
-        if last is not None and open is not None:
-            change = last - open
-            if open > 0:
-                percentage = change / open * 100
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -934,13 +931,13 @@ class bitmex(Exchange):
             'close': last,
             'last': last,
             'previousClose': None,
-            'change': change,
-            'percentage': percentage,
-            'average': self.sum(open, last) / 2,
+            'change': None,
+            'percentage': None,
+            'average': None,
             'baseVolume': self.safe_number(ticker, 'homeNotional24h'),
             'quoteVolume': self.safe_number(ticker, 'foreignNotional24h'),
             'info': ticker,
-        }
+        }, market)
 
     def parse_ohlcv(self, ohlcv, market=None):
         #
@@ -1088,34 +1085,34 @@ class bitmex(Exchange):
         #     }
         #
         timestamp = self.parse8601(self.safe_string(trade, 'timestamp'))
-        price = self.safe_number_2(trade, 'avgPx', 'price')
-        amount = self.safe_number_2(trade, 'size', 'lastQty')
+        priceString = self.safe_string_2(trade, 'avgPx', 'price')
+        amountString = self.safe_string_2(trade, 'size', 'lastQty')
+        execCost = self.safe_string(trade, 'execCost')
+        costString = Precise.string_div(Precise.string_abs(execCost), '1e8')
         id = self.safe_string(trade, 'trdMatchID')
         order = self.safe_string(trade, 'orderID')
         side = self.safe_string_lower(trade, 'side')
         # price * amount doesn't work for all symbols(e.g. XBT, ETH)
-        cost = self.safe_number(trade, 'execCost')
-        if cost is not None:
-            cost = abs(cost) / 100000000
         fee = None
-        if 'execComm' in trade:
-            feeCost = self.safe_number(trade, 'execComm')
-            feeCost = feeCost / 100000000
+        feeCostString = Precise.string_div(self.safe_string(trade, 'execComm'), '1e8')
+        if feeCostString is not None:
             currencyId = self.safe_string(trade, 'settlCurrency')
-            feeCurrency = self.safe_currency_code(currencyId)
-            feeRate = self.safe_number(trade, 'commission')
+            feeCurrencyCode = self.safe_currency_code(currencyId)
+            feeRateString = self.safe_string(trade, 'commission')
             fee = {
-                'cost': feeCost,
-                'currency': feeCurrency,
-                'rate': feeRate,
+                'cost': feeCostString,
+                'currency': feeCurrencyCode,
+                'rate': feeRateString,
             }
+        # Trade or Funding
+        execType = self.safe_string(trade, 'execType')
         takerOrMaker = None
-        if fee is not None:
-            takerOrMaker = 'maker' if (fee['cost'] < 0) else 'taker'
+        if feeCostString is not None and execType == 'Trade':
+            takerOrMaker = 'maker' if Precise.string_lt(feeCostString, '0') else 'taker'
         marketId = self.safe_string(trade, 'symbol')
         symbol = self.safe_symbol(marketId, market)
         type = self.safe_string_lower(trade, 'ordType')
-        return {
+        return self.safe_trade({
             'info': trade,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -1125,11 +1122,11 @@ class bitmex(Exchange):
             'type': type,
             'takerOrMaker': takerOrMaker,
             'side': side,
-            'price': price,
-            'cost': cost,
-            'amount': amount,
+            'price': priceString,
+            'cost': costString,
+            'amount': amountString,
             'fee': fee,
-        }
+        }, market)
 
     def parse_order_status(self, status):
         statuses = {
@@ -1200,10 +1197,10 @@ class bitmex(Exchange):
         symbol = self.safe_symbol(marketId, market)
         timestamp = self.parse8601(self.safe_string(order, 'timestamp'))
         lastTradeTimestamp = self.parse8601(self.safe_string(order, 'transactTime'))
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'orderQty')
-        filled = self.safe_number(order, 'cumQty', 0.0)
-        average = self.safe_number(order, 'avgPx')
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'orderQty')
+        filled = self.safe_string(order, 'cumQty', 0.0)
+        average = self.safe_string(order, 'avgPx')
         id = self.safe_string(order, 'orderID')
         type = self.safe_string_lower(order, 'ordType')
         side = self.safe_string_lower(order, 'side')
@@ -1212,7 +1209,7 @@ class bitmex(Exchange):
         stopPrice = self.safe_number(order, 'stopPx')
         execInst = self.safe_string(order, 'execInst')
         postOnly = (execInst == 'ParticipateDoNotInitiate')
-        return self.safe_order({
+        return self.safe_order2({
             'info': order,
             'id': id,
             'clientOrderId': clientOrderId,
@@ -1234,7 +1231,7 @@ class bitmex(Exchange):
             'status': status,
             'fee': None,
             'trades': None,
-        })
+        }, market)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
         self.load_markets()
@@ -1502,6 +1499,7 @@ class bitmex(Exchange):
         return False
 
     def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         self.load_markets()
         # currency = self.currency(code)

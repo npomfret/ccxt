@@ -24,20 +24,19 @@ class indodax(Exchange):
             'countries': ['ID'],  # Indonesia
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
-                'createMarketOrder': False,
+                'CORS': None,
+                'createMarketOrder': None,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchClosedOrders': True,
-                'fetchCurrencies': False,
                 'fetchMarkets': True,
-                'fetchMyTrades': False,
+                'fetchMyTrades': None,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
-                'fetchOrders': False,
+                'fetchOrders': None,
                 'fetchTicker': True,
-                'fetchTickers': False,
+                'fetchTickers': None,
                 'fetchTime': True,
                 'fetchTrades': True,
                 'withdraw': True,
@@ -198,12 +197,14 @@ class indodax(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
+                'active': active,
                 'taker': taker,
                 'percentage': True,
                 'precision': precision,
                 'limits': limits,
                 'info': market,
-                'active': active,
             })
         return result
 
@@ -257,7 +258,7 @@ class indodax(Exchange):
             account['free'] = self.safe_string(free, currencyId)
             account['used'] = self.safe_string(used, currencyId)
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -392,7 +393,7 @@ class indodax(Exchange):
         status = self.parse_order_status(self.safe_string(order, 'status', 'open'))
         symbol = None
         cost = None
-        price = self.safe_number(order, 'price')
+        price = self.safe_string(order, 'price')
         amount = None
         remaining = None
         if market is not None:
@@ -403,14 +404,14 @@ class indodax(Exchange):
                 quoteId = 'rp'
             if (market['baseId'] == 'idr') and ('remain_rp' in order):
                 baseId = 'rp'
-            cost = self.safe_number(order, 'order_' + quoteId)
+            cost = self.safe_string(order, 'order_' + quoteId)
             if not cost:
-                amount = self.safe_number(order, 'order_' + baseId)
-                remaining = self.safe_number(order, 'remain_' + baseId)
+                amount = self.safe_string(order, 'order_' + baseId)
+                remaining = self.safe_string(order, 'remain_' + baseId)
         timestamp = self.safe_integer(order, 'submit_time')
         fee = None
         id = self.safe_string(order, 'order_id')
-        return self.safe_order({
+        return self.safe_order2({
             'info': order,
             'id': id,
             'clientOrderId': None,
@@ -528,6 +529,7 @@ class indodax(Exchange):
         return await self.privatePostCancelOrder(self.extend(request, params))
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         await self.load_markets()
         currency = self.currency(code)

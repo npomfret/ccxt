@@ -9,11 +9,11 @@ from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import PermissionDenied
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import BadRequest
+from ccxt.base.errors import BadSymbol
 from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import RateLimitExceeded
-from ccxt.base.precise import Precise
 
 
 class bigone(Exchange):
@@ -38,8 +38,8 @@ class bigone(Exchange):
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
-                'fetchOrders': True,
                 'fetchOrderBook': True,
+                'fetchOrders': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTime': True,
@@ -108,26 +108,11 @@ class bigone(Exchange):
             },
             'fees': {
                 'trading': {
-                    'maker': 0.1 / 100,
-                    'taker': 0.1 / 100,
+                    'maker': self.parse_number('0.001'),
+                    'taker': self.parse_number('0.001'),
                 },
                 'funding': {
-                    # HARDCODING IS DEPRECATED THE FEES BELOW ARE TO BE REMOVED SOON
-                    'withdraw': {
-                        'BTC': 0.001,
-                        'ETH': 0.005,
-                        'EOS': 0.01,
-                        'ZEC': 0.003,
-                        'LTC': 0.01,
-                        'QTUM': 0.01,
-                        # 'INK': 0.01 QTUM,
-                        # 'BOT': 0.01 QTUM,
-                        'ETC': 0.01,
-                        'GAS': 0.0,
-                        'BTS': 1.0,
-                        'GXS': 0.1,
-                        'BITCNY': 19.0,
-                    },
+                    'withdraw': {},
                 },
             },
             'exceptions': {
@@ -135,6 +120,7 @@ class bigone(Exchange):
                     '10001': BadRequest,  # syntax error
                     '10005': ExchangeError,  # internal error
                     "Amount's scale must greater than AssetPair's base scale": InvalidOrder,
+                    "Price mulit with amount should larger than AssetPair's min_quote_value": InvalidOrder,
                     '10007': BadRequest,  # parameter error, {"code":10007,"message":"Amount's scale must greater than AssetPair's base scale"}
                     '10011': ExchangeError,  # system error
                     '10013': OrderNotFound,  # {"code":10013,"message":"Resource not found"}
@@ -149,13 +135,17 @@ class bigone(Exchange):
                     '40601': ExchangeError,  # resource is locked
                     '40602': ExchangeError,  # resource is depleted
                     '40603': InsufficientFunds,  # insufficient resource
+                    '40605': InvalidOrder,  # {"code":40605,"message":"Price less than the minimum order price"}
                     '40120': InvalidOrder,  # Order is in trading
                     '40121': InvalidOrder,  # Order is already cancelled or filled
+                    '60100': BadSymbol,  # {"code":60100,"message":"Asset pair is suspended"}
                 },
                 'broad': {
                 },
             },
             'commonCurrencies': {
+                'CRE': 'Cybereits',
+                'FXT': 'FXTTOKEN',
                 'MBN': 'Mobilian Coin',
                 'ONE': 'BigONE Token',
             },
@@ -208,7 +198,7 @@ class bigone(Exchange):
                 'amount': int(amountPrecisionString),
                 'price': int(pricePrecisionString),
             }
-            minCost = self.safe_integer(market, 'min_quote_value')
+            minCost = self.safe_number(market, 'min_quote_value')
             entry = {
                 'id': id,
                 'uuid': uuid,
@@ -217,6 +207,8 @@ class bigone(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': True,
                 'precision': precision,
                 'limits': {
@@ -271,7 +263,7 @@ class bigone(Exchange):
         close = self.safe_number(ticker, 'close')
         bid = self.safe_value(ticker, 'bid', {})
         ask = self.safe_value(ticker, 'ask', {})
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -292,7 +284,7 @@ class bigone(Exchange):
             'baseVolume': self.safe_number(ticker, 'volume'),
             'quoteVolume': None,
             'info': ticker,
-        }
+        }, market)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
@@ -448,9 +440,6 @@ class bigone(Exchange):
         timestamp = self.parse8601(self.safe_string_2(trade, 'created_at', 'inserted_at'))
         priceString = self.safe_string(trade, 'price')
         amountString = self.safe_string(trade, 'amount')
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         marketId = self.safe_string(trade, 'asset_pair_name')
         symbol = self.safe_symbol(marketId, market, '-')
         side = self.safe_string(trade, 'side')
@@ -487,9 +476,9 @@ class bigone(Exchange):
             'type': 'limit',
             'side': side,
             'takerOrMaker': takerOrMaker,
-            'price': price,
-            'amount': amount,
-            'cost': float(cost),
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'info': trade,
         }
         makerCurrencyCode = None
@@ -516,8 +505,8 @@ class bigone(Exchange):
             elif takerSide == 'ASK':
                 makerCurrencyCode = market['base']
                 takerCurrencyCode = market['quote']
-        makerFeeCost = self.safe_number(trade, 'maker_fee')
-        takerFeeCost = self.safe_number(trade, 'taker_fee')
+        makerFeeCost = self.safe_string(trade, 'maker_fee')
+        takerFeeCost = self.safe_string(trade, 'taker_fee')
         if makerFeeCost is not None:
             if takerFeeCost is not None:
                 result['fees'] = [
@@ -530,7 +519,7 @@ class bigone(Exchange):
             result['fee'] = {'cost': takerFeeCost, 'currency': takerCurrencyCode}
         else:
             result['fee'] = None
-        return result
+        return self.safe_trade(result, market)
 
     async def fetch_trades(self, symbol, since=None, limit=None, params={}):
         await self.load_markets()
@@ -595,7 +584,8 @@ class bigone(Exchange):
         }
         if since is not None:
             # start = int(since / 1000)
-            end = self.sum(since, limit * self.parse_timeframe(timeframe) * 1000)
+            duration = self.parse_timeframe(timeframe)
+            end = self.sum(since, limit * duration * 1000)
             request['time'] = self.iso8601(end)
         response = await self.publicGetAssetPairsAssetPairNameCandles(self.extend(request, params))
         #
@@ -654,7 +644,7 @@ class bigone(Exchange):
             account['total'] = self.safe_string(balance, 'balance')
             account['used'] = self.safe_string(balance, 'locked_balance')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def parse_order(self, order, market=None):
         #
@@ -675,9 +665,10 @@ class bigone(Exchange):
         marketId = self.safe_string(order, 'asset_pair_name')
         symbol = self.safe_symbol(marketId, market, '-')
         timestamp = self.parse8601(self.safe_string(order, 'created_at'))
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'amount')
-        filled = self.safe_number(order, 'filled_amount')
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'amount')
+        average = self.safe_string(order, 'avg_deal_price')
+        filled = self.safe_string(order, 'filled_amount')
         status = self.parse_order_status(self.safe_string(order, 'state'))
         side = self.safe_string(order, 'side')
         if side == 'BID':
@@ -685,8 +676,7 @@ class bigone(Exchange):
         else:
             side = 'sell'
         lastTradeTimestamp = self.parse8601(self.safe_string(order, 'updated_at'))
-        average = self.safe_number(order, 'avg_deal_price')
-        return self.safe_order({
+        return self.safe_order2({
             'info': order,
             'id': id,
             'clientOrderId': None,
@@ -708,7 +698,7 @@ class bigone(Exchange):
             'status': status,
             'fee': None,
             'trades': None,
-        })
+        }, market)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
@@ -915,7 +905,7 @@ class bigone(Exchange):
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         query = self.omit(params, self.extract_params(path))
-        baseUrl = self.implode_params(self.urls['api'][api], {'hostname': self.hostname})
+        baseUrl = self.implode_hostname(self.urls['api'][api])
         url = baseUrl + '/' + self.implode_params(path, params)
         if api == 'public':
             if query:
@@ -977,6 +967,7 @@ class bigone(Exchange):
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': None,
             'info': response,
         }
 
@@ -986,6 +977,8 @@ class bigone(Exchange):
             'WITHHOLD': 'ok',  # deposits
             'UNCONFIRMED': 'pending',
             'CONFIRMED': 'ok',  # withdrawals
+            'COMPLETED': 'ok',
+            'PENDING': 'pending',
         }
         return self.safe_string(statuses, status, status)
 
@@ -1151,6 +1144,7 @@ class bigone(Exchange):
         return self.parse_transactions(withdrawals, code, since, limit)
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         await self.load_markets()
         currency = self.currency(code)
         request = {

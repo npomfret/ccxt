@@ -5,7 +5,6 @@
 const Exchange = require ('./base/Exchange');
 const { ExchangeError, ArgumentsRequired, ExchangeNotAvailable, InsufficientFunds, OrderNotFound, InvalidOrder, DDoSProtection, InvalidNonce, AuthenticationError, BadRequest } = require ('./base/errors');
 const { TICK_SIZE } = require ('./base/functions/number');
-const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -22,7 +21,7 @@ module.exports = class currencycom extends Exchange {
             // new metainfo interface
             'has': {
                 'cancelOrder': true,
-                'CORS': false,
+                'CORS': undefined,
                 'createOrder': true,
                 'fetchAccounts': true,
                 'fetchBalance': true,
@@ -34,8 +33,8 @@ module.exports = class currencycom extends Exchange {
                 'fetchTicker': true,
                 'fetchTickers': true,
                 'fetchTime': true,
-                'fetchTradingFees': true,
                 'fetchTrades': true,
+                'fetchTradingFees': true,
             },
             'timeframes': {
                 '1m': '1m',
@@ -53,6 +52,10 @@ module.exports = class currencycom extends Exchange {
                 'api': {
                     'public': 'https://api-adapter.backend.currency.com/api',
                     'private': 'https://api-adapter.backend.currency.com/api',
+                },
+                'test': {
+                    'public': 'https://demo-api-adapter.backend.currency.com/api',
+                    'private': 'https://demo-api-adapter.backend.currency.com/api',
                 },
                 'www': 'https://www.currency.com',
                 'referral': 'https://currency.com/trading/signup?c=362jaimv&pid=referral',
@@ -96,8 +99,8 @@ module.exports = class currencycom extends Exchange {
                     'feeSide': 'get',
                     'tierBased': false,
                     'percentage': true,
-                    'taker': 0.002,
-                    'maker': 0.002,
+                    'taker': this.parseNumber ('0.002'),
+                    'maker': this.parseNumber ('0.002'),
                 },
             },
             'precisionMode': TICK_SIZE,
@@ -140,7 +143,12 @@ module.exports = class currencycom extends Exchange {
                 },
             },
             'commonCurrencies': {
+                'ACN': 'Accenture',
+                'BNS': 'Bank of Nova Scotia',
+                'CAR': 'Avis Budget Group Inc',
+                'EDU': 'New Oriental Education & Technology Group Inc',
                 'ETN': 'Eaton',
+                'FOX': 'Fox Corporation',
                 'IQ': 'iQIYI',
                 'PLAY': "Dave & Buster's Entertainment",
             },
@@ -426,7 +434,7 @@ module.exports = class currencycom extends Exchange {
             account['used'] = this.safeString (balance, 'locked');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     async fetchBalance (params = {}) {
@@ -689,9 +697,6 @@ module.exports = class currencycom extends Exchange {
         const timestamp = this.safeInteger2 (trade, 'T', 'time');
         const priceString = this.safeString2 (trade, 'p', 'price');
         const amountString = this.safeString2 (trade, 'q', 'qty');
-        const price = this.parseNumber (priceString);
-        const amount = this.parseNumber (amountString);
-        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
         const id = this.safeString2 (trade, 'a', 'id');
         let side = undefined;
         const orderId = this.safeString (trade, 'orderId');
@@ -707,7 +712,7 @@ module.exports = class currencycom extends Exchange {
         let fee = undefined;
         if ('commission' in trade) {
             fee = {
-                'cost': this.safeNumber (trade, 'commission'),
+                'cost': this.safeString (trade, 'commission'),
                 'currency': this.safeCurrencyCode (this.safeString (trade, 'commissionAsset')),
             };
         }
@@ -717,7 +722,7 @@ module.exports = class currencycom extends Exchange {
         }
         const marketId = this.safeString (trade, 'symbol');
         const symbol = this.safeSymbol (marketId, market);
-        return {
+        return this.safeTrade ({
             'info': trade,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -727,11 +732,11 @@ module.exports = class currencycom extends Exchange {
             'type': undefined,
             'takerOrMaker': takerOrMaker,
             'side': side,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': undefined,
             'fee': fee,
-        };
+        }, market);
     }
 
     async fetchTrades (symbol, since = undefined, limit = undefined, params = {}) {

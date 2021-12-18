@@ -20,28 +20,28 @@ class probit extends Exchange {
             'id' => 'probit',
             'name' => 'ProBit',
             'countries' => array( 'SC', 'KR' ), // Seychelles, South Korea
-            'rateLimit' => 250, // ms
+            'rateLimit' => 50, // ms
             'has' => array(
-                'CORS' => true,
-                'fetchTime' => true,
-                'fetchMarkets' => true,
-                'fetchCurrencies' => true,
-                'fetchTickers' => true,
-                'fetchTicker' => true,
-                'fetchOHLCV' => true,
-                'fetchOrderBook' => true,
-                'fetchTrades' => true,
-                'fetchBalance' => true,
-                'createOrder' => true,
-                'createMarketOrder' => true,
                 'cancelOrder' => true,
-                'fetchOrder' => true,
-                'fetchOpenOrders' => true,
+                'CORS' => true,
+                'createMarketOrder' => true,
+                'createOrder' => true,
+                'fetchBalance' => true,
                 'fetchClosedOrders' => true,
-                'fetchMyTrades' => true,
+                'fetchCurrencies' => true,
                 'fetchDepositAddress' => true,
-                'withdraw' => true,
+                'fetchMarkets' => true,
+                'fetchMyTrades' => true,
+                'fetchOHLCV' => true,
+                'fetchOpenOrders' => true,
+                'fetchOrder' => true,
+                'fetchOrderBook' => true,
+                'fetchTicker' => true,
+                'fetchTickers' => true,
+                'fetchTime' => true,
+                'fetchTrades' => true,
                 'signIn' => true,
+                'withdraw' => true,
             ),
             'timeframes' => array(
                 '1m' => '1m',
@@ -77,34 +77,34 @@ class probit extends Exchange {
             'api' => array(
                 'public' => array(
                     'get' => array(
-                        'market',
-                        'currency',
-                        'currency_with_platform',
-                        'time',
-                        'ticker',
-                        'order_book',
-                        'trade',
-                        'candle',
+                        'market' => 1,
+                        'currency' => 1,
+                        'currency_with_platform' => 1,
+                        'time' => 1,
+                        'ticker' => 1,
+                        'order_book' => 1,
+                        'trade' => 1,
+                        'candle' => 1,
                     ),
                 ),
                 'private' => array(
                     'post' => array(
-                        'new_order',
-                        'cancel_order',
-                        'withdrawal',
+                        'new_order' => 2,
+                        'cancel_order' => 1,
+                        'withdrawal' => 2,
                     ),
                     'get' => array(
-                        'balance',
-                        'order',
-                        'open_order',
-                        'order_history',
-                        'trade_history',
-                        'deposit_address',
+                        'balance' => 1,
+                        'order' => 1,
+                        'open_order' => 1,
+                        'order_history' => 1,
+                        'trade_history' => 1,
+                        'deposit_address' => 1,
                     ),
                 ),
                 'accounts' => array(
                     'post' => array(
-                        'token',
+                        'token' => 1,
                     ),
                 ),
             ),
@@ -112,8 +112,8 @@ class probit extends Exchange {
                 'trading' => array(
                     'tierBased' => false,
                     'percentage' => true,
-                    'maker' => 0.2 / 100,
-                    'taker' => 0.2 / 100,
+                    'maker' => $this->parse_number('0.002'),
+                    'taker' => $this->parse_number('0.002'),
                 ),
             ),
             'exceptions' => array(
@@ -132,6 +132,7 @@ class probit extends Exchange {
                     'INVALID_CURRENCY' => '\\ccxt\\BadRequest', // Requested currency is not exist on ProBit system
                     'TOO_MANY_OPEN_ORDERS' => '\\ccxt\\DDoSProtection', // Too many open orders
                     'DUPLICATE_ADDRESS' => '\\ccxt\\InvalidAddress', // Address already exists in withdrawal address list
+                    'invalid_grant' => '\\ccxt\\AuthenticationError', // array("error":"invalid_grant")
                 ),
             ),
             'requiredCredentials' => array(
@@ -145,17 +146,39 @@ class probit extends Exchange {
                     'limit' => 'gtc',
                     'market' => 'ioc',
                 ),
+                'networks' => array(
+                    'BEP20' => 'BSC',
+                    'ERC20' => 'ETH',
+                    'TRC20' => 'TRON',
+                    'TRX' => 'TRON',
+                ),
             ),
             'commonCurrencies' => array(
                 'AUTO' => 'Cube',
+                'BCC' => 'BCC',
+                'BDP' => 'BidiPass',
+                'BIRD' => 'Birdchain',
                 'BTCBEAR' => 'BEAR',
                 'BTCBULL' => 'BULL',
                 'CBC' => 'CryptoBharatCoin',
+                'CHE' => 'Chellit',
+                'DIP' => 'Dipper',
                 'EPS' => 'Epanus',  // conflict with EPS Ellipsis https://github.com/ccxt/ccxt/issues/8909
+                'FX' => 'Fanzy',
+                'GDT' => 'Gorilla Diamond',
+                'GOGOL' => 'GOL',
+                'GOL' => 'Goldofir',
+                'GRB' => 'Global Reward Bank',
                 'HBC' => 'Hybrid Bank Cash',
+                'LBK' => 'Legal Block',
                 'ORC' => 'Oracle System',
+                'ROOK' => 'Reckoon',
                 'SOC' => 'Soda Coin',
+                'SST' => 'SocialSwap',
+                'TCT' => 'Top Coin Token',
+                'TPAY' => 'Tetra Pay',
                 'UNI' => 'UNICORN Token',
+                'UNISWAP' => 'UNI',
             ),
         ));
     }
@@ -166,7 +189,7 @@ class probit extends Exchange {
         //     {
         //         "data":array(
         //             array(
-        //                 "$id":"MONA-USDT",
+        //                 "id":"MONA-USDT",
         //                 "base_currency_id":"MONA",
         //                 "quote_currency_id":"USDT",
         //                 "min_price":"0.001",
@@ -181,7 +204,7 @@ class probit extends Exchange {
         //                 "taker_fee_rate":"0.2",
         //                 "maker_fee_rate":"0.2",
         //                 "show_in_ui":true,
-        //                 "$closed":false
+        //                 "closed":false
         //             ),
         //         )
         //     }
@@ -219,6 +242,8 @@ class probit extends Exchange {
                 'quote' => $quote,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
+                'type' => 'spot',
+                'spot' => true,
                 'active' => $active,
                 'precision' => $precision,
                 'taker' => $this->parse_number($taker),
@@ -248,25 +273,25 @@ class probit extends Exchange {
         //     {
         //         "data":array(
         //             {
-        //                 "$id":"USDT",
+        //                 "id":"USDT",
         //                 "display_name":array("ko-kr":"테더","en-us":"Tether"),
         //                 "show_in_ui":true,
-        //                 "$platform":[
+        //                 "platform":[
         //                     array(
-        //                         "$id":"ETH",
-        //                         "$priority":1,
+        //                         "id":"ETH",
+        //                         "priority":1,
         //                         "deposit":true,
         //                         "withdrawal":true,
         //                         "currency_id":"USDT",
-        //                         "$precision":6,
+        //                         "precision":6,
         //                         "min_confirmation_count":15,
         //                         "require_destination_tag":false,
-        //                         "display_name":array("$name":array("ko-kr":"ERC-20","en-us":"ERC-20")),
+        //                         "display_name":array("name":array("ko-kr":"ERC-20","en-us":"ERC-20")),
         //                         "min_deposit_amount":"0",
         //                         "min_withdrawal_amount":"1",
         //                         "withdrawal_fee":[
-        //                             array("$amount":"0.01","$priority":2,"currency_id":"ETH"),
-        //                             array("$amount":"1.5","$priority":1,"currency_id":"USDT"),
+        //                             array("amount":"0.01","priority":2,"currency_id":"ETH"),
+        //                             array("amount":"1.5","priority":1,"currency_id":"USDT"),
         //                         ),
         //                         "deposit_fee":array(),
         //                         "suspended_reason":"",
@@ -274,18 +299,18 @@ class probit extends Exchange {
         //                         "withdrawal_suspended":false
         //                     ),
         //                     {
-        //                         "$id":"OMNI",
-        //                         "$priority":2,
+        //                         "id":"OMNI",
+        //                         "priority":2,
         //                         "deposit":true,
         //                         "withdrawal":true,
         //                         "currency_id":"USDT",
-        //                         "$precision":6,
+        //                         "precision":6,
         //                         "min_confirmation_count":3,
         //                         "require_destination_tag":false,
-        //                         "display_name":array("$name":array("ko-kr":"OMNI","en-us":"OMNI")),
+        //                         "display_name":array("name":array("ko-kr":"OMNI","en-us":"OMNI")),
         //                         "min_deposit_amount":"0",
         //                         "min_withdrawal_amount":"5",
-        //                         "withdrawal_fee":[array("$amount":"5","$priority":1,"currency_id":"USDT")],
+        //                         "withdrawal_fee":[array("amount":"5","priority":1,"currency_id":"USDT")],
         //                         "deposit_fee":array(),
         //                         "suspended_reason":"wallet_maintenance",
         //                         "deposit_suspended":false,
@@ -386,7 +411,7 @@ class probit extends Exchange {
             $account['free'] = $this->safe_string($balance, 'available');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -420,7 +445,7 @@ class probit extends Exchange {
         $response = $this->publicGetTicker (array_merge($request, $params));
         //
         //     {
-        //         "$data":array(
+        //         "data":array(
         //             {
         //                 "last":"0.022902",
         //                 "low":"0.021693",
@@ -447,7 +472,7 @@ class probit extends Exchange {
         $response = $this->publicGetTicker (array_merge($request, $params));
         //
         //     {
-        //         "$data":array(
+        //         "data":array(
         //             {
         //                 "last":"0.022902",
         //                 "low":"0.021693",
@@ -475,7 +500,7 @@ class probit extends Exchange {
         //         "last":"0.022902",
         //         "low":"0.021693",
         //         "high":"0.024093",
-        //         "$change":"-0.000047",
+        //         "change":"-0.000047",
         //         "base_volume":"15681.986",
         //         "quote_volume":"360.514403624",
         //         "market_id":"ETH-BTC",
@@ -487,18 +512,10 @@ class probit extends Exchange {
         $symbol = $this->safe_symbol($marketId, $market, '-');
         $close = $this->safe_number($ticker, 'last');
         $change = $this->safe_number($ticker, 'change');
-        $percentage = null;
-        $open = null;
-        if ($change !== null) {
-            if ($close !== null) {
-                $open = $close - $change;
-                $percentage = ($change / $open) * 100;
-            }
-        }
         $baseVolume = $this->safe_number($ticker, 'base_volume');
         $quoteVolume = $this->safe_number($ticker, 'quote_volume');
         $vwap = $this->vwap($baseVolume, $quoteVolume);
-        return array(
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -509,17 +526,17 @@ class probit extends Exchange {
             'ask' => null,
             'askVolume' => null,
             'vwap' => $vwap,
-            'open' => $open,
+            'open' => null,
             'close' => $close,
             'last' => $close,
             'previousClose' => null, // previous day $close
             'change' => $change,
-            'percentage' => $percentage,
+            'percentage' => null,
             'average' => null,
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
-        );
+        ), $market);
     }
 
     public function fetch_my_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -582,7 +599,7 @@ class probit extends Exchange {
         $response = $this->publicGetTrade (array_merge($request, $params));
         //
         //     {
-        //         "$data":array(
+        //         "data":array(
         //             array(
         //                 "id":"ETH-BTC:3331886",
         //                 "price":"0.022981",
@@ -611,26 +628,26 @@ class probit extends Exchange {
         // fetchTrades (public)
         //
         //     {
-        //         "$id":"ETH-BTC:3331886",
-        //         "$price":"0.022981",
+        //         "id":"ETH-BTC:3331886",
+        //         "price":"0.022981",
         //         "quantity":"12.337",
         //         "time":"2020-04-12T20:55:42.371Z",
-        //         "$side":"sell",
+        //         "side":"sell",
         //         "tick_direction":"down"
         //     }
         //
         // fetchMyTrades (private)
         //
         //     {
-        //         "$id":"BTC-USDT:183566",
+        //         "id":"BTC-USDT:183566",
         //         "order_id":"17209376",
-        //         "$side":"sell",
+        //         "side":"sell",
         //         "fee_amount":"0.657396569175",
         //         "fee_currency_id":"USDT",
         //         "status":"settled",
-        //         "$price":"6573.96569175",
+        //         "price":"6573.96569175",
         //         "quantity":"0.1",
-        //         "$cost":"657.396569175",
+        //         "cost":"657.396569175",
         //         "time":"2018-08-10T06:06:46.000Z",
         //         "market_id":"BTC-USDT"
         //     }
@@ -707,7 +724,7 @@ class probit extends Exchange {
             $timestamp = intval($timestamp / 1000);
             $firstSunday = 259200; // 1970-01-04T00:00:00.000Z
             $difference = $timestamp - $firstSunday;
-            $numWeeks = $this->integer_divide($difference, $duration);
+            $numWeeks = (int) floor($difference / $duration);
             $previousSunday = $this->sum($firstSunday, $numWeeks * $duration);
             if ($after) {
                 $previousSunday = $this->sum($previousSunday, $duration);
@@ -760,7 +777,7 @@ class probit extends Exchange {
         $response = $this->publicGetCandle (array_merge($request, $params));
         //
         //     {
-        //         "$data":array(
+        //         "data":array(
         //             array(
         //                 "market_id":"ETH-BTC",
         //                 "open":"0.02811",
@@ -898,15 +915,15 @@ class probit extends Exchange {
         $marketId = $this->safe_string($order, 'market_id');
         $symbol = $this->safe_symbol($marketId, $market, '-');
         $timestamp = $this->parse8601($this->safe_string($order, 'time'));
-        $price = $this->safe_number($order, 'limit_price');
-        $filled = $this->safe_number($order, 'filled_quantity');
-        $remaining = $this->safe_number($order, 'open_quantity');
-        $canceledAmount = $this->safe_number($order, 'cancelled_quantity');
+        $price = $this->safe_string($order, 'limit_price');
+        $filled = $this->safe_string($order, 'filled_quantity');
+        $remaining = $this->safe_string($order, 'open_quantity');
+        $canceledAmount = $this->safe_string($order, 'cancelled_quantity');
         if ($canceledAmount !== null) {
-            $remaining = $this->sum($remaining, $canceledAmount);
+            $remaining = Precise::string_add($remaining, $canceledAmount);
         }
-        $amount = $this->safe_number($order, 'quantity', $this->sum($filled, $remaining));
-        $cost = $this->safe_number_2($order, 'filled_cost', 'cost');
+        $amount = $this->safe_string($order, 'quantity', Precise::string_add($filled, $remaining));
+        $cost = $this->safe_string_2($order, 'filled_cost', 'cost');
         if ($type === 'market') {
             $price = null;
         }
@@ -915,7 +932,7 @@ class probit extends Exchange {
             $clientOrderId = null;
         }
         $timeInForce = $this->safe_string_upper($order, 'time_in_force');
-        return $this->safe_order(array(
+        return $this->safe_order2(array(
             'id' => $id,
             'info' => $order,
             'clientOrderId' => $clientOrderId,
@@ -936,7 +953,7 @@ class probit extends Exchange {
             'cost' => $cost,
             'fee' => null,
             'trades' => null,
-        ));
+        ), $market);
     }
 
     public function cost_to_precision($symbol, $cost) {
@@ -1014,7 +1031,7 @@ class probit extends Exchange {
         // returned by the exchange on $market buys
         if (($type === 'market') && ($side === 'buy')) {
             $order['amount'] = null;
-            $order['cost'] = floatval($costToPrecision);
+            $order['cost'] = $this->parse_number($costToPrecision);
             $order['remaining'] = null;
         }
         return $order;
@@ -1045,6 +1062,7 @@ class probit extends Exchange {
             'currency' => $code,
             'address' => $address,
             'tag' => $tag,
+            'network' => null,
             'info' => $depositAddress,
         );
     }
@@ -1058,7 +1076,7 @@ class probit extends Exchange {
         $response = $this->privateGetDepositAddress (array_merge($request, $params));
         //
         //     {
-        //         "$data":array(
+        //         "data":array(
         //             {
         //                 "currency_id":"ETH",
         //                 "address":"0x12e2caf3c4051ba1146e612f532901a423a9898a",
@@ -1092,6 +1110,7 @@ class probit extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         // In order to use this method
         // you need to allow API withdrawal from the API Settings Page, and
         // and register the list of withdrawal addresses and destination tags on the API Settings page
@@ -1107,13 +1126,20 @@ class probit extends Exchange {
             // 'platform_id' => 'ETH', // if omitted it will use the default platform for the $currency
             'address' => $address,
             'destination_tag' => $tag,
-            'amount' => $this->currency_to_precision($code, $amount),
+            'amount' => $this->number_to_string($amount),
             // which $currency to pay the withdrawal fees
             // only applicable for currencies that accepts multiple withdrawal fee options
             // 'fee_currency_id' => 'ETH', // if omitted it will use the default fee policy for each $currency
             // whether the $amount field includes fees
             // 'include_fee' => false, // makes sense only when fee_currency_id is equal to currency_id
         );
+        $networks = $this->safe_value($this->options, 'networks', array());
+        $network = $this->safe_string_upper($params, 'network'); // this line allows the user to specify either ERC20 or ETH
+        $network = $this->safe_string($networks, $network, $network); // handle ERC20>ETH alias
+        if ($network !== null) {
+            $request['platform_id'] = $network;
+            $params = $this->omit($params, 'network');
+        }
         $response = $this->privatePostWithdrawal (array_merge($request, $params));
         $data = $this->safe_value($response, 'data');
         return $this->parse_transaction($data, $currency);

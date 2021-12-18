@@ -8,6 +8,7 @@ from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import PermissionDenied
 from ccxt.base.errors import AccountSuspended
+from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import BadRequest
 from ccxt.base.errors import BadSymbol
 from ccxt.base.errors import InsufficientFunds
@@ -31,8 +32,8 @@ class novadax(Exchange):
             'version': 'v1',
             # new metainfo interface
             'has': {
-                'CORS': False,
                 'cancelOrder': True,
+                'CORS': None,
                 'createOrder': True,
                 'fetchAccounts': True,
                 'fetchBalance': True,
@@ -43,9 +44,9 @@ class novadax(Exchange):
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
-                'fetchOrders': True,
-                'fetchOrderTrades': True,
                 'fetchOrderBook': True,
+                'fetchOrderTrades': True,
+                'fetchOrders': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTime': True,
@@ -114,8 +115,8 @@ class novadax(Exchange):
                 'trading': {
                     'tierBased': False,
                     'percentage': True,
-                    'taker': 0.5 / 100,
-                    'maker': 0.3 / 100,
+                    'taker': self.parse_number('0.005'),
+                    'maker': self.parse_number('0.003'),
                 },
             },
             'requiredCredentials': {
@@ -229,10 +230,12 @@ class novadax(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
+                'active': active,
                 'precision': precision,
                 'limits': limits,
                 'info': market,
-                'active': active,
             })
         return result
 
@@ -258,17 +261,10 @@ class novadax(Exchange):
         symbol = self.safe_symbol(marketId, market, '_')
         open = self.safe_number(ticker, 'open24h')
         last = self.safe_number(ticker, 'lastPrice')
-        percentage = None
-        change = None
-        average = None
-        if (last is not None) and (open is not None):
-            change = last - open
-            percentage = change / open * 100
-            average = self.sum(last, open) / 2
         baseVolume = self.safe_number(ticker, 'baseVolume24h')
         quoteVolume = self.safe_number(ticker, 'quoteVolume24h')
         vwap = self.vwap(baseVolume, quoteVolume)
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -283,13 +279,13 @@ class novadax(Exchange):
             'close': last,
             'last': last,
             'previousClose': None,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': None,
+            'percentage': None,
+            'average': None,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }
+        }, market)
 
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
@@ -579,11 +575,11 @@ class novadax(Exchange):
             currencyId = self.safe_string(balance, 'currency')
             code = self.safe_currency_code(currencyId)
             account = self.account()
-            account['total'] = self.safe_string(balance, 'available')
-            account['free'] = self.safe_string(balance, 'balance')
+            account['total'] = self.safe_string(balance, 'balance')
+            account['free'] = self.safe_string(balance, 'available')
             account['used'] = self.safe_string(balance, 'hold')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         self.load_markets()
@@ -592,16 +588,30 @@ class novadax(Exchange):
         uppercaseSide = side.upper()
         request = {
             'symbol': market['id'],
-            'type': uppercaseType,  # LIMIT, MARKET
             'side': uppercaseSide,  # or SELL
-            # 'accountId': '...',  # subaccount id, optional
             # 'amount': self.amount_to_precision(symbol, amount),
             # "price": "1234.5678",  # required for LIMIT and STOP orders
+            # 'operator': ''  # for stop orders, can be found in order introduction
+            # 'stopPrice': self.price_to_precision(symbol, stopPrice),
+            # 'accountId': '...',  # subaccount id, optional
         }
-        if uppercaseType == 'LIMIT':
+        stopPrice = self.safe_number(params, 'stopPrice')
+        if stopPrice is None:
+            if (uppercaseType == 'STOP_LIMIT') or (uppercaseType == 'STOP_MARKET'):
+                raise ArgumentsRequired(self.id + ' createOrder() requires a stopPrice parameter for ' + uppercaseType + ' orders')
+        else:
+            if uppercaseType == 'LIMIT':
+                uppercaseType = 'STOP_LIMIT'
+            elif uppercaseType == 'MARKET':
+                uppercaseType = 'STOP_MARKET'
+            defaultOperator = 'LTE' if (uppercaseSide == 'BUY') else 'GTE'
+            request['operator'] = self.safe_string(params, 'operator', defaultOperator)
+            request['stopPrice'] = self.price_to_precision(symbol, stopPrice)
+            params = self.omit(params, 'stopPrice')
+        if (uppercaseType == 'LIMIT') or (uppercaseType == 'STOP_LIMIT'):
             request['price'] = self.price_to_precision(symbol, price)
             request['amount'] = self.amount_to_precision(symbol, amount)
-        elif uppercaseType == 'MARKET':
+        elif (uppercaseType == 'MARKET') or (uppercaseType == 'STOP_MARKET'):
             if uppercaseSide == 'SELL':
                 request['amount'] = self.amount_to_precision(symbol, amount)
             elif uppercaseSide == 'BUY':
@@ -617,6 +627,7 @@ class novadax(Exchange):
                     value = amount if (value is None) else value
                 precision = market['precision']['price']
                 request['value'] = self.decimal_to_precision(value, TRUNCATE, precision, self.precisionMode)
+        request['type'] = uppercaseType
         response = self.privatePostOrdersCreate(self.extend(request, params))
         #
         #     {
@@ -627,14 +638,16 @@ class novadax(Exchange):
         #             "filledAmount": "0",
         #             "filledFee": "0",
         #             "filledValue": "0",
-        #             "id": "633679992971251712",
-        #             "price": "35000",
+        #             "id": "870613508008464384",
+        #             "operator": "GTE",
+        #             "price": "210000",
         #             "side": "BUY",
-        #             "status": "PROCESSING",
+        #             "status": "SUBMITTED",
+        #             "stopPrice": "211000",
         #             "symbol": "BTC_BRL",
-        #             "timestamp": 1571122683535,
-        #             "type": "LIMIT",
-        #             "value": "35"
+        #             "timestamp": 1627612035528,
+        #             "type": "STOP_LIMIT",
+        #             "value": "210"
         #         },
         #         "message": "Success"
         #     }
@@ -801,14 +814,16 @@ class novadax(Exchange):
         #         "filledAmount": "0",
         #         "filledFee": "0",
         #         "filledValue": "0",
-        #         "id": "633679992971251712",
-        #         "price": "35000",
+        #         "id": "870613508008464384",
+        #         "operator": "GTE",
+        #         "price": "210000",
         #         "side": "BUY",
-        #         "status": "PROCESSING",
+        #         "status": "SUBMITTED",
+        #         "stopPrice": "211000",
         #         "symbol": "BTC_BRL",
-        #         "timestamp": 1571122683535,
-        #         "type": "LIMIT",
-        #         "value": "35"
+        #         "timestamp": 1627612035528,
+        #         "type": "STOP_LIMIT",
+        #         "value": "210"
         #     }
         #
         # cancelOrder
@@ -818,15 +833,15 @@ class novadax(Exchange):
         #     }
         #
         id = self.safe_string(order, 'id')
-        amount = self.safe_number(order, 'amount')
-        price = self.safe_number(order, 'price')
-        cost = self.safe_number(order, 'filledValue')
+        amount = self.safe_string(order, 'amount')
+        price = self.safe_string(order, 'price')
+        cost = self.safe_string_2(order, 'filledValue', 'value')
         type = self.safe_string_lower(order, 'type')
         side = self.safe_string_lower(order, 'side')
         status = self.parse_order_status(self.safe_string(order, 'status'))
         timestamp = self.safe_integer(order, 'timestamp')
-        average = self.safe_number(order, 'averagePrice')
-        filled = self.safe_number(order, 'filledAmount')
+        average = self.safe_string(order, 'averagePrice')
+        filled = self.safe_string(order, 'filledAmount')
         fee = None
         feeCost = self.safe_number(order, 'filledFee')
         if feeCost is not None:
@@ -836,7 +851,8 @@ class novadax(Exchange):
             }
         marketId = self.safe_string(order, 'symbol')
         symbol = self.safe_symbol(marketId, market, '_')
-        return self.safe_order({
+        stopPrice = self.safe_number(order, 'stopPrice')
+        return self.safe_order2({
             'id': id,
             'clientOrderId': None,
             'info': order,
@@ -849,7 +865,7 @@ class novadax(Exchange):
             'postOnly': None,
             'side': side,
             'price': price,
-            'stopPrice': None,
+            'stopPrice': stopPrice,
             'amount': amount,
             'cost': cost,
             'average': average,
@@ -858,9 +874,10 @@ class novadax(Exchange):
             'status': status,
             'fee': fee,
             'trades': None,
-        })
+        }, market)
 
     def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.load_markets()
         currency = self.currency(code)
         request = {

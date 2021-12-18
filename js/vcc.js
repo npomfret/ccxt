@@ -21,7 +21,7 @@ module.exports = class vcc extends Exchange {
                 'cancelAllOrders': true,
                 'cancelOrder': true,
                 'createOrder': true,
-                'editOrder': false,
+                'editOrder': undefined,
                 'fetchBalance': true,
                 'fetchClosedOrders': true,
                 'fetchCurrencies': true,
@@ -33,11 +33,11 @@ module.exports = class vcc extends Exchange {
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
                 'fetchOrderBook': true,
-                'fetchOrders': false,
+                'fetchOrders': undefined,
                 'fetchTicker': 'emulated',
                 'fetchTickers': true,
                 'fetchTrades': true,
-                'fetchTradingFees': false,
+                'fetchTradingFees': undefined,
                 'fetchTransactions': true,
                 'fetchWithdrawals': true,
             },
@@ -105,8 +105,8 @@ module.exports = class vcc extends Exchange {
                 'trading': {
                     'tierBased': false,
                     'percentage': true,
-                    'maker': 0.2 / 100,
-                    'taker': 0.2 / 100,
+                    'maker': this.parseNumber ('0.002'),
+                    'taker': this.parseNumber ('0.002'),
                 },
             },
             'exceptions': {
@@ -189,6 +189,8 @@ module.exports = class vcc extends Exchange {
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': true,
                 'active': active,
                 'precision': {
                     'price': this.safeInteger (precision, 'price'),
@@ -315,7 +317,7 @@ module.exports = class vcc extends Exchange {
             account['total'] = this.safeString (balance, 'balance');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     parseOHLCV (ohlcv, market = undefined) {
@@ -430,19 +432,9 @@ module.exports = class vcc extends Exchange {
         const quoteVolume = this.safeNumber (ticker, 'quote_volume');
         const open = this.safeNumber (ticker, 'open_price');
         const last = this.safeNumber (ticker, 'last_price');
-        let change = undefined;
-        let percentage = undefined;
-        let average = undefined;
-        if (last !== undefined && open !== undefined) {
-            change = last - open;
-            average = this.sum (last, open) / 2;
-            if (open > 0) {
-                percentage = change / open * 100;
-            }
-        }
         const vwap = this.vwap (baseVolume, quoteVolume);
-        const symbol = (market === undefined) ? undefined : market['symbol'];
-        return {
+        const symbol = this.safeSymbol (undefined, market);
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -457,13 +449,13 @@ module.exports = class vcc extends Exchange {
             'close': last,
             'last': last,
             'previousClose': undefined,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': undefined,
+            'percentage': undefined,
+            'average': undefined,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchTickers (symbols = undefined, params = {}) {
@@ -818,7 +810,7 @@ module.exports = class vcc extends Exchange {
         if (stopPrice !== undefined) {
             request['is_stop'] = 1;
             request['stop_condition'] = (side === 'buy') ? 'le' : 'ge'; // ge = greater than or equal, le = less than or equal
-            request['stop_price'] = this.priceToPrecision (symbol, price);
+            request['stop_price'] = this.priceToPrecision (symbol, stopPrice);
         }
         params = this.omit (params, [ 'stop_price', 'stopPrice' ]);
         const response = await this.privatePostOrders (this.extend (request, params));
@@ -984,14 +976,14 @@ module.exports = class vcc extends Exchange {
         const marketId = baseId + '_' + quoteId;
         market = this.safeMarket (marketId, market, '_');
         const symbol = market['symbol'];
-        const amount = this.safeNumber (order, 'quantity');
-        const filled = this.safeNumber (order, 'executed_quantity');
+        const amount = this.safeString (order, 'quantity');
+        const filled = this.safeString (order, 'executed_quantity');
         const status = this.parseOrderStatus (this.safeString (order, 'status'));
-        const cost = this.safeNumber (order, 'ceiling');
+        const cost = this.safeString (order, 'ceiling');
         const id = this.safeString (order, 'id');
-        const price = this.safeNumber (order, 'price');
-        const average = this.safeNumber (order, 'executed_price');
-        const remaining = this.safeNumber (order, 'remaining');
+        const price = this.safeString (order, 'price');
+        const average = this.safeString (order, 'executed_price');
+        const remaining = this.safeString (order, 'remaining');
         const type = this.safeString (order, 'type');
         const side = this.safeString (order, 'trade_type');
         const fee = {
@@ -1004,7 +996,7 @@ module.exports = class vcc extends Exchange {
             lastTradeTimestamp = updated;
         }
         const stopPrice = this.safeNumber (order, 'stopPrice');
-        return this.safeOrder ({
+        return this.safeOrder2 ({
             'id': id,
             'clientOrderId': id,
             'timestamp': created,
@@ -1026,7 +1018,7 @@ module.exports = class vcc extends Exchange {
             'fee': fee,
             'trades': undefined,
             'info': order,
-        });
+        }, market);
     }
 
     async fetchOrder (id, symbol = undefined, params = {}) {
@@ -1246,6 +1238,7 @@ module.exports = class vcc extends Exchange {
             'currency': this.safeCurrencyCode (currencyId),
             'address': address,
             'tag': tag,
+            'network': undefined,
             'info': data,
         };
     }

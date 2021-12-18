@@ -34,7 +34,7 @@ class mercado extends Exchange {
                 'fetchOrderBook' => true,
                 'fetchOrders' => true,
                 'fetchTicker' => true,
-                'fetchTickers' => false,
+                'fetchTickers' => null,
                 'fetchTrades' => true,
                 'withdraw' => true,
             ),
@@ -161,6 +161,8 @@ class mercado extends Exchange {
                 'quote' => $quote,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
+                'type' => 'spot',
+                'spot' => true,
                 'active' => null,
                 'info' => $coin,
                 'precision' => $precision,
@@ -303,7 +305,7 @@ class mercado extends Exchange {
                 $result[$code] = $account;
             }
         }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -388,21 +390,21 @@ class mercado extends Exchange {
         //     {
         //         "order_id" => 4,
         //         "coin_pair" => "BRLBTC",
-        //         "$order_type" => 1,
-        //         "$status" => 2,
+        //         "order_type" => 1,
+        //         "status" => 2,
         //         "has_fills" => true,
         //         "quantity" => "2.00000000",
         //         "limit_price" => "900.00000",
         //         "executed_quantity" => "1.00000000",
         //         "executed_price_avg" => "900.00000",
-        //         "$fee" => "0.00300000",
+        //         "fee" => "0.00300000",
         //         "created_timestamp" => "1453838494",
         //         "updated_timestamp" => "1453838494",
         //         "operations" => array(
         //             array(
         //                 "operation_id" => 1,
         //                 "quantity" => "1.00000000",
-        //                 "$price" => "900.00000",
+        //                 "price" => "900.00000",
         //                 "fee_rate" => "0.30",
         //                 "executed_timestamp" => "1453838494",
         //             ),
@@ -476,6 +478,7 @@ class mercado extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->check_address($address);
         yield $this->load_markets();
         $currency = $this->currency($code);
@@ -630,11 +633,18 @@ class mercado extends Exchange {
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 
-    public function request($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
-        $response = yield $this->fetch2($path, $api, $method, $params, $headers, $body);
-        if (is_array($response) && array_key_exists('error_message', $response)) {
+    public function handle_errors($httpCode, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
+        if ($response === null) {
+            return;
+        }
+        //
+        // todo add a unified standard handleErrors with $this->exceptions in describe()
+        //
+        //     array("status":503,"message":"Maintenancing, try again later","result":null)
+        //
+        $errorMessage = $this->safe_value($response, 'error_message');
+        if ($errorMessage !== null) {
             throw new ExchangeError($this->id . ' ' . $this->json($response));
         }
-        return $response;
     }
 }

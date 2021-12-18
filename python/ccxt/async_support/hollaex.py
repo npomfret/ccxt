@@ -24,9 +24,9 @@ class hollaex(Exchange):
             'rateLimit': 333,
             'version': 'v2',
             'has': {
-                'CORS': False,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
+                'CORS': None,
                 'createLimitBuyOrder': True,
                 'createLimitSellOrder': True,
                 'createMarketBuyOrder': True,
@@ -36,6 +36,7 @@ class hollaex(Exchange):
                 'fetchClosedOrders': True,
                 'fetchCurrencies': True,
                 'fetchDepositAddress': 'emulated',
+                'fetchDepositAddresses': True,
                 'fetchDeposits': True,
                 'fetchMarkets': True,
                 'fetchMyTrades': True,
@@ -49,10 +50,9 @@ class hollaex(Exchange):
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTrades': True,
-                'fetchTransactions': False,
+                'fetchTransactions': None,
                 'fetchWithdrawals': True,
                 'withdraw': True,
-                'fetchDepositAddresses': True,
             },
             'timeframes': {
                 '1h': '1h',
@@ -210,6 +210,8 @@ class hollaex(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': active,
                 'precision': {
                     'price': self.safe_number(market, 'increment_price'),
@@ -591,7 +593,7 @@ class hollaex(Exchange):
             account['free'] = self.safe_string(response, currencyId + '_available')
             account['total'] = self.safe_string(response, currencyId + '_balance')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     async def fetch_open_order(self, id, symbol=None, params={}):
         await self.load_markets()
@@ -779,11 +781,11 @@ class hollaex(Exchange):
         timestamp = self.parse8601(self.safe_string(order, 'created_at'))
         type = self.safe_string(order, 'type')
         side = self.safe_string(order, 'side')
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'size')
-        filled = self.safe_number(order, 'filled')
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'size')
+        filled = self.safe_string(order, 'filled')
         status = self.parse_order_status(self.safe_string(order, 'status'))
-        return self.safe_order({
+        return self.safe_order2({
             'id': id,
             'clientOrderId': None,
             'timestamp': timestamp,
@@ -805,7 +807,7 @@ class hollaex(Exchange):
             'fee': None,
             'info': order,
             'average': None,
-        })
+        }, market)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
@@ -1184,6 +1186,7 @@ class hollaex(Exchange):
         }
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         await self.load_markets()
         currency = self.currency(code)

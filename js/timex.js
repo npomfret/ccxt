@@ -15,7 +15,7 @@ module.exports = class timex extends Exchange {
             'has': {
                 'cancelOrder': true,
                 'cancelOrders': true,
-                'CORS': false,
+                'CORS': undefined,
                 'createOrder': true,
                 'editOrder': true,
                 'fetchBalance': true,
@@ -459,7 +459,7 @@ module.exports = class timex extends Exchange {
             account['used'] = this.safeString (balance, 'lockedBalance');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -802,6 +802,23 @@ module.exports = class timex extends Exchange {
         return this.parseTrades (trades, market, since, limit);
     }
 
+    parseTradingFee (fee, market = undefined) {
+        //
+        //     {
+        //         "fee": 0.0075,
+        //         "market": "ETHBTC"
+        //     }
+        //
+        const marketId = this.safeString (fee, 'market');
+        const rate = this.safeNumber (fee, 'fee');
+        return {
+            'info': fee,
+            'symbol': this.safeSymbol (marketId, market),
+            'maker': rate,
+            'taker': rate,
+        };
+    }
+
     async fetchTradingFee (symbol, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
@@ -818,11 +835,7 @@ module.exports = class timex extends Exchange {
         //     ]
         //
         const result = this.safeValue (response, 0, {});
-        return {
-            'info': response,
-            'maker': this.safeNumber (result, 'fee'),
-            'taker': undefined,
-        };
+        return this.parseTradingFee (result, market);
     }
 
     parseMarket (market) {
@@ -877,6 +890,7 @@ module.exports = class timex extends Exchange {
             'baseId': baseId,
             'quoteId': quoteId,
             'type': 'spot',
+            'spot': true,
             'active': active,
             'precision': precision,
             'limits': limits,
@@ -939,13 +953,13 @@ module.exports = class timex extends Exchange {
             if (dotIndex > 0) {
                 const whole = feeString.slice (0, dotIndex);
                 const fraction = feeString.slice (-dotIndex);
-                fee = parseFloat (whole + '.' + fraction);
+                fee = this.parseNumber (whole + '.' + fraction);
             } else {
                 let fraction = '.';
                 for (let i = 0; i < -dotIndex; i++) {
                     fraction += '0';
                 }
-                fee = parseFloat (fraction + feeString);
+                fee = this.parseNumber (fraction + feeString);
             }
         }
         return {
@@ -985,17 +999,7 @@ module.exports = class timex extends Exchange {
         const timestamp = this.parse8601 (this.safeString (ticker, 'timestamp'));
         const last = this.safeNumber (ticker, 'last');
         const open = this.safeNumber (ticker, 'open');
-        let change = undefined;
-        let average = undefined;
-        if (last !== undefined && open !== undefined) {
-            change = last - open;
-            average = this.sum (last, open) / 2;
-        }
-        let percentage = undefined;
-        if (change !== undefined && open) {
-            percentage = (change / open) * 100;
-        }
-        return {
+        return this.safeTicker ({
             'symbol': symbol,
             'info': ticker,
             'timestamp': timestamp,
@@ -1011,12 +1015,12 @@ module.exports = class timex extends Exchange {
             'close': last,
             'last': last,
             'previousClose': undefined,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': undefined,
+            'percentage': undefined,
+            'average': undefined,
             'baseVolume': this.safeNumber (ticker, 'volume'),
             'quoteVolume': this.safeNumber (ticker, 'volumeQuote'),
-        };
+        }, market);
     }
 
     parseTrade (trade, market = undefined) {

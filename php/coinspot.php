@@ -19,9 +19,9 @@ class coinspot extends Exchange {
             'countries' => array( 'AU' ), // Australia
             'rateLimit' => 1000,
             'has' => array(
-                'cancelOrder' => false,
-                'CORS' => false,
-                'createMarketOrder' => false,
+                'cancelOrder' => null,
+                'CORS' => null,
+                'createMarketOrder' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchOrderBook' => true,
@@ -73,19 +73,19 @@ class coinspot extends Exchange {
                 ),
             ),
             'markets' => array(
-                'BTC/AUD' => array( 'id' => 'btc', 'symbol' => 'BTC/AUD', 'base' => 'BTC', 'quote' => 'AUD', 'baseId' => 'btc', 'quoteId' => 'aud' ),
-                'ETH/AUD' => array( 'id' => 'eth', 'symbol' => 'ETH/AUD', 'base' => 'ETH', 'quote' => 'AUD', 'baseId' => 'eth', 'quoteId' => 'aud' ),
-                'XRP/AUD' => array( 'id' => 'xrp', 'symbol' => 'XRP/AUD', 'base' => 'XRP', 'quote' => 'AUD', 'baseId' => 'xrp', 'quoteId' => 'aud' ),
-                'LTC/AUD' => array( 'id' => 'ltc', 'symbol' => 'LTC/AUD', 'base' => 'LTC', 'quote' => 'AUD', 'baseId' => 'ltc', 'quoteId' => 'aud' ),
-                'DOGE/AUD' => array( 'id' => 'doge', 'symbol' => 'DOGE/AUD', 'base' => 'DOGE', 'quote' => 'AUD', 'baseId' => 'doge', 'quoteId' => 'aud' ),
-                'RFOX/AUD' => array( 'id' => 'rfox', 'symbol' => 'RFOX/AUD', 'base' => 'RFOX', 'quote' => 'AUD', 'baseId' => 'rfox', 'quoteId' => 'aud' ),
-                'POWR/AUD' => array( 'id' => 'powr', 'symbol' => 'POWR/AUD', 'base' => 'POWR', 'quote' => 'AUD', 'baseId' => 'powr', 'quoteId' => 'aud' ),
-                'NEO/AUD' => array( 'id' => 'neo', 'symbol' => 'NEO/AUD', 'base' => 'NEO', 'quote' => 'AUD', 'baseId' => 'neo', 'quoteId' => 'aud' ),
-                'TRX/AUD' => array( 'id' => 'trx', 'symbol' => 'TRX/AUD', 'base' => 'TRX', 'quote' => 'AUD', 'baseId' => 'trx', 'quoteId' => 'aud' ),
-                'EOS/AUD' => array( 'id' => 'eos', 'symbol' => 'EOS/AUD', 'base' => 'EOS', 'quote' => 'AUD', 'baseId' => 'eos', 'quoteId' => 'aud' ),
-                'XLM/AUD' => array( 'id' => 'xlm', 'symbol' => 'XLM/AUD', 'base' => 'XLM', 'quote' => 'AUD', 'baseId' => 'xlm', 'quoteId' => 'aud' ),
-                'RHOC/AUD' => array( 'id' => 'rhoc', 'symbol' => 'RHOC/AUD', 'base' => 'RHOC', 'quote' => 'AUD', 'baseId' => 'rhoc', 'quoteId' => 'aud' ),
-                'GAS/AUD' => array( 'id' => 'gas', 'symbol' => 'GAS/AUD', 'base' => 'GAS', 'quote' => 'AUD', 'baseId' => 'gas', 'quoteId' => 'aud' ),
+                'BTC/AUD' => array( 'id' => 'btc', 'symbol' => 'BTC/AUD', 'base' => 'BTC', 'quote' => 'AUD', 'baseId' => 'btc', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'ETH/AUD' => array( 'id' => 'eth', 'symbol' => 'ETH/AUD', 'base' => 'ETH', 'quote' => 'AUD', 'baseId' => 'eth', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'XRP/AUD' => array( 'id' => 'xrp', 'symbol' => 'XRP/AUD', 'base' => 'XRP', 'quote' => 'AUD', 'baseId' => 'xrp', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'LTC/AUD' => array( 'id' => 'ltc', 'symbol' => 'LTC/AUD', 'base' => 'LTC', 'quote' => 'AUD', 'baseId' => 'ltc', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'DOGE/AUD' => array( 'id' => 'doge', 'symbol' => 'DOGE/AUD', 'base' => 'DOGE', 'quote' => 'AUD', 'baseId' => 'doge', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'RFOX/AUD' => array( 'id' => 'rfox', 'symbol' => 'RFOX/AUD', 'base' => 'RFOX', 'quote' => 'AUD', 'baseId' => 'rfox', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'POWR/AUD' => array( 'id' => 'powr', 'symbol' => 'POWR/AUD', 'base' => 'POWR', 'quote' => 'AUD', 'baseId' => 'powr', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'NEO/AUD' => array( 'id' => 'neo', 'symbol' => 'NEO/AUD', 'base' => 'NEO', 'quote' => 'AUD', 'baseId' => 'neo', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'TRX/AUD' => array( 'id' => 'trx', 'symbol' => 'TRX/AUD', 'base' => 'TRX', 'quote' => 'AUD', 'baseId' => 'trx', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'EOS/AUD' => array( 'id' => 'eos', 'symbol' => 'EOS/AUD', 'base' => 'EOS', 'quote' => 'AUD', 'baseId' => 'eos', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'XLM/AUD' => array( 'id' => 'xlm', 'symbol' => 'XLM/AUD', 'base' => 'XLM', 'quote' => 'AUD', 'baseId' => 'xlm', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'RHOC/AUD' => array( 'id' => 'rhoc', 'symbol' => 'RHOC/AUD', 'base' => 'RHOC', 'quote' => 'AUD', 'baseId' => 'rhoc', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
+                'GAS/AUD' => array( 'id' => 'gas', 'symbol' => 'GAS/AUD', 'base' => 'GAS', 'quote' => 'AUD', 'baseId' => 'gas', 'quoteId' => 'aud', 'type' => 'spot', 'spot' => true ),
             ),
             'commonCurrencies' => array(
                 'DRK' => 'DASH',
@@ -109,9 +109,9 @@ class coinspot extends Exchange {
         //
         //     {
         //         "status":"ok",
-        //         "$balances":array(
+        //         "balances":array(
         //             {
-        //                 "LTC":array("$balance":0.1,"audbalance":16.59,"rate":165.95)
+        //                 "LTC":array("balance":0.1,"audbalance":16.59,"rate":165.95)
         //             }
         //         )
         //     }
@@ -141,7 +141,7 @@ class coinspot extends Exchange {
                 $result[$code] = $account;
             }
         }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -197,7 +197,7 @@ class coinspot extends Exchange {
         //     {
         //         "status":"ok",
         //         "orders":array(
-        //             array("amount":0.00102091,"rate":21549.09999991,"total":21.99969168,"coin":"BTC","solddate":1604890646143,"$market":"BTC/AUD"),
+        //             array("amount":0.00102091,"rate":21549.09999991,"total":21.99969168,"coin":"BTC","solddate":1604890646143,"market":"BTC/AUD"),
         //         ),
         //     }
         //
@@ -210,26 +210,21 @@ class coinspot extends Exchange {
         // public fetchTrades
         //
         //     {
-        //         "$amount":0.00102091,
+        //         "amount":0.00102091,
         //         "rate":21549.09999991,
         //         "total":21.99969168,
         //         "coin":"BTC",
         //         "solddate":1604890646143,
-        //         "$market":"BTC/AUD"
+        //         "market":"BTC/AUD"
         //     }
         //
         $priceString = $this->safe_string($trade, 'rate');
         $amountString = $this->safe_string($trade, 'amount');
-        $price = $this->parse_number($priceString);
-        $amount = $this->parse_number($amountString);
-        $cost = $this->safe_number($trade, 'total');
-        if ($cost === null) {
-            $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
-        }
+        $costString = $this->safe_number($trade, 'total');
         $timestamp = $this->safe_integer($trade, 'solddate');
         $marketId = $this->safe_string($trade, 'market');
         $symbol = $this->safe_symbol($marketId, $market, '/');
-        return array(
+        return $this->safe_trade(array(
             'info' => $trade,
             'id' => null,
             'symbol' => $symbol,
@@ -239,11 +234,11 @@ class coinspot extends Exchange {
             'type' => null,
             'side' => null,
             'takerOrMaker' => null,
-            'price' => $price,
-            'amount' => $amount,
-            'cost' => $cost,
+            'price' => $priceString,
+            'amount' => $amountString,
+            'cost' => $costString,
             'fee' => null,
-        );
+        ), $market);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {

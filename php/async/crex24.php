@@ -14,7 +14,6 @@ use \ccxt\OrderNotFound;
 use \ccxt\DDoSProtection;
 use \ccxt\ExchangeNotAvailable;
 use \ccxt\RequestTimeout;
-use \ccxt\Precise;
 
 class crex24 extends Exchange {
 
@@ -29,7 +28,7 @@ class crex24 extends Exchange {
             'has' => array(
                 'cancelAllOrders' => true,
                 'cancelOrder' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createOrder' => true,
                 'editOrder' => true,
                 'fetchBalance' => true,
@@ -38,7 +37,7 @@ class crex24 extends Exchange {
                 'fetchCurrencies' => true,
                 'fetchDepositAddress' => true,
                 'fetchDeposits' => true,
-                'fetchFundingFees' => false,
+                'fetchFundingFees' => true,
                 'fetchMarkets' => true,
                 'fetchMyTrades' => true,
                 'fetchOHLCV' => true,
@@ -50,8 +49,8 @@ class crex24 extends Exchange {
                 'fetchTicker' => true,
                 'fetchTickers' => true,
                 'fetchTrades' => true,
-                'fetchTradingFee' => false, // actually, true, but will be implemented later
-                'fetchTradingFees' => false, // actually, true, but will be implemented later
+                'fetchTradingFee' => null, // actually, true, but will be implemented later
+                'fetchTradingFees' => null, // actually, true, but will be implemented later
                 'fetchTransactions' => true,
                 'fetchWithdrawals' => true,
                 'withdraw' => true,
@@ -85,6 +84,10 @@ class crex24 extends Exchange {
                         'recentTrades',
                         'orderBook',
                         'ohlcv',
+                        'tradingFeeSchedules',
+                        'withdrawalFees',
+                        'currencyTransport',
+                        'currenciesWithdrawalFees',
                     ),
                 ),
                 'trading' => array(
@@ -94,9 +97,8 @@ class crex24 extends Exchange {
                         'activeOrders',
                         'orderHistory',
                         'tradeHistory',
-                        'tradeFee',
-                        // this is in trading API according to their docs, but most likely a typo in their docs
-                        'moneyTransferStatus',
+                        'tradingFee',
+                        'tradeFee', // The support of this method has been dropped on February 18, 2020. Please, use tradingFee method instead. https://docs.crex24.com/trade-api/v2/#trade-fee-and-rebate-discontinued
                     ),
                     'post' => array(
                         'placeOrder',
@@ -111,7 +113,6 @@ class crex24 extends Exchange {
                         'balance',
                         'depositAddress',
                         'moneyTransfers',
-                        // this is in trading API according to their docs, but most likely a typo in their docs
                         'moneyTransferStatus',
                         'previewWithdrawal',
                     ),
@@ -137,22 +138,33 @@ class crex24 extends Exchange {
                 ),
             ),
             'commonCurrencies' => array(
+                'ACM' => 'Actinium',
                 'BCC' => 'BCH',
                 'BIT' => 'BitMoney',
                 'BULL' => 'BuySell',
+                'CLC' => 'CaluraCoin',
                 'CREDIT' => 'TerraCredit',
+                'DMS' => 'Documentchain', // conflict with Dragon Mainland Shards
+                'EGG' => 'NestEGG Coin',
                 'EPS' => 'Epanus',  // conflict with EPS Ellipsis https://github.com/ccxt/ccxt/issues/8909
                 'FUND' => 'FUNDChains',
                 'GHOST' => 'GHOSTPRISM',
                 'GTC' => 'GastroCoin', // conflict with Gitcoin and Game.com
                 'IQ' => 'IQ.Cash',
+                'ONE' => 'One Hundred Coin',
                 'PUT' => 'PutinCoin',
                 'SBTC' => 'SBTCT', // SiamBitcoin
+                'SUPER' => 'SuperCoin',
                 'UNI' => 'Universe',
                 'YOYO' => 'YOYOW',
             ),
             // exchange-specific options
             'options' => array(
+                'networks' => array(
+                    'ETH' => 'ERC20',
+                    'TRX' => 'TRC20',
+                    'BSC' => 'BEP20',
+                ),
                 'fetchOrdersMethod' => 'tradingGetOrderHistory', // or 'tradingGetActiveOrders'
                 'fetchClosedOrdersMethod' => 'tradingGetOrderHistory', // or 'tradingGetActiveOrders'
                 'fetchTickersMethod' => 'publicGetTicker24hr',
@@ -171,6 +183,7 @@ class crex24 extends Exchange {
                     "Nonce error. Make sure that the value passed in the 'X-CREX24-API-NONCE' header is greater in each consecutive request than in the previous one for the corresponding API-Key provided in 'X-CREX24-API-KEY' header." => '\\ccxt\\InvalidNonce',
                     'Market orders are not supported by the instrument currently.' => '\\ccxt\\InvalidOrder',
                     "Parameter 'instrument' contains invalid value." => '\\ccxt\\BadSymbol',
+                    "Trading has been disabled for the account until the verification is passed. To initiate the verification process, please log into your account at crex24.com and proceed to 'My account' -> 'Verification'." => '\\ccxt\\AccountSuspended', // array("errorDescription":"Trading has been disabled for the account until the verification is passed. To initiate the verification process, please log into your account at crex24.com and proceed to 'My account' -> 'Verification'.")
                 ),
                 'broad' => array(
                     'try again later' => '\\ccxt\\ExchangeNotAvailable', // array("errorDescription":"Failed to process the request. Please, try again later.")
@@ -179,6 +192,7 @@ class crex24 extends Exchange {
                     'has been delisted.' => '\\ccxt\\BadSymbol', // array("errorDescription":"Instrument '$PAC-BTC' has been delisted.")
                     'is currently suspended.' => '\\ccxt\\BadSymbol', // array(is_array(BITG-BTC is currently suspended.") && array_key_exists("errorDescription":"Trading, BITG-BTC is currently suspended."))
                     'Mandatory parameter' => '\\ccxt\\BadRequest', // array("errorDescription":"Mandatory parameter 'feeCurrency' is missing.")
+                    'can not trade' => '\\ccxt\\AccountSuspended', // array("errorDescription":"User 123456 can not trade")
                 ),
             ),
         ));
@@ -191,24 +205,79 @@ class crex24 extends Exchange {
     public function fetch_markets($params = array ()) {
         $response = yield $this->publicGetInstruments ($params);
         //
-        //     [ array(              $symbol =>   "$PAC-BTC",
-        //                baseCurrency =>   "$PAC",
-        //               quoteCurrency =>   "BTC",
-        //                 feeCurrency =>   "BTC",
-        //                    $tickSize =>    1e-8,
-        //                    $minPrice =>    1e-8,
-        //                   minVolume =>    1,
-        //         supportedOrderTypes => ["limit"],
-        //                       state =>   "$active"    ),
-        //       {              $symbol =>   "ZZC-USD",
-        //                baseCurrency =>   "ZZC",
-        //               quoteCurrency =>   "USD",
-        //                 feeCurrency =>   "USD",
-        //                    $tickSize =>    0.0001,
-        //                    $minPrice =>    0.0001,
-        //                   minVolume =>    1,
-        //         supportedOrderTypes => ["limit"],
-        //                       state =>   "$active"   }        ]
+        //         array( array(
+        //             "symbol" => "$PAC-BTC",
+        //             "baseCurrency" => "$PAC",
+        //             "quoteCurrency" => "BTC",
+        //             "feeCurrency" => "BTC",
+        //             "feeSchedule" => "OriginalSchedule",
+        //             "tickSize" => 0.00000001,
+        //             "minPrice" => 0.00000001,
+        //             "maxPrice" => 10000000000.0,
+        //             "volumeIncrement" => 0.00000001,
+        //             "minVolume" => 1.0,
+        //             "maxVolume" => 1000000000.0,
+        //             "minQuoteVolume" => 0.000000000000001,
+        //             "maxQuoteVolume" => 100000000000.0,
+        //             "supportedOrderTypes" => array(
+        //               "limit"
+        //             ),
+        //             "state" => "delisted"
+        //           ),
+        //           array(
+        //             "symbol" => "1INCH-USDT",
+        //             "baseCurrency" => "1INCH",
+        //             "quoteCurrency" => "USDT",
+        //             "feeCurrency" => "USDT",
+        //             "feeSchedule" => "FeeSchedule10",
+        //             "tickSize" => 0.0001,
+        //             "minPrice" => 0.0001,
+        //             "maxPrice" => 10000000000.0,
+        //             "volumeIncrement" => 0.00000001,
+        //             "minVolume" => 0.01,
+        //             "maxVolume" => 1000000000.0,
+        //             "minQuoteVolume" => 0.000000000000001,
+        //             "maxQuoteVolume" => 100000000000.0,
+        //             "supportedOrderTypes" => array(
+        //               "limit"
+        //             ),
+        //             "state" => "active"
+        //           ), )
+        //
+        $response2 = yield $this->publicGetTradingFeeSchedules ($params);
+        //
+        //     array(
+        //         {
+        //             "name" => "FeeSchedule05",
+        //             "feeRates" => array(
+        //                 array(
+        //                     "volumeThreshold" => 0.0,
+        //                     "maker" => 0.0005,
+        //                     "taker" => 0.0005
+        //                 ),
+        //                 array(
+        //                     "volumeThreshold" => 5.0,
+        //                     "maker" => 0.0004,
+        //                     "taker" => 0.0004
+        //                 ),
+        //                 array(
+        //                     "volumeThreshold" => 15.0,
+        //                     "maker" => 0.0003,
+        //                     "taker" => 0.0003
+        //                 ),
+        //                 array(
+        //                     "volumeThreshold" => 30.0,
+        //                     "maker" => 0.0002,
+        //                     "taker" => 0.0002
+        //                 ),
+        //                 array(
+        //                     "volumeThreshold" => 50.0,
+        //                     "maker" => 0.0001,
+        //                     "taker" => 0.0001
+        //                 }
+        //             )
+        //         ),
+        //     )
         //
         $result = array();
         for ($i = 0; $i < count($response); $i++) {
@@ -221,11 +290,33 @@ class crex24 extends Exchange {
             $symbol = $base . '/' . $quote;
             $tickSize = $this->safe_number($market, 'tickSize');
             $minPrice = $this->safe_number($market, 'minPrice');
+            $maxPrice = $this->safe_number($market, 'maxPrice');
             $minAmount = $this->safe_number($market, 'minVolume');
+            $maxAmount = $this->safe_number($market, 'maxVolume');
+            $minCost = $this->safe_number($market, 'minQuoteVolume');
+            $maxCost = $this->safe_number($market, 'maxQuoteVolume');
             $precision = array(
                 'amount' => $minAmount,
                 'price' => $tickSize,
             );
+            $maker = null;
+            $taker = null;
+            $feeSchedule = $this->safe_string($market, 'feeSchedule');
+            for ($j = 0; $j < count($response2); $j++) {
+                $feeScheduleName = $this->safe_string($response2[$j], 'name');
+                if ($feeScheduleName === $feeSchedule) {
+                    $feeRates = $this->safe_value($response2[$j], 'feeRates', array());
+                    for ($k = 0; $k < count($feeRates); $k++) {
+                        $volumeThreshold = $this->safe_number($feeRates[$k], 'volumeThreshold');
+                        if ($volumeThreshold === 0) {
+                            $maker = $this->safe_number($feeRates[$k], 'maker');
+                            $taker = $this->safe_number($feeRates[$k], 'taker');
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
             $active = ($market['state'] === 'active');
             $result[] = array(
                 'id' => $id,
@@ -235,20 +326,24 @@ class crex24 extends Exchange {
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
                 'info' => $market,
+                'type' => 'spot',
+                'spot' => true,
                 'active' => $active,
                 'precision' => $precision,
+                'maker' => $maker,
+                'taker' => $taker,
                 'limits' => array(
                     'amount' => array(
                         'min' => $minAmount,
-                        'max' => null,
+                        'max' => $maxAmount,
                     ),
                     'price' => array(
                         'min' => $minPrice,
-                        'max' => null,
+                        'max' => $maxPrice,
                     ),
                     'cost' => array(
-                        'min' => null,
-                        'max' => null,
+                        'min' => $minCost,
+                        'max' => $maxCost,
                     ),
                 ),
             );
@@ -323,6 +418,49 @@ class crex24 extends Exchange {
         return $result;
     }
 
+    public function fetch_funding_fees($codes = null, $params = array ()) {
+        yield $this->load_markets();
+        $response = yield $this->publicGetCurrenciesWithdrawalFees ($params);
+        //
+        //     array(
+        //         {
+        //             currency => '1INCH',
+        //             fees => array(
+        //                 array( feeCurrency => 'BTC', amount => 0.00032 ),
+        //                 array( feeCurrency => 'ETH', amount => 0.0054 ),
+        //                 array( feeCurrency => 'DOGE', amount => 63.06669 ),
+        //                 array( feeCurrency => 'LTC', amount => 0.0912 ),
+        //                 array( feeCurrency => 'BCH', amount => 0.02364 ),
+        //                 array( feeCurrency => 'USDT', amount => 12.717 ),
+        //                 array( feeCurrency => 'USDC', amount => 12.7367 ),
+        //                 array( feeCurrency => 'TRX', amount => 205.99108 ),
+        //                 array( feeCurrency => 'EOS', amount => 3.30141 )
+        //             )
+        //         }
+        //     )
+        //
+        $withdrawFees = array();
+        for ($i = 0; $i < count($response); $i++) {
+            $entry = $response[$i];
+            $currencyId = $this->safe_string($entry, 'currency');
+            $code = $this->safe_currency_code($currencyId);
+            $networkList = $this->safe_value($entry, 'fees');
+            $withdrawFees[$code] = array();
+            for ($j = 0; $j < count($networkList); $j++) {
+                $networkEntry = $networkList[$j];
+                $networkId = $this->safe_string($networkEntry, 'feeCurrency');
+                $networkCode = $this->safe_currency_code($networkId);
+                $fee = $this->safe_number($networkEntry, 'amount');
+                $withdrawFees[$code][$networkCode] = $fee;
+            }
+        }
+        return array(
+            'withdraw' => $withdrawFees,
+            'deposit' => array(),
+            'info' => $response,
+        );
+    }
+
     public function fetch_balance($params = array ()) {
         yield $this->load_markets();
         $request = array(
@@ -349,7 +487,7 @@ class crex24 extends Exchange {
             $account['used'] = $this->safe_string($balance, 'reserved');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -495,7 +633,7 @@ class crex24 extends Exchange {
         //
         // public fetchTrades
         //
-        //       {     $price =>  0.03105,
+        //       {     price =>  0.03105,
         //            volume =>  0.11,
         //              $side => "sell",
         //         $timestamp => "2018-10-31T04:19:35Z" }  ]
@@ -503,23 +641,20 @@ class crex24 extends Exchange {
         // private fetchMyTrades
         //
         //     {
-        //         "$id" => 3005866,
-        //         "$orderId" => 468533093,
-        //         "$timestamp" => "2018-06-02T16:26:27Z",
+        //         "id" => 3005866,
+        //         "orderId" => 468533093,
+        //         "timestamp" => "2018-06-02T16:26:27Z",
         //         "instrument" => "BCH-ETH",
-        //         "$side" => "buy",
-        //         "$price" => 1.78882,
+        //         "side" => "buy",
+        //         "price" => 1.78882,
         //         "volume" => 0.027,
-        //         "$fee" => 0.0000483,
+        //         "fee" => 0.0000483,
         //         "feeCurrency" => "ETH"
         //     }
         //
         $timestamp = $this->parse8601($this->safe_string($trade, 'timestamp'));
         $priceString = $this->safe_string($trade, 'price');
         $amountString = $this->safe_string($trade, 'volume');
-        $price = $this->parse_number($priceString);
-        $amount = $this->parse_number($amountString);
-        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         $id = $this->safe_string($trade, 'id');
         $side = $this->safe_string($trade, 'side');
         $orderId = $this->safe_string($trade, 'orderId');
@@ -528,15 +663,15 @@ class crex24 extends Exchange {
         $fee = null;
         $feeCurrencyId = $this->safe_string($trade, 'feeCurrency');
         $feeCode = $this->safe_currency_code($feeCurrencyId);
-        $feeCost = $this->safe_number($trade, 'fee');
-        if ($feeCost !== null) {
+        $feeCostString = $this->safe_string($trade, 'fee');
+        if ($feeCostString !== null) {
             $fee = array(
-                'cost' => $feeCost,
+                'cost' => $feeCostString,
                 'currency' => $feeCode,
             );
         }
         $takerOrMaker = null;
-        return array(
+        return $this->safe_trade(array(
             'info' => $trade,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -546,11 +681,11 @@ class crex24 extends Exchange {
             'type' => null,
             'takerOrMaker' => $takerOrMaker,
             'side' => $side,
-            'price' => $price,
-            'cost' => $cost,
-            'amount' => $amount,
+            'price' => $priceString,
+            'cost' => null,
+            'amount' => $amountString,
             'fee' => $fee,
-        );
+        ), $market);
     }
 
     public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
@@ -641,17 +776,17 @@ class crex24 extends Exchange {
         // createOrder
         //
         //     {
-        //         "$id" => 469594855,
-        //         "$timestamp" => "2018-06-08T16:59:44Z",
+        //         "id" => 469594855,
+        //         "timestamp" => "2018-06-08T16:59:44Z",
         //         "instrument" => "BTS-BTC",
-        //         "$side" => "buy",
-        //         "$type" => "limit",
-        //         "$status" => "submitting",
+        //         "side" => "buy",
+        //         "type" => "limit",
+        //         "status" => "submitting",
         //         "cancellationReason" => null,
-        //         "$timeInForce" => "GTC",
+        //         "timeInForce" => "GTC",
         //         "volume" => 4.0,
-        //         "$price" => 0.000025,
-        //         "$stopPrice" => null,
+        //         "price" => 0.000025,
+        //         "stopPrice" => null,
         //         "remainingVolume" => 4.0,
         //         "lastUpdate" => null,
         //         "parentOrderId" => null,
@@ -744,14 +879,14 @@ class crex24 extends Exchange {
         //         "id" => 469594855,
         //         "timestamp" => "2018-06-08T16:59:44Z",
         //         "instrument" => "BTS-BTC",
-        //         "$side" => "buy",
-        //         "$type" => "limit",
+        //         "side" => "buy",
+        //         "type" => "limit",
         //         "status" => "submitting",
         //         "cancellationReason" => null,
         //         "timeInForce" => "GTC",
         //         "volume" => 4.0,
-        //         "$price" => 0.000025,
-        //         "$stopPrice" => null,
+        //         "price" => 0.000025,
+        //         "stopPrice" => null,
         //         "remainingVolume" => 4.0,
         //         "lastUpdate" => null,
         //         "parentOrderId" => null,
@@ -770,7 +905,7 @@ class crex24 extends Exchange {
         //
         //     array(
         //         {
-        //           "$id" => 466747915,
+        //           "id" => 466747915,
         //           "timestamp" => "2018-05-26T06:43:49Z",
         //           "instrument" => "UNI-BTC",
         //           "side" => "sell",
@@ -817,7 +952,7 @@ class crex24 extends Exchange {
         //             "timestamp" => "2018-06-02T16:42:40Z",
         //             "instrument" => "BTC-EUR",
         //             "side" => "sell",
-        //             "type" => "$limit",
+        //             "type" => "limit",
         //             "status" => "submitting",
         //             "cancellationReason" => null,
         //             "timeInForce" => "GTC",
@@ -847,7 +982,7 @@ class crex24 extends Exchange {
         //           "timestamp" => "2018-05-26T06:43:49Z",
         //           "instrument" => "UNI-BTC",
         //           "side" => "sell",
-        //           "type" => "$limit",
+        //           "type" => "limit",
         //           "status" => "partiallyFilledActive",
         //           "cancellationReason" => null,
         //           "timeInForce" => "GTC",
@@ -880,7 +1015,7 @@ class crex24 extends Exchange {
         //             "timestamp" => "2018-05-26T06:43:49Z",
         //             "instrument" => "UNI-BTC",
         //             "side" => "sell",
-        //             "type" => "$limit",
+        //             "type" => "limit",
         //             "status" => "partiallyFilledActive",
         //             "cancellationReason" => null,
         //             "timeInForce" => "GTC",
@@ -897,7 +1032,7 @@ class crex24 extends Exchange {
         //             "timestamp" => "2018-05-26T06:45:29Z",
         //             "instrument" => "PRJ-BTC",
         //             "side" => "sell",
-        //             "type" => "$limit",
+        //             "type" => "limit",
         //             "status" => "partiallyFilledActive",
         //             "cancellationReason" => null,
         //             "timeInForce" => "GTC",
@@ -937,7 +1072,7 @@ class crex24 extends Exchange {
         //             "timestamp" => "2018-06-02T16:42:40Z",
         //             "instrument" => "BTC-EUR",
         //             "side" => "sell",
-        //             "type" => "$limit",
+        //             "type" => "limit",
         //             "status" => "submitting",
         //             "cancellationReason" => null,
         //             "timeInForce" => "GTC",
@@ -954,7 +1089,7 @@ class crex24 extends Exchange {
         //             "timestamp" => "2018-06-02T16:42:37Z",
         //             "instrument" => "BTG-BTC",
         //             "side" => "buy",
-        //             "type" => "$limit",
+        //             "type" => "limit",
         //             "status" => "unfilledActive",
         //             "cancellationReason" => null,
         //             "timeInForce" => "GTC",
@@ -1054,7 +1189,7 @@ class crex24 extends Exchange {
             $request['currency'] = $currency['id'];
         }
         if ($since !== null) {
-            $request['from'] = $this->ymd($since, 'T');
+            $request['from'] = $this->ymdhms($since, 'T');
         }
         $response = yield $this->accountGetMoneyTransfers (array_merge($request, $params));
         //
@@ -1062,7 +1197,7 @@ class crex24 extends Exchange {
         //         array(
         //           "id" => 756446,
         //           "type" => "deposit",
-        //           "$currency" => "ETH",
+        //           "currency" => "ETH",
         //           "address" => "0x451d5a1b7519aa75164f440df78c74aac96023fe",
         //           "paymentId" => null,
         //           "amount" => 0.142,
@@ -1078,7 +1213,7 @@ class crex24 extends Exchange {
         //         array(
         //           "id" => 754618,
         //           "type" => "deposit",
-        //           "$currency" => "BTC",
+        //           "currency" => "BTC",
         //           "address" => "1IgNfmERVcier4IhfGEfutkLfu4AcmeiUC",
         //           "paymentId" => null,
         //           "amount" => 0.09,
@@ -1123,19 +1258,19 @@ class crex24 extends Exchange {
     public function parse_transaction($transaction, $currency = null) {
         //
         //     {
-        //         "$id" => 756446,
-        //         "$type" => "deposit",
-        //         "$currency" => "ETH",
-        //         "$address" => "0x451d5a1b7519aa75164f440df78c74aac96023fe",
+        //         "id" => 756446,
+        //         "type" => "deposit",
+        //         "currency" => "ETH",
+        //         "address" => "0x451d5a1b7519aa75164f440df78c74aac96023fe",
         //         "paymentId" => null,
-        //         "$amount" => 0.142,
-        //         "$fee" => null,
+        //         "amount" => 0.142,
+        //         "fee" => null,
         //         "txId" => "0x2b49098749840a9482c4894be94f94864b498a1306b6874687a5640cc9871918",
         //         "createdAt" => "2018-06-02T19:30:28Z",
         //         "processedAt" => "2018-06-02T21:10:41Z",
         //         "confirmationsRequired" => 12,
         //         "confirmationCount" => 12,
-        //         "$status" => "success",
+        //         "status" => "success",
         //         "errorDescription" => null,
         //     }
         //
@@ -1181,8 +1316,8 @@ class crex24 extends Exchange {
         $response = yield $this->accountGetDepositAddress (array_merge($request, $params));
         //
         //     {
-        //         "$currency" => "BTS",
-        //         "$address" => "crex24",
+        //         "currency" => "BTS",
+        //         "address" => "crex24",
         //         "paymentId" => "0fg4da4186741579"
         //     }
         //
@@ -1192,11 +1327,13 @@ class crex24 extends Exchange {
             'currency' => $code,
             'address' => $this->check_address($address),
             'tag' => $tag,
+            'network' => null,
             'info' => $response,
         );
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->check_address($address);
         yield $this->load_markets();
         $currency = $this->currency($code);
@@ -1212,6 +1349,13 @@ class crex24 extends Exchange {
         );
         if ($tag !== null) {
             $request['paymentId'] = $tag;
+        }
+        $networks = $this->safe_value($this->options, 'networks', array());
+        $network = $this->safe_string_upper($params, 'network'); // this line allows the user to specify either ERC20 or ETH
+        $network = $this->safe_string($networks, $network, $network); // handle ERC20>ETH alias
+        if ($network !== null) {
+            $request['transport'] = $network;
+            $params = $this->omit($params, 'network');
         }
         $response = yield $this->accountPostWithdraw (array_merge($request, $params));
         return $this->parse_transaction($response);

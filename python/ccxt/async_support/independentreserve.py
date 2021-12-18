@@ -17,7 +17,7 @@ class independentreserve(Exchange):
             'rateLimit': 1000,
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
+                'CORS': None,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchClosedOrders': True,
@@ -53,26 +53,31 @@ class independentreserve(Exchange):
                         'GetTradeHistorySummary',
                         'GetRecentTrades',
                         'GetFxRates',
+                        'GetOrderMinimumVolumes',
+                        'GetCryptoWithdrawalFees',
                     ],
                 },
                 'private': {
                     'post': [
-                        'PlaceLimitOrder',
-                        'PlaceMarketOrder',
-                        'CancelOrder',
                         'GetOpenOrders',
                         'GetClosedOrders',
                         'GetClosedFilledOrders',
                         'GetOrderDetails',
                         'GetAccounts',
                         'GetTransactions',
+                        'GetFiatBankAccounts',
                         'GetDigitalCurrencyDepositAddress',
                         'GetDigitalCurrencyDepositAddresses',
-                        'SynchDigitalCurrencyDepositAddressWithBlockchain',
-                        'WithdrawDigitalCurrency',
-                        'RequestFiatWithdrawal',
                         'GetTrades',
                         'GetBrokerageFees',
+                        'GetDigitalCurrencyWithdrawal',
+                        'PlaceLimitOrder',
+                        'PlaceMarketOrder',
+                        'CancelOrder',
+                        'SynchDigitalCurrencyDepositAddressWithBlockchain',
+                        'RequestFiatWithdrawal',
+                        'WithdrawFiatCurrency',
+                        'WithdrawDigitalCurrency',
                     ],
                 },
             },
@@ -92,10 +97,22 @@ class independentreserve(Exchange):
     async def fetch_markets(self, params={}):
         baseCurrencies = await self.publicGetGetValidPrimaryCurrencyCodes(params)
         quoteCurrencies = await self.publicGetGetValidSecondaryCurrencyCodes(params)
+        limits = await self.publicGetGetOrderMinimumVolumes(params)
+        #
+        #     {
+        #         "Xbt": 0.0001,
+        #         "Bch": 0.001,
+        #         "Bsv": 0.001,
+        #         "Eth": 0.001,
+        #         "Ltc": 0.01,
+        #         "Xrp": 1,
+        #     }
+        #
         result = []
         for i in range(0, len(baseCurrencies)):
             baseId = baseCurrencies[i]
             base = self.safe_currency_code(baseId)
+            minAmount = self.safe_number(limits, baseId)
             for j in range(0, len(quoteCurrencies)):
                 quoteId = quoteCurrencies[j]
                 quote = self.safe_currency_code(quoteId)
@@ -109,9 +126,13 @@ class independentreserve(Exchange):
                     'baseId': baseId,
                     'quoteId': quoteId,
                     'info': id,
+                    'type': 'spot',
+                    'spot': True,
                     'active': None,
                     'precision': self.precision,
-                    'limits': self.limits,
+                    'limits': {
+                        'amount': {'min': minAmount, 'max': None},
+                    },
                 })
         return result
 
@@ -127,7 +148,7 @@ class independentreserve(Exchange):
             account['free'] = self.safe_string(balance, 'AvailableBalance')
             account['total'] = self.safe_string(balance, 'TotalBalance')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(result)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -238,12 +259,12 @@ class independentreserve(Exchange):
         elif orderType.find('Limit') >= 0:
             orderType = 'limit'
         timestamp = self.parse8601(self.safe_string(order, 'CreatedTimestampUtc'))
-        amount = self.safe_number_2(order, 'VolumeOrdered', 'Volume')
-        filled = self.safe_number(order, 'VolumeFilled')
-        remaining = self.safe_number(order, 'Outstanding')
+        amount = self.safe_string_2(order, 'VolumeOrdered', 'Volume')
+        filled = self.safe_string(order, 'VolumeFilled')
+        remaining = self.safe_string(order, 'Outstanding')
         feeRate = self.safe_number(order, 'FeePercent')
         feeCost = None
-        if feeRate is not None:
+        if feeRate is not None and filled is not None:
             feeCost = feeRate * filled
         fee = {
             'rate': feeRate,
@@ -252,10 +273,10 @@ class independentreserve(Exchange):
         }
         id = self.safe_string(order, 'OrderGuid')
         status = self.parse_order_status(self.safe_string(order, 'Status'))
-        cost = self.safe_number(order, 'Value')
-        average = self.safe_number(order, 'AvgPrice')
-        price = self.safe_number(order, 'Price')
-        return self.safe_order({
+        cost = self.safe_string(order, 'Value')
+        average = self.safe_string(order, 'AvgPrice')
+        price = self.safe_string(order, 'Price')
+        return self.safe_order2({
             'info': order,
             'id': id,
             'clientOrderId': None,
@@ -277,7 +298,7 @@ class independentreserve(Exchange):
             'status': status,
             'fee': fee,
             'trades': None,
-        })
+        }, market)
 
     def parse_order_status(self, status):
         statuses = {

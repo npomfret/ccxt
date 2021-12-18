@@ -19,7 +19,7 @@ module.exports = class itbit extends Exchange {
             'has': {
                 'cancelOrder': true,
                 'CORS': true,
-                'createMarketOrder': false,
+                'createMarketOrder': undefined,
                 'createOrder': true,
                 'fetchBalance': true,
                 'fetchClosedOrders': true,
@@ -73,15 +73,15 @@ module.exports = class itbit extends Exchange {
                 },
             },
             'markets': {
-                'BTC/USD': { 'id': 'XBTUSD', 'symbol': 'BTC/USD', 'base': 'BTC', 'quote': 'USD', 'baseId': 'XBT', 'quoteId': 'USD' },
-                'BTC/SGD': { 'id': 'XBTSGD', 'symbol': 'BTC/SGD', 'base': 'BTC', 'quote': 'SGD', 'baseId': 'XBT', 'quoteId': 'SGD' },
-                'BTC/EUR': { 'id': 'XBTEUR', 'symbol': 'BTC/EUR', 'base': 'BTC', 'quote': 'EUR', 'baseId': 'XBT', 'quoteId': 'EUR' },
-                'ETH/USD': { 'id': 'ETHUSD', 'symbol': 'ETH/USD', 'base': 'ETH', 'quote': 'USD', 'baseId': 'ETH', 'quoteId': 'USD' },
-                'ETH/EUR': { 'id': 'ETHEUR', 'symbol': 'ETH/EUR', 'base': 'ETH', 'quote': 'EUR', 'baseId': 'ETH', 'quoteId': 'EUR' },
-                'ETH/SGD': { 'id': 'ETHSGD', 'symbol': 'ETH/SGD', 'base': 'ETH', 'quote': 'SGD', 'baseId': 'ETH', 'quoteId': 'SGD' },
-                'PAXGUSD': { 'id': 'PAXGUSD', 'symbol': 'PAXG/USD', 'base': 'PAXG', 'quote': 'USD', 'baseId': 'PAXG', 'quoteId': 'USD' },
-                'BCHUSD': { 'id': 'BCHUSD', 'symbol': 'BCH/USD', 'base': 'BCH', 'quote': 'USD', 'baseId': 'BCH', 'quoteId': 'USD' },
-                'LTCUSD': { 'id': 'LTCUSD', 'symbol': 'LTC/USD', 'base': 'LTC', 'quote': 'USD', 'baseId': 'LTC', 'quoteId': 'USD' },
+                'BTC/USD': { 'id': 'XBTUSD', 'symbol': 'BTC/USD', 'base': 'BTC', 'quote': 'USD', 'baseId': 'XBT', 'quoteId': 'USD', 'type': 'spot', 'spot': true },
+                'BTC/SGD': { 'id': 'XBTSGD', 'symbol': 'BTC/SGD', 'base': 'BTC', 'quote': 'SGD', 'baseId': 'XBT', 'quoteId': 'SGD', 'type': 'spot', 'spot': true },
+                'BTC/EUR': { 'id': 'XBTEUR', 'symbol': 'BTC/EUR', 'base': 'BTC', 'quote': 'EUR', 'baseId': 'XBT', 'quoteId': 'EUR', 'type': 'spot', 'spot': true },
+                'ETH/USD': { 'id': 'ETHUSD', 'symbol': 'ETH/USD', 'base': 'ETH', 'quote': 'USD', 'baseId': 'ETH', 'quoteId': 'USD', 'type': 'spot', 'spot': true },
+                'ETH/EUR': { 'id': 'ETHEUR', 'symbol': 'ETH/EUR', 'base': 'ETH', 'quote': 'EUR', 'baseId': 'ETH', 'quoteId': 'EUR', 'type': 'spot', 'spot': true },
+                'ETH/SGD': { 'id': 'ETHSGD', 'symbol': 'ETH/SGD', 'base': 'ETH', 'quote': 'SGD', 'baseId': 'ETH', 'quoteId': 'SGD', 'type': 'spot', 'spot': true },
+                'PAXGUSD': { 'id': 'PAXGUSD', 'symbol': 'PAXG/USD', 'base': 'PAXG', 'quote': 'USD', 'baseId': 'PAXG', 'quoteId': 'USD', 'type': 'spot', 'spot': true },
+                'BCHUSD': { 'id': 'BCHUSD', 'symbol': 'BCH/USD', 'base': 'BCH', 'quote': 'USD', 'baseId': 'BCH', 'quoteId': 'USD', 'type': 'spot', 'spot': true },
+                'LTCUSD': { 'id': 'LTCUSD', 'symbol': 'LTC/USD', 'base': 'LTC', 'quote': 'USD', 'baseId': 'LTC', 'quoteId': 'USD', 'type': 'spot', 'spot': true },
             },
             'fees': {
                 'trading': {
@@ -419,7 +419,7 @@ module.exports = class itbit extends Exchange {
             account['total'] = this.safeString (balance, 'totalBalance');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     async fetchWallets (params = {}) {
@@ -510,16 +510,16 @@ module.exports = class itbit extends Exchange {
         const type = this.safeString (order, 'type');
         const symbol = this.markets_by_id[order['instrument']]['symbol'];
         const timestamp = this.parse8601 (order['createdTime']);
-        const amount = this.safeNumber (order, 'amount');
-        const filled = this.safeNumber (order, 'amountFilled');
+        const amount = this.safeString (order, 'amount');
+        const filled = this.safeString (order, 'amountFilled');
         const fee = undefined;
-        const price = this.safeNumber (order, 'price');
-        const average = this.safeNumber (order, 'volumeWeightedAveragePrice');
+        const price = this.safeString (order, 'price');
+        const average = this.safeString (order, 'volumeWeightedAveragePrice');
         const clientOrderId = this.safeString (order, 'clientOrderIdentifier');
         const id = this.safeString (order, 'id');
         const postOnlyString = this.safeString (order, 'postOnly');
         const postOnly = (postOnlyString === 'True');
-        return this.safeOrder ({
+        return this.safeOrder2 ({
             'id': id,
             'clientOrderId': clientOrderId,
             'info': order,
@@ -542,7 +542,7 @@ module.exports = class itbit extends Exchange {
             'fee': fee,
             // 'trades': this.parseTrades (order['trades'], market),
             'trades': undefined,
-        });
+        }, market);
     }
 
     nonce () {
@@ -631,11 +631,13 @@ module.exports = class itbit extends Exchange {
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
-    async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
-        const response = await this.fetch2 (path, api, method, params, headers, body);
-        if ('code' in response) {
+    handleErrors (httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {
+        if (response === undefined) {
+            return;
+        }
+        const code = this.safeString (response, 'code');
+        if (code !== undefined) {
             throw new ExchangeError (this.id + ' ' + this.json (response));
         }
-        return response;
     }
 };

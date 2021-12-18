@@ -34,13 +34,14 @@ class ndax extends Exchange {
                 'fetchMyTrades' => true,
                 'fetchOHLCV' => true,
                 'fetchOpenOrders' => true,
-                'fetchOrders' => true,
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
+                'fetchOrders' => true,
                 'fetchOrderTrades' => true,
                 'fetchTicker' => true,
                 'fetchTrades' => true,
                 'fetchWithdrawals' => true,
+                'signIn' => true,
             ),
             'timeframes' => array(
                 '1m' => '60',
@@ -191,6 +192,10 @@ class ndax extends Exchange {
                 'apiKey' => true,
                 'secret' => true,
                 'uid' => true,
+                // these credentials are required for signIn() and withdraw()
+                'login' => true,
+                'password' => true,
+                // 'twofa' => true,
             ),
             'precisionMode' => TICK_SIZE,
             'exceptions' => array(
@@ -217,6 +222,53 @@ class ndax extends Exchange {
                 ),
             ),
         ));
+    }
+
+    public function sign_in($params = array ()) {
+        $this->check_required_credentials();
+        if ($this->login === null || $this->password === null) {
+            throw new AuthenticationError($this->id . ' signIn() requires exchange.login, exchange.password');
+        }
+        $request = array(
+            'grant_type' => 'client_credentials', // the only supported value
+        );
+        $response = $this->publicGetAuthenticate (array_merge($request, $params));
+        //
+        //     {
+        //         "Authenticated":true,
+        //         "Requires2FA":true,
+        //         "AuthType":"Google",
+        //         "AddtlInfo":"",
+        //         "Pending2FaToken" => "6f5c4e66-f3ee-493e-9227-31cc0583b55f"
+        //     }
+        //
+        $sessionToken = $this->safe_string($response, 'SessionToken');
+        if ($sessionToken !== null) {
+            $this->options['sessionToken'] = $sessionToken;
+            return $response;
+        }
+        $pending2faToken = $this->safe_string($response, 'Pending2FaToken');
+        if ($pending2faToken !== null) {
+            if ($this->twofa === null) {
+                throw new AuthenticationError($this->id . ' signIn() requires exchange.twofa credentials');
+            }
+            $this->options['pending2faToken'] = $pending2faToken;
+            $request = array(
+                'Code' => $this->oath(),
+            );
+            $response = $this->publicGetAuthenticate2FA (array_merge($request, $params));
+            //
+            //     {
+            //         "Authenticated" => true,
+            //         "UserId":57765,
+            //         "SessionToken":"4a2a5857-c4e5-4fac-b09e-2c4c30b591a0"
+            //     }
+            //
+            $sessionToken = $this->safe_string($response, 'SessionToken');
+            $this->options['sessionToken'] = $sessionToken;
+            return $response;
+        }
+        return $response;
     }
 
     public function fetch_currencies($params = array ()) {
@@ -344,6 +396,8 @@ class ndax extends Exchange {
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
                 'info' => $market,
+                'type' => 'spot',
+                'spot' => true,
                 'active' => $active,
                 'precision' => $precision,
                 'limits' => array(
@@ -714,7 +768,7 @@ class ndax extends Exchange {
         //         "PegPriceType":"Unknown",
         //         "PegOffset":0.0000000000000000000000000000,
         //         "PegLimitOffset":0.0000000000000000000000000000,
-        //         "IpAddress":"5.228.233.138",
+        //         "IpAddress":"x.x.x.x",
         //         "ClientOrderIdUuid":null,
         //         "OMSId":1
         //     }
@@ -806,12 +860,15 @@ class ndax extends Exchange {
     }
 
     public function fetch_accounts($params = array ()) {
+        if (!$this->login) {
+            throw new AuthenticationError($this->id . ' fetchAccounts() requires exchange.login email credential');
+        }
         $omsId = $this->safe_integer($this->options, 'omsId', 1);
         $this->check_required_credentials();
         $request = array(
             'omsId' => $omsId,
             'UserId' => $this->uid,
-            'UserName' => 'igor@ccxt.trade',
+            'UserName' => $this->login,
         );
         $response = $this->privateGetGetUserAccounts (array_merge($request, $params));
         //
@@ -881,13 +938,15 @@ class ndax extends Exchange {
         for ($i = 0; $i < count($response); $i++) {
             $balance = $response[$i];
             $currencyId = $this->safe_string($balance, 'ProductId');
-            $code = $this->safe_currency_code($currencyId);
-            $account = $this->account();
-            $account['total'] = $this->safe_string($balance, 'Amount');
-            $account['used'] = $this->safe_string($balance, 'Hold');
-            $result[$code] = $account;
+            if (is_array($this->currencies_by_id) && array_key_exists($currencyId, $this->currencies_by_id)) {
+                $code = $this->safe_currency_code($currencyId);
+                $account = $this->account();
+                $account['total'] = $this->safe_string($balance, 'Amount');
+                $account['used'] = $this->safe_string($balance, 'Hold');
+                $result[$code] = $account;
+            }
         }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($result);
     }
 
     public function parse_ledger_entry_type($type) {
@@ -1029,7 +1088,7 @@ class ndax extends Exchange {
         // createOrder
         //
         //     {
-        //         "$status":"Accepted",
+        //         "status":"Accepted",
         //         "errormsg":"",
         //         "OrderId" => 2543565231
         //     }
@@ -1512,7 +1571,7 @@ class ndax extends Exchange {
         //             "PegPriceType":"Unknown",
         //             "PegOffset":0.0000000000000000000000000000,
         //             "PegLimitOffset":0.0000000000000000000000000000,
-        //             "IpAddress":"5.228.233.138",
+        //             "IpAddress":"x.x.x.x",
         //             "ClientOrderIdUuid":null,
         //             "OMSId":1
         //         ),
@@ -1581,7 +1640,7 @@ class ndax extends Exchange {
         //         "PegPriceType":"Unknown",
         //         "PegOffset":0.0000000000000000000000000000,
         //         "PegLimitOffset":0.0000000000000000000000000000,
-        //         "IpAddress":"5.228.233.138",
+        //         "IpAddress":"x.x.x.x",
         //         "ClientOrderIdUuid":null,
         //         "OMSId":1
         //     }
@@ -1603,7 +1662,7 @@ class ndax extends Exchange {
         $request = array(
             'OMSId' => intval($omsId),
             // 'AccountId' => $accountId,
-            'OrderId' => $id,
+            'OrderId' => intval($id),
         );
         $response = $this->privatePostGetOrderHistoryByOrderId (array_merge($request, $params));
         //
@@ -1650,7 +1709,7 @@ class ndax extends Exchange {
         //             "PegPriceType":"Unknown",
         //             "PegOffset":0.0000000000000000000000000000,
         //             "PegLimitOffset":0.0000000000000000000000000000,
-        //             "IpAddress":"5.228.233.138",
+        //             "IpAddress":"x.x.x.x",
         //             "ClientOrderIdUuid":null,
         //             "OMSId":1
         //         ),
@@ -1722,6 +1781,7 @@ class ndax extends Exchange {
             'currency' => $code,
             'address' => $address,
             'tag' => $tag,
+            'network' => null,
             'info' => $depositAddress,
         );
     }
@@ -1801,7 +1861,7 @@ class ndax extends Exchange {
         //             "AssetId" => 0,
         //             "TemplateForm" => "array(\"TemplateType\" => \"TetherRPCWithdraw\",\"Comment\" => \"TestWithdraw\",\"ExternalAddress\" => \"ms6C3pKAAr8gRCcnVebs8VRkVrjcvqNYv3\")",
         //             "TemplateFormType" => "TetherRPCWithdraw",
-        //             "$omsId" => 0,
+        //             "omsId" => 0,
         //             "TicketStatus" => 0,
         //             "TicketNumber" => 0,
         //             "WithdrawTransactionDetails" => "",
@@ -1961,8 +2021,14 @@ class ndax extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
+        // this method required login, password and twofa key
+        $sessionToken = $this->safe_string($this->options, 'sessionToken');
+        if ($sessionToken === null) {
+            throw new AuthenticationError($this->id . ' call signIn() method to obtain a session token');
+        }
         if ($this->twofa === null) {
-            throw new ExchangeError($this->id . ' withdraw() requires exchange.twofa credential for OATH codes');
+            throw new AuthenticationError($this->id . ' withdraw() requires exchange.twofa credentials');
         }
         $this->check_address($address);
         $omsId = $this->safe_integer($this->options, 'omsId', 1);
@@ -2050,20 +2116,44 @@ class ndax extends Exchange {
         $url = $this->urls['api'][$api] . '/' . $this->implode_params($path, $params);
         $query = $this->omit($params, $this->extract_params($path));
         if ($api === 'public') {
+            if ($path === 'Authenticate') {
+                $auth = $this->login . ':' . $this->password;
+                $auth64 = base64_encode($auth);
+                $headers = array(
+                    'Authorization' => 'Basic ' . $this->decode($auth64),
+                    // 'Content-Type' => 'application/json',
+                );
+            } else if ($path === 'Authenticate2FA') {
+                $pending2faToken = $this->safe_string($this->options, 'pending2faToken');
+                if ($pending2faToken !== null) {
+                    $headers = array(
+                        'Pending2FaToken' => $pending2faToken,
+                        // 'Content-Type' => 'application/json',
+                    );
+                    $query = $this->omit($query, 'pending2faToken');
+                }
+            }
             if ($query) {
                 $url .= '?' . $this->urlencode($query);
             }
         } else if ($api === 'private') {
             $this->check_required_credentials();
-            $nonce = (string) $this->nonce();
-            $auth = $nonce . $this->uid . $this->apiKey;
-            $signature = $this->hmac($this->encode($auth), $this->encode($this->secret));
-            $headers = array(
-                'Nonce' => $nonce,
-                'APIKey' => $this->apiKey,
-                'Signature' => $signature,
-                'UserId' => $this->uid,
-            );
+            $sessionToken = $this->safe_string($this->options, 'sessionToken');
+            if ($sessionToken === null) {
+                $nonce = (string) $this->nonce();
+                $auth = $nonce . $this->uid . $this->apiKey;
+                $signature = $this->hmac($this->encode($auth), $this->encode($this->secret));
+                $headers = array(
+                    'Nonce' => $nonce,
+                    'APIKey' => $this->apiKey,
+                    'Signature' => $signature,
+                    'UserId' => $this->uid,
+                );
+            } else {
+                $headers = array(
+                    'APToken' => $sessionToken,
+                );
+            }
             if ($method === 'POST') {
                 $headers['Content-Type'] = 'application/json';
                 $body = $this->json($query);

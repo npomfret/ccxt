@@ -3,8 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { BadSymbol, ExchangeError } = require ('./base/errors');
-const Precise = require ('./base/Precise');
+const { BadSymbol, ExchangeError, AuthenticationError } = require ('./base/errors');
 
 //  ---------------------------------------------------------------------------
 
@@ -17,12 +16,12 @@ module.exports = class coincheck extends Exchange {
             'rateLimit': 1500,
             'has': {
                 'cancelOrder': true,
-                'CORS': false,
+                'CORS': undefined,
                 'createOrder': true,
                 'fetchBalance': true,
                 'fetchMyTrades': true,
-                'fetchOrderBook': true,
                 'fetchOpenOrders': true,
+                'fetchOrderBook': true,
                 'fetchTicker': true,
                 'fetchTrades': true,
             },
@@ -80,13 +79,13 @@ module.exports = class coincheck extends Exchange {
                 },
             },
             'markets': {
-                'BTC/JPY': { 'id': 'btc_jpy', 'symbol': 'BTC/JPY', 'base': 'BTC', 'quote': 'JPY', 'baseId': 'btc', 'quoteId': 'jpy' }, // the only real pair
+                'BTC/JPY': { 'id': 'btc_jpy', 'symbol': 'BTC/JPY', 'base': 'BTC', 'quote': 'JPY', 'baseId': 'btc', 'quoteId': 'jpy', 'type': 'spot', 'spot': true }, // the only real pair
                 // 'ETH/JPY': { 'id': 'eth_jpy', 'symbol': 'ETH/JPY', 'base': 'ETH', 'quote': 'JPY', 'baseId': 'eth', 'quoteId': 'jpy' },
-                'ETC/JPY': { 'id': 'etc_jpy', 'symbol': 'ETC/JPY', 'base': 'ETC', 'quote': 'JPY', 'baseId': 'etc', 'quoteId': 'jpy' },
+                'ETC/JPY': { 'id': 'etc_jpy', 'symbol': 'ETC/JPY', 'base': 'ETC', 'quote': 'JPY', 'baseId': 'etc', 'quoteId': 'jpy', 'type': 'spot', 'spot': true },
                 // 'DAO/JPY': { 'id': 'dao_jpy', 'symbol': 'DAO/JPY', 'base': 'DAO', 'quote': 'JPY', 'baseId': 'dao', 'quoteId': 'jpy' },
                 // 'LSK/JPY': { 'id': 'lsk_jpy', 'symbol': 'LSK/JPY', 'base': 'LSK', 'quote': 'JPY', 'baseId': 'lsk', 'quoteId': 'jpy' },
-                'FCT/JPY': { 'id': 'fct_jpy', 'symbol': 'FCT/JPY', 'base': 'FCT', 'quote': 'JPY', 'baseId': 'fct', 'quoteId': 'jpy' },
-                'MONA/JPY': { 'id': 'mona_jpy', 'symbol': 'MONA/JPY', 'base': 'MONA', 'quote': 'JPY', 'baseId': 'mona', 'quoteId': 'jpy' },
+                'FCT/JPY': { 'id': 'fct_jpy', 'symbol': 'FCT/JPY', 'base': 'FCT', 'quote': 'JPY', 'baseId': 'fct', 'quoteId': 'jpy', 'type': 'spot', 'spot': true },
+                'MONA/JPY': { 'id': 'mona_jpy', 'symbol': 'MONA/JPY', 'base': 'MONA', 'quote': 'JPY', 'baseId': 'mona', 'quoteId': 'jpy', 'type': 'spot', 'spot': true },
                 // 'XMR/JPY': { 'id': 'xmr_jpy', 'symbol': 'XMR/JPY', 'base': 'XMR', 'quote': 'JPY', 'baseId': 'xmr', 'quoteId': 'jpy' },
                 // 'REP/JPY': { 'id': 'rep_jpy', 'symbol': 'REP/JPY', 'base': 'REP', 'quote': 'JPY', 'baseId': 'rep', 'quoteId': 'jpy' },
                 // 'XRP/JPY': { 'id': 'xrp_jpy', 'symbol': 'XRP/JPY', 'base': 'XRP', 'quote': 'JPY', 'baseId': 'xrp', 'quoteId': 'jpy' },
@@ -95,7 +94,7 @@ module.exports = class coincheck extends Exchange {
                 // 'LTC/JPY': { 'id': 'ltc_jpy', 'symbol': 'LTC/JPY', 'base': 'LTC', 'quote': 'JPY', 'baseId': 'ltc', 'quoteId': 'jpy' },
                 // 'DASH/JPY': { 'id': 'dash_jpy', 'symbol': 'DASH/JPY', 'base': 'DASH', 'quote': 'JPY', 'baseId': 'dash', 'quoteId': 'jpy' },
                 // 'ETH/BTC': { 'id': 'eth_btc', 'symbol': 'ETH/BTC', 'base': 'ETH', 'quote': 'BTC', 'baseId': 'eth', 'quoteId': 'btc' },
-                'ETC/BTC': { 'id': 'etc_btc', 'symbol': 'ETC/BTC', 'base': 'ETC', 'quote': 'BTC', 'baseId': 'etc', 'quoteId': 'btc' },
+                'ETC/BTC': { 'id': 'etc_btc', 'symbol': 'ETC/BTC', 'base': 'ETC', 'quote': 'BTC', 'baseId': 'etc', 'quoteId': 'btc', 'type': 'spot', 'spot': true },
                 // 'LSK/BTC': { 'id': 'lsk_btc', 'symbol': 'LSK/BTC', 'base': 'LSK', 'quote': 'BTC', 'baseId': 'lsk', 'quoteId': 'btc' },
                 // 'FCT/BTC': { 'id': 'fct_btc', 'symbol': 'FCT/BTC', 'base': 'FCT', 'quote': 'BTC', 'baseId': 'fct', 'quoteId': 'btc' },
                 // 'XMR/BTC': { 'id': 'xmr_btc', 'symbol': 'XMR/BTC', 'base': 'XMR', 'quote': 'BTC', 'baseId': 'xmr', 'quoteId': 'btc' },
@@ -110,9 +109,16 @@ module.exports = class coincheck extends Exchange {
                 'trading': {
                     'tierBased': false,
                     'percentage': true,
-                    'maker': 0,
-                    'taker': 0,
+                    'maker': this.parseNumber ('0'),
+                    'taker': this.parseNumber ('0'),
                 },
+            },
+            'exceptions': {
+                'exact': {
+                    'disabled API Key': AuthenticationError, // {"success":false,"error":"disabled API Key"}'
+                    'invalid authentication': AuthenticationError, // {"success":false,"error":"invalid authentication"}
+                },
+                'broad': {},
             },
         });
     }
@@ -124,7 +130,8 @@ module.exports = class coincheck extends Exchange {
         const codes = Object.keys (this.currencies);
         for (let i = 0; i < codes.length; i++) {
             const code = codes[i];
-            const currencyId = this.currencyId (code);
+            const currency = this.currency (code);
+            const currencyId = currency['id'];
             if (currencyId in balances) {
                 const account = this.account ();
                 const reserved = currencyId + '_reserved';
@@ -133,7 +140,7 @@ module.exports = class coincheck extends Exchange {
                 result[code] = account;
             }
         }
-        return this.parseBalance (result, false);
+        return this.parseBalance (result);
     }
 
     async fetchOpenOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -171,13 +178,13 @@ module.exports = class coincheck extends Exchange {
         const id = this.safeString (order, 'id');
         const side = this.safeString (order, 'order_type');
         const timestamp = this.parse8601 (this.safeString (order, 'created_at'));
-        const amount = this.safeNumber (order, 'pending_amount');
-        const remaining = this.safeNumber (order, 'pending_amount');
-        const price = this.safeNumber (order, 'rate');
+        const amount = this.safeString (order, 'pending_amount');
+        const remaining = this.safeString (order, 'pending_amount');
+        const price = this.safeString (order, 'rate');
         const status = undefined;
         const marketId = this.safeString (order, 'pair');
         const symbol = this.safeSymbol (marketId, market, '_');
-        return this.safeOrder ({
+        return this.safeOrder2 ({
             'id': id,
             'clientOrderId': undefined,
             'timestamp': timestamp,
@@ -199,7 +206,7 @@ module.exports = class coincheck extends Exchange {
             'info': order,
             'average': undefined,
             'trades': undefined,
-        });
+        }, market);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -249,6 +256,36 @@ module.exports = class coincheck extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
+        //
+        // fetchTrades (public)
+        //
+        //      {
+        //          "id": "206849494",
+        //          "amount": "0.01",
+        //          "rate": "5598346.0",
+        //          "pair": "btc_jpy",
+        //          "order_type": "sell",
+        //          "created_at": "2021-12-08T14:10:33.000Z"
+        //      }
+        //
+        // fetchMyTrades (private) - example from docs
+        //
+        //      {
+        //          "id": 38,
+        //          "order_id": 49,
+        //          "created_at": "2015-11-18T07:02:21.000Z",
+        //          "funds": {
+        //              "btc": "0.1",
+        //              "jpy": "-4096.135"
+        //                  },
+        //           "pair": "btc_jpy",
+        //           "rate": "40900.0",
+        //           "fee_currency": "JPY",
+        //           "fee": "6.135",
+        //           "liquidity": "T",
+        //           "side": "buy"
+        //      }
+        //
         const timestamp = this.parse8601 (this.safeString (trade, 'created_at'));
         const id = this.safeString (trade, 'id');
         const priceString = this.safeString (trade, 'rate');
@@ -279,7 +316,7 @@ module.exports = class coincheck extends Exchange {
         }
         let takerOrMaker = undefined;
         let amountString = undefined;
-        let cost = undefined;
+        let costString = undefined;
         let side = undefined;
         let fee = undefined;
         let orderId = undefined;
@@ -291,10 +328,10 @@ module.exports = class coincheck extends Exchange {
             }
             const funds = this.safeValue (trade, 'funds', {});
             amountString = this.safeString (funds, baseId);
-            cost = this.safeNumber (funds, quoteId);
+            costString = this.safeString (funds, quoteId);
             fee = {
                 'currency': this.safeString (trade, 'fee_currency'),
-                'cost': this.safeNumber (trade, 'fee'),
+                'cost': this.safeString (trade, 'fee'),
             };
             side = this.safeString (trade, 'side');
             orderId = this.safeString (trade, 'order_id');
@@ -302,12 +339,7 @@ module.exports = class coincheck extends Exchange {
             amountString = this.safeString (trade, 'amount');
             side = this.safeString (trade, 'order_type');
         }
-        const price = this.parseNumber (priceString);
-        const amount = this.parseNumber (amountString);
-        if (cost === undefined) {
-            cost = this.parseNumber (Precise.stringMul (priceString, amountString));
-        }
-        return {
+        return this.safeTrade ({
             'id': id,
             'info': trade,
             'datetime': this.iso8601 (timestamp),
@@ -317,17 +349,39 @@ module.exports = class coincheck extends Exchange {
             'side': side,
             'order': orderId,
             'takerOrMaker': takerOrMaker,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': costString,
             'fee': fee,
-        };
+        }, market);
     }
 
     async fetchMyTrades (symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const response = await this.privateGetExchangeOrdersTransactions (this.extend ({}, params));
+        //
+        //      {
+        //          "success": true,
+        //          "transactions": [
+        //                              {
+        //                                  "id": 38,
+        //                                  "order_id": 49,
+        //                                  "created_at": "2015-11-18T07:02:21.000Z",
+        //                                  "funds": {
+        //                                      "btc": "0.1",
+        //                                      "jpy": "-4096.135"
+        //                                          },
+        //                                  "pair": "btc_jpy",
+        //                                  "rate": "40900.0",
+        //                                  "fee_currency": "JPY",
+        //                                  "fee": "6.135",
+        //                                  "liquidity": "T",
+        //                                  "side": "buy"
+        //                               },
+        //                          ]
+        //      }
+        //
         const transactions = this.safeValue (response, 'transactions', []);
         return this.parseTrades (transactions, market, since, limit);
     }
@@ -342,6 +396,16 @@ module.exports = class coincheck extends Exchange {
             request['limit'] = limit;
         }
         const response = await this.publicGetTrades (this.extend (request, params));
+        //
+        //      {
+        //          "id": "206849494",
+        //          "amount": "0.01",
+        //          "rate": "5598346.0",
+        //          "pair": "btc_jpy",
+        //          "order_type": "sell",
+        //          "created_at": "2021-12-08T14:10:33.000Z"
+        //      }
+        //
         const data = this.safeValue (response, 'data', []);
         return this.parseTrades (data, market, since, limit);
     }
@@ -412,16 +476,21 @@ module.exports = class coincheck extends Exchange {
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
-    async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
-        const response = await this.fetch2 (path, api, method, params, headers, body);
-        if (api === 'public') {
-            return response;
+    handleErrors (httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {
+        if (response === undefined) {
+            return;
         }
-        if ('success' in response) {
-            if (response['success']) {
-                return response;
-            }
+        //
+        //     {"success":false,"error":"disabled API Key"}'
+        //     {"success":false,"error":"invalid authentication"}
+        //
+        const success = this.safeValue (response, 'success', true);
+        if (!success) {
+            const error = this.safeString (response, 'error');
+            const feedback = this.id + ' ' + this.json (response);
+            this.throwExactlyMatchedException (this.exceptions['exact'], error, feedback);
+            this.throwBroadlyMatchedException (this.exceptions['broad'], body, feedback);
+            throw new ExchangeError (this.id + ' ' + this.json (response));
         }
-        throw new ExchangeError (this.id + ' ' + this.json (response));
     }
 };
