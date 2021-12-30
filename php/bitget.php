@@ -23,19 +23,19 @@ class bitget extends Exchange {
             'has' => array(
                 'cancelOrder' => true,
                 'cancelOrders' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createOrder' => true,
                 'fetchAccounts' => true,
                 'fetchBalance' => true,
+                'fetchClosedOrders' => true,
                 'fetchCurrencies' => true,
                 'fetchDeposits' => true,
                 'fetchMarkets' => true,
                 'fetchMyTrades' => true,
                 'fetchOHLCV' => true,
+                'fetchOpenOrders' => true,
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
-                'fetchOpenOrders' => true,
-                'fetchClosedOrders' => true,
                 'fetchOrderTrades' => true,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
@@ -147,6 +147,11 @@ class bitget extends Exchange {
                         'trace/closeTrack',
                         'trace/currentTrack',
                         'trace/historyTrack',
+                        'trace/summary',
+                        'trace/profitSettleTokenIdGroup',
+                        'trace/profitDateGroupList',
+                        'trace/profitDateList',
+                        'trace/waitProfitDateList',
                     ),
                     'post' => array(
                         'account/leverage',
@@ -159,17 +164,18 @@ class bitget extends Exchange {
                         'order/plan_order',
                         'order/cancel_plan',
                         'position/changeHoldModel',
+                        'trace/closeTrackOrder',
                     ),
                 ),
             ),
             'fees' => array(
                 'spot' => array(
-                    'taker' => 0.002,
-                    'maker' => 0.002,
+                    'taker' => $this->parse_number('0.002'),
+                    'maker' => $this->parse_number('0.002'),
                 ),
                 'swap' => array(
-                    'taker' => 0.0006,
-                    'maker' => 0.0004,
+                    'taker' => $this->parse_number('0.0006'),
+                    'maker' => $this->parse_number('0.0004'),
                 ),
             ),
             'requiredCredentials' => array(
@@ -764,21 +770,20 @@ class bitget extends Exchange {
         //
         // $spot
         //
-        //     {
-        //         "base_currency":"btc",
-        //         "quote_currency":"usdt",
-        //         "$symbol":"btc_usdt",
-        //         "tick_size":"2",
-        //         "size_increment":"4",
-        //         "$status":"1",
-        //         "base_asset_precision":"8"
-        //     }
-        //
+        //      {
+        //          "symbol" => "BTC_USDT",
+        //          "status" => "online",
+        //          "base_currency" => "BTC",
+        //          "quote_currency" => "USDT",
+        //          "tick_size" => "2",
+        //          "size_increment" => "4",
+        //          "base_asset_precision" => "4"
+        //      }
         //
         // $swap
         //
         //     {
-        //         "$symbol":"btcusd",
+        //         "symbol":"btcusd",
         //         "underlying_index":"BTC",
         //         "quote_currency":"USD",
         //         "coin":"BTC",
@@ -819,7 +824,7 @@ class bitget extends Exchange {
         $status = $this->safe_string($market, 'status');
         $active = null;
         if ($status !== null) {
-            $active = ($status === '1');
+            $active = ($status === '1') || ($status === 'online');
         }
         $fees = $this->safe_value_2($this->fees, $marketType, 'trading', array());
         return array_merge($fees, array(
@@ -859,7 +864,7 @@ class bitget extends Exchange {
             //     {
             //         "status":"ok",
             //         "ts":1595526622408,
-            //         "$data":array(
+            //         "data":array(
             //             array(
             //                 "base_currency":"btc",
             //                 "quote_currency":"usdt",
@@ -878,7 +883,7 @@ class bitget extends Exchange {
             $response = $this->capiGetMarketContracts ($params);
             //
             //     {
-            //         "$data":array(
+            //         "data":array(
             //             "contractApis":[
             //                 array(
             //                     "instrument_id":"btcusd",
@@ -910,7 +915,7 @@ class bitget extends Exchange {
         //     {
         //         "status":"ok",
         //         "ts":1595537740466,
-        //         "$data":array(
+        //         "data":array(
         //             "btc",
         //             "bft",
         //             "usdt",
@@ -962,9 +967,9 @@ class bitget extends Exchange {
         //
         //     {
         //         "status":"ok",
-        //         "ch":"$market->btc_usdt.depth.step0",
+        //         "ch":"market.btc_usdt.depth.step0",
         //         "ts":1595607628197,
-        //         "$data":{
+        //         "data":{
         //             "id":"1595607628197",
         //             "ts":"1595607628197",
         //             "bids":[
@@ -993,7 +998,7 @@ class bitget extends Exchange {
         //             ["9577.5","3024",1],
         //             ["9577.0","21548",1],
         //         ],
-        //         "$timestamp":"1595664767349"
+        //         "timestamp":"1595664767349"
         //     }
         //
         $data = $this->safe_value($response, 'data', $response);
@@ -1012,11 +1017,11 @@ class bitget extends Exchange {
         //
         //     {
         //         "id":"1595538241113",
-        //         "$bid":["0.028474000000","1.139400000000"],
-        //         "$ask":["0.028482000000","0.353100000000"],
+        //         "bid":["0.028474000000","1.139400000000"],
+        //         "ask":["0.028482000000","0.353100000000"],
         //         "amount":"2850.6649",
         //         "count":"818",
-        //         "$open":"0.02821",
+        //         "open":"0.02821",
         //         "close":"0.028474",
         //         "low":"0.02821",
         //         "high":"0.029091",
@@ -1028,25 +1033,25 @@ class bitget extends Exchange {
         //     {
         //         "amount":"30086.8095",
         //         "count":"22450",
-        //         "$open":"9525.11",
+        //         "open":"9525.11",
         //         "close":"9591.81",
         //         "low":"9510.68",
         //         "high":"9659.7",
         //         "vol":"286239092.250461",
-        //         "$symbol":"btc_usdt"
+        //         "symbol":"btc_usdt"
         //     }
         //
         // swap
         //
         //     {
         //         "instrument_id":"btcusd",
-        //         "$last":"9574.5",
+        //         "last":"9574.5",
         //         "best_ask":"9575.0",
         //         "best_bid":"9574.0",
         //         "high_24h":"9672",
         //         "low_24h":"9512",
         //         "volume_24h":"567697050",
-        //         "$timestamp":"1595538450096"
+        //         "timestamp":"1595538450096"
         //     }
         //
         $timestamp = $this->safe_integer_2($ticker, 'timestamp', 'id');
@@ -1091,15 +1096,7 @@ class bitget extends Exchange {
         $baseVolume = $this->safe_number_2($ticker, 'amount', 'volume_24h');
         $quoteVolume = $this->safe_number($ticker, 'vol');
         $vwap = $this->vwap($baseVolume, $quoteVolume);
-        $change = null;
-        $percentage = null;
-        $average = null;
-        if (($last !== null) && ($open !== null)) {
-            $change = $last - $open;
-            $percentage = $change / $open * 100;
-            $average = $this->sum($open, $last) / 2;
-        }
-        return array(
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -1114,13 +1111,13 @@ class bitget extends Exchange {
             'close' => $last,
             'last' => $last,
             'previousClose' => null,
-            'change' => $change,
-            'percentage' => $percentage,
-            'average' => $average,
+            'change' => null,
+            'percentage' => null,
+            'average' => null,
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
-        );
+        ), $market);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {
@@ -1141,9 +1138,9 @@ class bitget extends Exchange {
         //
         //     {
         //         "status":"ok",
-        //         "ch":"$market->eth_btc.detail.merged",
+        //         "ch":"market.eth_btc.detail.merged",
         //         "ts":1595538241474,
-        //         "$data":{
+        //         "data":{
         //             "id":"1595538241113",
         //             "bid":["0.028474000000","1.139400000000"],
         //             "ask":["0.028482000000","0.353100000000"],
@@ -1160,7 +1157,7 @@ class bitget extends Exchange {
         // swap
         //
         //     {
-        //         "$symbol":"btcusd",
+        //         "symbol":"btcusd",
         //         "last":"9575.5",
         //         "best_ask":"9576.0",
         //         "best_bid":"9575.0",
@@ -1189,7 +1186,7 @@ class bitget extends Exchange {
         //     {
         //         "status":"ok",
         //         "ts":1595542893250,
-        //         "$data":array(
+        //         "data":array(
         //             {
         //                 "amount":"30086.8095",
         //                 "count":"22450",
@@ -1198,7 +1195,7 @@ class bitget extends Exchange {
         //                 "low":"9510.68",
         //                 "high":"9659.7",
         //                 "vol":"286239092.250461",
-        //                 "$symbol":"btc_usdt"
+        //                 "symbol":"btc_usdt"
         //             }
         //         )
         //     }
@@ -1207,14 +1204,14 @@ class bitget extends Exchange {
         //
         //     array(
         //         {
-        //             "$symbol":"btcusd",
+        //             "symbol":"btcusd",
         //             "last":"9572",
         //             "best_ask":"9571.5",
         //             "best_bid":"9570.5",
         //             "high_24h":"9646",
         //             "low_24h":"9516",
         //             "volume_24h":"515401635",
-        //             "$timestamp":"1595664479952"
+        //             "timestamp":"1595664479952"
         //         }
         //     )
         //
@@ -1247,9 +1244,9 @@ class bitget extends Exchange {
         //     spot
         //
         //     {
-        //         "$id":"1",
-        //         "$price":"9533.81",
-        //         "$amount":"0.7326",
+        //         "id":"1",
+        //         "price":"9533.81",
+        //         "amount":"0.7326",
         //         "direction":"sell",
         //         "ts":"1595604964000"
         //     }
@@ -1258,23 +1255,23 @@ class bitget extends Exchange {
         //
         //     {
         //         "trade_id":"670581881367954915",
-        //         "$price":"9553.00",
+        //         "price":"9553.00",
         //         "size":"20",
-        //         "$side":"sell",
-        //         "$timestamp":"1595605100004",
-        //         "$symbol":"btcusd"
+        //         "side":"sell",
+        //         "timestamp":"1595605100004",
+        //         "symbol":"btcusd"
         //     }
         //
         // spot fetchMyTrades (private)
         //
         //     {
-        //         "$id" => 29555,
+        //         "id" => 29555,
         //         "order_id" => 59378,
         //         "match_id" => 59335,
-        //         "$symbol" => "eth_usdt",
-        //         "$type" => "buy-limit",
+        //         "symbol" => "eth_usdt",
+        //         "type" => "buy-limit",
         //         "source" => "api",
-        //         "$price" => "100.1000000000",
+        //         "price" => "100.1000000000",
         //         "filled_amount" => "0.9845000000",
         //         "filled_fees" => "0.0019690000",
         //         "created_at" => 1494901400487
@@ -1285,30 +1282,30 @@ class bitget extends Exchange {
         //     spot
         //
         //     {
-        //         "$id":"614164775",
+        //         "id":"614164775",
         //         "created_at":"1596298860602",
         //         "filled_amount":"0.0417000000000000",
         //         "filled_fees":"0.0000834000000000",
         //         "match_id":"673491702661292033",
         //         "order_id":"673491720340279296",
-        //         "$price":"359.240000000000",
+        //         "price":"359.240000000000",
         //         "source":"接口",
-        //         "$symbol":"eth_usdt",
-        //         "$type":"buy-$market"
+        //         "symbol":"eth_usdt",
+        //         "type":"buy-$market"
         //     }
         //
         //     swap
         //
         //     {
         //         "trade_id":"6667390",
-        //         "$symbol":"cmt_btcusdt",
+        //         "symbol":"cmt_btcusdt",
         //         "order_id":"525946425993854915",
-        //         "$price":"9839.00",
+        //         "price":"9839.00",
         //         "order_qty":"3466",
-        //         "$fee":"-0.0000528407360000",
-        //         "$timestamp":"1561121514442",
+        //         "fee":"-0.0000528407360000",
+        //         "timestamp":"1561121514442",
         //         "exec_type":"M",
-        //         "$side":"3"
+        //         "side":"3"
         //     }
         //
         $symbol = null;
@@ -1342,9 +1339,6 @@ class bitget extends Exchange {
         $priceString = $this->safe_string($trade, 'price');
         $amountString = $this->safe_string_2($trade, 'filled_amount', 'order_qty');
         $amountString = $this->safe_string_2($trade, 'size', 'amount', $amountString);
-        $price = $this->parse_number($priceString);
-        $amount = $this->parse_number($amountString);
-        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         $takerOrMaker = $this->safe_string_2($trade, 'exec_type', 'liquidity');
         if ($takerOrMaker === 'M') {
             $takerOrMaker = 'maker';
@@ -1369,22 +1363,21 @@ class bitget extends Exchange {
         } else {
             $feeCostString = Precise::string_neg($feeCostString);
         }
-        $feeCost = $this->parse_number($feeCostString);
         $fee = null;
-        if ($feeCost !== null) {
+        if ($feeCostString !== null) {
             $feeCurrency = ($side === 'buy') ? $base : $quote;
             $fee = array(
                 // $fee is either a positive number (invitation rebate)
                 // or a negative number (transaction $fee deduction)
                 // therefore we need to invert the $fee
                 // more about it https://github.com/ccxt/ccxt/issues/5909
-                'cost' => $feeCost,
+                'cost' => $feeCostString,
                 'currency' => $feeCurrency,
             );
         }
         $orderId = $this->safe_string($trade, 'order_id');
         $id = $this->safe_string_2($trade, 'trade_id', 'id');
-        return array(
+        return $this->safe_trade(array(
             'info' => $trade,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -1394,11 +1387,11 @@ class bitget extends Exchange {
             'type' => $type,
             'takerOrMaker' => $takerOrMaker,
             'side' => $side,
-            'price' => $price,
-            'amount' => $amount,
-            'cost' => $cost,
+            'price' => $priceString,
+            'amount' => $amountString,
+            'cost' => null,
             'fee' => $fee,
-        );
+        ), $market);
     }
 
     public function fetch_trades($symbol, $limit = null, $since = null, $params = array ()) {
@@ -1429,11 +1422,11 @@ class bitget extends Exchange {
         //
         //     {
         //         "status":"ok",
-        //         "ch":"$market->btc_usdt.trade.detail",
+        //         "ch":"market.btc_usdt.trade.detail",
         //         "ts":1595604968430,
-        //         "$data":{
+        //         "data":{
         //             "ts":"1595604964000",
-        //             "$data":array(
+        //             "data":array(
         //                 array("id":"1","price":"9533.81","amount":"0.7326","direction":"sell","ts":"1595604964000"),
         //                 array("id":"2","price":"9533.67","amount":"1.1591","direction":"buy","ts":"1595604961000"),
         //                 array("id":"3","price":"9533.67","amount":"1.5022","direction":"sell","ts":"1595604959000"),
@@ -1444,9 +1437,9 @@ class bitget extends Exchange {
         // swap
         //
         //     array(
-        //         array("trade_id":"670833198971748613","price":"9578.50","size":"5412","side":"sell","timestamp":"1595665018790","$symbol":"btcusd"),
-        //         array("trade_id":"670833194240574915","price":"9579.00","size":"3972","side":"buy","timestamp":"1595665017662","$symbol":"btcusd"),
-        //         array("trade_id":"670833194240573915","price":"9579.00","size":"1227","side":"buy","timestamp":"1595665017662","$symbol":"btcusd"),
+        //         array("trade_id":"670833198971748613","price":"9578.50","size":"5412","side":"sell","timestamp":"1595665018790","symbol":"btcusd"),
+        //         array("trade_id":"670833194240574915","price":"9579.00","size":"3972","side":"buy","timestamp":"1595665017662","symbol":"btcusd"),
+        //         array("trade_id":"670833194240573915","price":"9579.00","size":"1227","side":"buy","timestamp":"1595665017662","symbol":"btcusd"),
         //     )
         //
         $trades = null;
@@ -1556,7 +1549,7 @@ class bitget extends Exchange {
         //
         //     {
         //         "status":"ok",
-        //         "ch":"$market->btc_usdt.kline.15min",
+        //         "ch":"market.btc_usdt.kline.15min",
         //         "ts":1595594183874,
         //         "data":array(
         //             array("id":"1594694700000","amount":"283.6811","count":"234","open":"9230.00","close":"9227.15","low":"9206.66","high":"9232.33","vol":"2618015.032504000000"),
@@ -1585,14 +1578,14 @@ class bitget extends Exchange {
         //     {
         //         "status":"ok",
         //         "ts":1595681450932,
-        //         "$data":{
+        //         "data":{
         //             "list":array(
-        //                 array("$balance":"0.0000000000000000","currency":"BTC","$type":"trade"),
-        //                 array("$balance":"0.0000000000000000","currency":"BTC","$type":"frozen"),
-        //                 array("$balance":"0.0000000000000000","currency":"BTC","$type":"lock"),
+        //                 array("balance":"0.0000000000000000","currency":"BTC","type":"trade"),
+        //                 array("balance":"0.0000000000000000","currency":"BTC","type":"frozen"),
+        //                 array("balance":"0.0000000000000000","currency":"BTC","type":"lock"),
         //             ),
         //             "id":"7420922606",
-        //             "$type":"spot",
+        //             "type":"spot",
         //             "state":"working"
         //         }
         //     }
@@ -1616,7 +1609,7 @@ class bitget extends Exchange {
                 $result[$code]['used'] = Precise::string_add($used, $this->safe_string($balance, 'balance'));
             }
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
     }
 
     public function parse_swap_balance($response) {
@@ -1624,9 +1617,9 @@ class bitget extends Exchange {
         // swap
         //
         //     array(
-        //         array("equity":"0","fixed_balance":"0","total_avail_balance":"0","margin":"0","realized_pnl":"0","unrealized_pnl":"0","$symbol":"bchusd","margin_frozen":"0","timestamp":"1595673431547","margin_mode":"fixed","forwardContractFlag":false),
-        //         array("equity":"0","fixed_balance":"0","total_avail_balance":"0","margin":"0","realized_pnl":"0","unrealized_pnl":"0","$symbol":"ethusd","margin_frozen":"0","timestamp":"1595673431573","margin_mode":"fixed","forwardContractFlag":false),
-        //         array("equity":"0","fixed_balance":"0","total_avail_balance":"0","margin":"0","realized_pnl":"0","unrealized_pnl":"0","$symbol":"cmt_btcsusdt","margin_frozen":"0","timestamp":"1595673431577","margin_mode":"fixed","forwardContractFlag":true),
+        //         array("equity":"0","fixed_balance":"0","total_avail_balance":"0","margin":"0","realized_pnl":"0","unrealized_pnl":"0","symbol":"bchusd","margin_frozen":"0","timestamp":"1595673431547","margin_mode":"fixed","forwardContractFlag":false),
+        //         array("equity":"0","fixed_balance":"0","total_avail_balance":"0","margin":"0","realized_pnl":"0","unrealized_pnl":"0","symbol":"ethusd","margin_frozen":"0","timestamp":"1595673431573","margin_mode":"fixed","forwardContractFlag":false),
+        //         array("equity":"0","fixed_balance":"0","total_avail_balance":"0","margin":"0","realized_pnl":"0","unrealized_pnl":"0","symbol":"cmt_btcsusdt","margin_frozen":"0","timestamp":"1595673431577","margin_mode":"fixed","forwardContractFlag":true),
         //     )
         //
         //
@@ -1644,7 +1637,7 @@ class bitget extends Exchange {
             $account['free'] = $this->safe_string($balance, 'total_avail_balance');
             $result[$symbol] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
     }
 
     public function fetch_accounts($params = array ()) {
@@ -1656,8 +1649,8 @@ class bitget extends Exchange {
         //     {
         //         "status":"ok",
         //         "ts":1595679591824,
-        //         "$data":array(
-        //             array("id":"7420922606","$type":"spot","state":"working")
+        //         "data":array(
+        //             array("id":"7420922606","type":"spot","state":"working")
         //         )
         //     }
         //
@@ -1737,12 +1730,12 @@ class bitget extends Exchange {
         //         "ts":1595681450932,
         //         "data":{
         //             "list":array(
-        //                 array("balance":"0.0000000000000000","currency":"BTC","$type":"trade"),
-        //                 array("balance":"0.0000000000000000","currency":"BTC","$type":"frozen"),
-        //                 array("balance":"0.0000000000000000","currency":"BTC","$type":"lock"),
+        //                 array("balance":"0.0000000000000000","currency":"BTC","type":"trade"),
+        //                 array("balance":"0.0000000000000000","currency":"BTC","type":"frozen"),
+        //                 array("balance":"0.0000000000000000","currency":"BTC","type":"lock"),
         //             ),
         //             "id":"7420922606",
-        //             "$type":"spot",
+        //             "type":"spot",
         //             "state":"working"
         //         }
         //     }
@@ -1820,7 +1813,7 @@ class bitget extends Exchange {
         //     spot
         //
         //     {
-        //         "$status":"ok",
+        //         "status":"ok",
         //         "ts":1595792596056,
         //         "data":671368296142774272
         //     }
@@ -1837,7 +1830,7 @@ class bitget extends Exchange {
         //     spot
         //
         //     {
-        //         "$status" => "ok",
+        //         "status" => "ok",
         //         "ts" => 1595818631279,
         //         "data" => 671368296142774272
         //     }
@@ -1847,7 +1840,7 @@ class bitget extends Exchange {
         //     {
         //         "order_id":"671757564085534713",
         //         "client_oid":"58775e54-0592-491c-97e8-e2369025f2d1",
-        //         "$symbol":"cmt_ethusdt",
+        //         "symbol":"cmt_ethusdt",
         //         "result":true,
         //         "err_code":null,
         //         "err_msg":null
@@ -1859,36 +1852,36 @@ class bitget extends Exchange {
         //
         //     {
         //         "account_id":"7420922606",
-        //         "$amount":"0.1000000000000000",
+        //         "amount":"0.1000000000000000",
         //         "canceled_at":"1595872129618",
         //         "created_at":"1595872089525",
         //         "filled_amount":"0.000000000000",
         //         "filled_cash_amount":"0.000000000000",
         //         "filled_fees":"0.000000000000",
         //         "finished_at":"1595872129618",
-        //         "$id":"671701716584665088",
-        //         "$price":"150.000000000000",
+        //         "id":"671701716584665088",
+        //         "price":"150.000000000000",
         //         "source":"接口",
         //         "state":"canceled",
-        //         "$symbol":"eth_usdt",
-        //         "$type":"buy-limit"
+        //         "symbol":"eth_usdt",
+        //         "type":"buy-limit"
         //     }
         //
         //     swap
         //
         //     {
-        //         "$symbol":"cmt_ethusdt",
+        //         "symbol":"cmt_ethusdt",
         //         "size":"1",
-        //         "$timestamp":"1595885546770",
+        //         "timestamp":"1595885546770",
         //         "client_oid":"f3aa81d6-9a4c-4eab-bebe-ebc19da21cf2",
         //         "createTime":"1595885521200",
         //         "filled_qty":"0",
-        //         "$fee":"0.00000000",
+        //         "fee":"0.00000000",
         //         "order_id":"671758053112020913",
-        //         "$price":"150.00",
+        //         "price":"150.00",
         //         "price_avg":"0.00",
-        //         "$status":"0",
-        //         "$type":"1",
+        //         "status":"0",
+        //         "type":"1",
         //         "order_type":"0",
         //         "totalProfits":null
         //     }
@@ -1921,11 +1914,11 @@ class bitget extends Exchange {
         if (($symbol === null) && ($market !== null)) {
             $symbol = $market['symbol'];
         }
-        $amount = $this->safe_number_2($order, 'amount', 'size');
-        $filled = $this->safe_number_2($order, 'filled_amount', 'filled_qty');
-        $cost = $this->safe_number($order, 'filled_cash_amount');
-        $price = $this->safe_number($order, 'price');
-        $average = $this->safe_number($order, 'price_avg');
+        $amount = $this->safe_string_2($order, 'amount', 'size');
+        $filled = $this->safe_string_2($order, 'filled_amount', 'filled_qty');
+        $cost = $this->safe_string($order, 'filled_cash_amount');
+        $price = $this->safe_string($order, 'price');
+        $average = $this->safe_string($order, 'price_avg');
         $status = $this->parse_order_status($this->safe_string_2($order, 'state', 'status'));
         $feeCost = $this->safe_number_2($order, 'filled_fees', 'fee');
         $fee = null;
@@ -1959,7 +1952,7 @@ class bitget extends Exchange {
             'status' => $status,
             'fee' => $fee,
             'trades' => null,
-        ));
+        ), $market);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -2102,7 +2095,7 @@ class bitget extends Exchange {
         //     {
         //         "order_id":"671757564085534713",
         //         "client_oid":"58775e54-0592-491c-97e8-e2369025f2d1",
-        //         "$symbol":"cmt_ethusdt",
+        //         "symbol":"cmt_ethusdt",
         //         "result":true,
         //         "err_code":null,
         //         "err_msg":null
@@ -2159,7 +2152,7 @@ class bitget extends Exchange {
         //
         //     {
         //         "result":true,
-        //         "$symbol":"cmt_btcusdt",
+        //         "symbol":"cmt_btcusdt",
         //         "order_ids":array(
         //             "258414711",
         //             "478585558"
@@ -2211,7 +2204,7 @@ class bitget extends Exchange {
         //     {
         //         "status":"ok",
         //         "ts":1595897886717,
-        //         "$data":{
+        //         "data":{
         //             "account_id":"7420922606",
         //             "amount":"0.1000000000000000",
         //             "canceled_at":"1595818631541",
@@ -2220,12 +2213,12 @@ class bitget extends Exchange {
         //             "filled_cash_amount":"0.000000000000",
         //             "filled_fees":"0.000000000000",
         //             "finished_at":"1595818631541",
-        //             "$id":"671368296142774272",
+        //             "id":"671368296142774272",
         //             "price":"150.000000000000",
         //             "source":"接口",
         //             "state":"canceled",
-        //             "$symbol":"eth_usdt",
-        //             "$type":"buy-limit"
+        //             "symbol":"eth_usdt",
+        //             "type":"buy-limit"
         //         }
         //     }
         //
@@ -2233,7 +2226,7 @@ class bitget extends Exchange {
         // swap
         //
         //     {
-        //         "$symbol":"cmt_ethusdt",
+        //         "symbol":"cmt_ethusdt",
         //         "size":"1",
         //         "timestamp":"1595896459890",
         //         "client_oid":"58775e54-0592-491c-97e8-e2369025f2d1",
@@ -2244,7 +2237,7 @@ class bitget extends Exchange {
         //         "price":"150",
         //         "price_avg":"0",
         //         "status":"-1",
-        //         "$type":"1",
+        //         "type":"1",
         //         "order_type":"0",
         //         "totalProfits":"0"
         //     }
@@ -2290,7 +2283,7 @@ class bitget extends Exchange {
         //     {
         //         "status":"ok",
         //         "ts":1595875165865,
-        //         "$data":array(
+        //         "data":array(
         //             {
         //                 "account_id":"7420922606",
         //                 "amount":"0.1000000000000000",
@@ -2304,8 +2297,8 @@ class bitget extends Exchange {
         //                 "price":"150.000000000000",
         //                 "source":"接口",
         //                 "state":"canceled",
-        //                 "$symbol":"eth_usdt",
-        //                 "$type":"buy-$limit"
+        //                 "symbol":"eth_usdt",
+        //                 "type":"buy-$limit"
         //             }
         //         )
         //     }
@@ -2314,7 +2307,7 @@ class bitget extends Exchange {
         //
         //     array(
         //         {
-        //             "$symbol":"cmt_ethusdt",
+        //             "symbol":"cmt_ethusdt",
         //             "size":"1",
         //             "timestamp":"1595885546770",
         //             "client_oid":"f3aa81d6-9a4c-4eab-bebe-ebc19da21cf2",
@@ -2325,7 +2318,7 @@ class bitget extends Exchange {
         //             "price":"150.00",
         //             "price_avg":"0.00",
         //             "status":"0",
-        //             "$type":"1",
+        //             "type":"1",
         //             "order_type":"0",
         //             "totalProfits":null
         //         }
@@ -2382,7 +2375,7 @@ class bitget extends Exchange {
         //     {
         //         "status":"ok",
         //         "ts":1595875165865,
-        //         "$data":array(
+        //         "data":array(
         //             {
         //                 "account_id":"7420922606",
         //                 "amount":"0.1000000000000000",
@@ -2396,8 +2389,8 @@ class bitget extends Exchange {
         //                 "price":"150.000000000000",
         //                 "source":"接口",
         //                 "state":"canceled",
-        //                 "$symbol":"eth_usdt",
-        //                 "$type":"buy-$limit"
+        //                 "symbol":"eth_usdt",
+        //                 "type":"buy-$limit"
         //             }
         //         )
         //     }
@@ -2406,7 +2399,7 @@ class bitget extends Exchange {
         //
         //     array(
         //         {
-        //             "$symbol":"cmt_ethusdt",
+        //             "symbol":"cmt_ethusdt",
         //             "size":"1",
         //             "timestamp":"1595885546770",
         //             "client_oid":"f3aa81d6-9a4c-4eab-bebe-ebc19da21cf2",
@@ -2417,7 +2410,7 @@ class bitget extends Exchange {
         //             "price":"150.00",
         //             "price_avg":"0.00",
         //             "status":"0",
-        //             "$type":"1",
+        //             "type":"1",
         //             "order_type":"0",
         //             "totalProfits":null
         //         }
@@ -2446,11 +2439,11 @@ class bitget extends Exchange {
         //
         //     {
         //         "status" => "ok",
-        //         "$data" => array(
+        //         "data" => array(
         //             array(
         //                 "id" => 1171,
         //                 "type" => "deposit",
-        //                 "$currency" => "usdt",
+        //                 "currency" => "usdt",
         //                 "tx_hash" => "ed03094b84eafbe4bc16e7ef766ee959885ee5bcb265872baaa9c64e1cf86c2b",
         //                 "amount" => 7.457467,
         //                 "address" => "rae93V8d2mdoUQHwBDBdM4NHCMehRJAsbm",
@@ -2483,11 +2476,11 @@ class bitget extends Exchange {
         //
         //     {
         //         "status" => "ok",
-        //         "$data" => array(
+        //         "data" => array(
         //             array(
         //                 "id" => 1171,
         //                 "type" => "withdraw",
-        //                 "$currency" => "usdt",
+        //                 "currency" => "usdt",
         //                 "tx_hash" => "ed03094b84eafbe4bc16e7ef766ee959885ee5bcb265872baaa9c64e1cf86c2b",
         //                 "amount" => 7.457467,
         //                 "address" => "rae93V8d2mdoUQHwBDBdM4NHCMehRJAsbm",
@@ -2528,14 +2521,14 @@ class bitget extends Exchange {
         // fetchDeposits, fetchWithdrawals
         //
         //     {
-        //         "$id" => 1171,
-        //         "$type" => "withdraw",
-        //         "$currency" => "usdt",
+        //         "id" => 1171,
+        //         "type" => "withdraw",
+        //         "currency" => "usdt",
         //         "tx_hash" => "ed03094b84eafbe4bc16e7ef766ee959885ee5bcb265872baaa9c64e1cf86c2b",
-        //         "$amount" => 7.457467,
-        //         "$address" => "rae93V8d2mdoUQHwBDBdM4NHCMehRJAsbm",
+        //         "amount" => 7.457467,
+        //         "address" => "rae93V8d2mdoUQHwBDBdM4NHCMehRJAsbm",
         //         "address_tag" => "100040",
-        //         "$fee" => 0,
+        //         "fee" => 0,
         //         "state" => "safe",
         //         "created_at" => 1510912472199,
         //         "updated_at" => 1511145876575
@@ -2617,15 +2610,15 @@ class bitget extends Exchange {
             'symbol' => $market['id'],
             'method' => 'matchresults',
             // 'types' => 'buy-$market,sell-$market,buy-$limit,sell-limit',
-            // 'start_date' => $this->ymd($since),
-            // 'end_date' => $this->ymd($this->milliseconds()),
+            // 'start_date' => $this->yyyymmdd($since),
+            // 'end_date' => $this->yyyymmdd($this->milliseconds()),
             // 'size' => 100,
             // 'direct' => 'next',
         );
         if ($since !== null) {
-            $request['start_date'] = $this->ymd($since);
+            $request['start_date'] = $this->yyyymmdd($since);
             $end = $this->sum($since, 2 * 24 * 60 * 60 * 1000);
-            $request['end_date'] = $this->ymd($end);
+            $request['end_date'] = $this->yyyymmdd($end);
         }
         if ($limit !== null) {
             $request['size'] = $limit; // default 100, max 100
@@ -2634,13 +2627,13 @@ class bitget extends Exchange {
         //
         //     {
         //         "status" => "ok",
-        //         "$data" => array(
+        //         "data" => array(
         //             {
         //                 "id" => 29555,
         //                 "order_id" => 59378,
         //                 "match_id" => 59335,
-        //                 "$symbol" => "eth_usdt",
-        //                 "$type" => "buy-$limit",
+        //                 "symbol" => "eth_usdt",
+        //                 "type" => "buy-$limit",
         //                 "source" => "api",
         //                 "price" => "100.1000000000",
         //                 "filled_amount" => "0.9845000000",
@@ -2680,9 +2673,9 @@ class bitget extends Exchange {
         //     {
         //         "status":"ok",
         //         "ts":1596298917277,
-        //         "$data":array(
+        //         "data":array(
         //             {
-        //                 "$id":"614164775",
+        //                 "id":"614164775",
         //                 "created_at":"1596298860602",
         //                 "filled_amount":"0.0417000000000000",
         //                 "filled_fees":"0.0000834000000000",
@@ -2690,8 +2683,8 @@ class bitget extends Exchange {
         //                 "order_id":"673491720340279296",
         //                 "price":"359.240000000000",
         //                 "source":"接口",
-        //                 "$symbol":"eth_usdt",
-        //                 "$type":"buy-$market"
+        //                 "symbol":"eth_usdt",
+        //                 "type":"buy-$market"
         //             }
         //         )
         //     }
@@ -2702,7 +2695,7 @@ class bitget extends Exchange {
         //     array(
         //         {
         //             "trade_id":"6667390",
-        //             "$symbol":"cmt_btcusdt",
+        //             "symbol":"cmt_btcusdt",
         //             "order_id":"525946425993854915",
         //             "price":"9839.00",
         //             "order_qty":"3466",
@@ -2732,7 +2725,7 @@ class bitget extends Exchange {
         //         "margin_mode":"fixed", // Margin mode => crossed / fixed
         //         "holding":array(
         //             {
-        //                 "$symbol":"cmt_btcusdt", // Contract name
+        //                 "symbol":"cmt_btcusdt", // Contract name
         //                 "liquidation_price":"0.00", // Estimated liquidation price
         //                 "position":"0", // Position Margin, the margin for holding current positions
         //                 "avail_position":"0", // Available position
@@ -2790,7 +2783,7 @@ class bitget extends Exchange {
             $request = '/' . $api . '/v1' . $request;
         }
         $query = $this->omit($params, $this->extract_params($path));
-        $url = $this->implode_params($this->urls['api'][$api], array( 'hostname' => $this->hostname )) . $request;
+        $url = $this->implode_hostname($this->urls['api'][$api]) . $request;
         if (($api === 'data') || ($api === 'capi')) {
             if ($query) {
                 $url .= '?' . $this->urlencode($query);
@@ -2866,12 +2859,12 @@ class bitget extends Exchange {
         //
         // swap
         //
-        //     array("$code":"40015","msg":"","requestTime":1595698564931,"data":null)
-        //     array("$code":"40017","msg":"Order id must not be blank","requestTime":1595702477835,"data":null)
-        //     array("$code":"40017","msg":"Order Type must not be blank","requestTime":1595698516162,"data":null)
-        //     array("$code":"40301","msg":"","requestTime":1595667662503,"data":null)
-        //     array("$code":"40017","msg":"Contract $code must not be blank","requestTime":1595703151651,"data":null)
-        //     array("$code":"40108","msg":"","requestTime":1595885064600,"data":null)
+        //     array("code":"40015","msg":"","requestTime":1595698564931,"data":null)
+        //     array("code":"40017","msg":"Order id must not be blank","requestTime":1595702477835,"data":null)
+        //     array("code":"40017","msg":"Order Type must not be blank","requestTime":1595698516162,"data":null)
+        //     array("code":"40301","msg":"","requestTime":1595667662503,"data":null)
+        //     array("code":"40017","msg":"Contract $code must not be blank","requestTime":1595703151651,"data":null)
+        //     array("code":"40108","msg":"","requestTime":1595885064600,"data":null)
         //     array("order_id":"513468410013679613","client_oid":null,"symbol":"ethusd","result":false,"err_code":"order_no_exist_error","err_msg":"订单不存在！")
         //
         $message = $this->safe_string($response, 'err_msg');

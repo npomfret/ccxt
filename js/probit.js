@@ -15,28 +15,28 @@ module.exports = class probit extends Exchange {
             'id': 'probit',
             'name': 'ProBit',
             'countries': [ 'SC', 'KR' ], // Seychelles, South Korea
-            'rateLimit': 250, // ms
+            'rateLimit': 50, // ms
             'has': {
-                'CORS': true,
-                'fetchTime': true,
-                'fetchMarkets': true,
-                'fetchCurrencies': true,
-                'fetchTickers': true,
-                'fetchTicker': true,
-                'fetchOHLCV': true,
-                'fetchOrderBook': true,
-                'fetchTrades': true,
-                'fetchBalance': true,
-                'createOrder': true,
-                'createMarketOrder': true,
                 'cancelOrder': true,
-                'fetchOrder': true,
-                'fetchOpenOrders': true,
+                'CORS': true,
+                'createMarketOrder': true,
+                'createOrder': true,
+                'fetchBalance': true,
                 'fetchClosedOrders': true,
-                'fetchMyTrades': true,
+                'fetchCurrencies': true,
                 'fetchDepositAddress': true,
-                'withdraw': true,
+                'fetchMarkets': true,
+                'fetchMyTrades': true,
+                'fetchOHLCV': true,
+                'fetchOpenOrders': true,
+                'fetchOrder': true,
+                'fetchOrderBook': true,
+                'fetchTicker': true,
+                'fetchTickers': true,
+                'fetchTime': true,
+                'fetchTrades': true,
                 'signIn': true,
+                'withdraw': true,
             },
             'timeframes': {
                 '1m': '1m',
@@ -71,44 +71,44 @@ module.exports = class probit extends Exchange {
             },
             'api': {
                 'public': {
-                    'get': [
-                        'market',
-                        'currency',
-                        'currency_with_platform',
-                        'time',
-                        'ticker',
-                        'order_book',
-                        'trade',
-                        'candle',
-                    ],
+                    'get': {
+                        'market': 1,
+                        'currency': 1,
+                        'currency_with_platform': 1,
+                        'time': 1,
+                        'ticker': 1,
+                        'order_book': 1,
+                        'trade': 1,
+                        'candle': 1,
+                    },
                 },
                 'private': {
-                    'post': [
-                        'new_order',
-                        'cancel_order',
-                        'withdrawal',
-                    ],
-                    'get': [
-                        'balance',
-                        'order',
-                        'open_order',
-                        'order_history',
-                        'trade_history',
-                        'deposit_address',
-                    ],
+                    'post': {
+                        'new_order': 2,
+                        'cancel_order': 1,
+                        'withdrawal': 2,
+                    },
+                    'get': {
+                        'balance': 1,
+                        'order': 1,
+                        'open_order': 1,
+                        'order_history': 1,
+                        'trade_history': 1,
+                        'deposit_address': 1,
+                    },
                 },
                 'accounts': {
-                    'post': [
-                        'token',
-                    ],
+                    'post': {
+                        'token': 1,
+                    },
                 },
             },
             'fees': {
                 'trading': {
                     'tierBased': false,
                     'percentage': true,
-                    'maker': 0.2 / 100,
-                    'taker': 0.2 / 100,
+                    'maker': this.parseNumber ('0.002'),
+                    'taker': this.parseNumber ('0.002'),
                 },
             },
             'exceptions': {
@@ -127,6 +127,7 @@ module.exports = class probit extends Exchange {
                     'INVALID_CURRENCY': BadRequest, // Requested currency is not exist on ProBit system
                     'TOO_MANY_OPEN_ORDERS': DDoSProtection, // Too many open orders
                     'DUPLICATE_ADDRESS': InvalidAddress, // Address already exists in withdrawal address list
+                    'invalid_grant': AuthenticationError, // {"error":"invalid_grant"}
                 },
             },
             'requiredCredentials': {
@@ -140,17 +141,39 @@ module.exports = class probit extends Exchange {
                     'limit': 'gtc',
                     'market': 'ioc',
                 },
+                'networks': {
+                    'BEP20': 'BSC',
+                    'ERC20': 'ETH',
+                    'TRC20': 'TRON',
+                    'TRX': 'TRON',
+                },
             },
             'commonCurrencies': {
                 'AUTO': 'Cube',
+                'BCC': 'BCC',
+                'BDP': 'BidiPass',
+                'BIRD': 'Birdchain',
                 'BTCBEAR': 'BEAR',
                 'BTCBULL': 'BULL',
                 'CBC': 'CryptoBharatCoin',
+                'CHE': 'Chellit',
+                'DIP': 'Dipper',
                 'EPS': 'Epanus',  // conflict with EPS Ellipsis https://github.com/ccxt/ccxt/issues/8909
+                'FX': 'Fanzy',
+                'GDT': 'Gorilla Diamond',
+                'GOGOL': 'GOL',
+                'GOL': 'Goldofir',
+                'GRB': 'Global Reward Bank',
                 'HBC': 'Hybrid Bank Cash',
+                'LBK': 'Legal Block',
                 'ORC': 'Oracle System',
+                'ROOK': 'Reckoon',
                 'SOC': 'Soda Coin',
+                'SST': 'SocialSwap',
+                'TCT': 'Top Coin Token',
+                'TPAY': 'Tetra Pay',
                 'UNI': 'UNICORN Token',
+                'UNISWAP': 'UNI',
             },
         });
     }
@@ -214,6 +237,8 @@ module.exports = class probit extends Exchange {
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': true,
                 'active': active,
                 'precision': precision,
                 'taker': this.parseNumber (taker),
@@ -352,20 +377,7 @@ module.exports = class probit extends Exchange {
         return result;
     }
 
-    async fetchBalance (params = {}) {
-        await this.loadMarkets ();
-        const response = await this.privateGetBalance (params);
-        //
-        //     {
-        //         data: [
-        //             {
-        //                 "currency_id":"XRP",
-        //                 "total":"100",
-        //                 "available":"0",
-        //             }
-        //         ]
-        //     }
-        //
+    parseBalance (response) {
         const result = {
             'info': response,
             'timestamp': undefined,
@@ -381,7 +393,24 @@ module.exports = class probit extends Exchange {
             account['free'] = this.safeString (balance, 'available');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.safeBalance (result);
+    }
+
+    async fetchBalance (params = {}) {
+        await this.loadMarkets ();
+        const response = await this.privateGetBalance (params);
+        //
+        //     {
+        //         data: [
+        //             {
+        //                 "currency_id":"XRP",
+        //                 "total":"100",
+        //                 "available":"0",
+        //             }
+        //         ]
+        //     }
+        //
+        return this.parseBalance (response);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -482,18 +511,10 @@ module.exports = class probit extends Exchange {
         const symbol = this.safeSymbol (marketId, market, '-');
         const close = this.safeNumber (ticker, 'last');
         const change = this.safeNumber (ticker, 'change');
-        let percentage = undefined;
-        let open = undefined;
-        if (change !== undefined) {
-            if (close !== undefined) {
-                open = close - change;
-                percentage = (change / open) * 100;
-            }
-        }
         const baseVolume = this.safeNumber (ticker, 'base_volume');
         const quoteVolume = this.safeNumber (ticker, 'quote_volume');
         const vwap = this.vwap (baseVolume, quoteVolume);
-        return {
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -504,17 +525,17 @@ module.exports = class probit extends Exchange {
             'ask': undefined,
             'askVolume': undefined,
             'vwap': vwap,
-            'open': open,
+            'open': undefined,
             'close': close,
             'last': close,
             'previousClose': undefined, // previous day close
             'change': change,
-            'percentage': percentage,
+            'percentage': undefined,
             'average': undefined,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchMyTrades (symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -702,7 +723,7 @@ module.exports = class probit extends Exchange {
             timestamp = parseInt (timestamp / 1000);
             const firstSunday = 259200; // 1970-01-04T00:00:00.000Z
             const difference = timestamp - firstSunday;
-            const numWeeks = this.integerDivide (difference, duration);
+            const numWeeks = Math.floor (difference / duration);
             let previousSunday = this.sum (firstSunday, numWeeks * duration);
             if (after) {
                 previousSunday = this.sum (previousSunday, duration);
@@ -893,15 +914,15 @@ module.exports = class probit extends Exchange {
         const marketId = this.safeString (order, 'market_id');
         const symbol = this.safeSymbol (marketId, market, '-');
         const timestamp = this.parse8601 (this.safeString (order, 'time'));
-        let price = this.safeNumber (order, 'limit_price');
-        const filled = this.safeNumber (order, 'filled_quantity');
-        let remaining = this.safeNumber (order, 'open_quantity');
-        const canceledAmount = this.safeNumber (order, 'cancelled_quantity');
+        let price = this.safeString (order, 'limit_price');
+        const filled = this.safeString (order, 'filled_quantity');
+        let remaining = this.safeString (order, 'open_quantity');
+        const canceledAmount = this.safeString (order, 'cancelled_quantity');
         if (canceledAmount !== undefined) {
-            remaining = this.sum (remaining, canceledAmount);
+            remaining = Precise.stringAdd (remaining, canceledAmount);
         }
-        const amount = this.safeNumber (order, 'quantity', this.sum (filled, remaining));
-        const cost = this.safeNumber2 (order, 'filled_cost', 'cost');
+        const amount = this.safeString (order, 'quantity', Precise.stringAdd (filled, remaining));
+        const cost = this.safeString2 (order, 'filled_cost', 'cost');
         if (type === 'market') {
             price = undefined;
         }
@@ -931,7 +952,7 @@ module.exports = class probit extends Exchange {
             'cost': cost,
             'fee': undefined,
             'trades': undefined,
-        });
+        }, market);
     }
 
     costToPrecision (symbol, cost) {
@@ -1009,7 +1030,7 @@ module.exports = class probit extends Exchange {
         // returned by the exchange on market buys
         if ((type === 'market') && (side === 'buy')) {
             order['amount'] = undefined;
-            order['cost'] = parseFloat (costToPrecision);
+            order['cost'] = this.parseNumber (costToPrecision);
             order['remaining'] = undefined;
         }
         return order;
@@ -1040,6 +1061,7 @@ module.exports = class probit extends Exchange {
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': undefined,
             'info': depositAddress,
         };
     }
@@ -1087,6 +1109,7 @@ module.exports = class probit extends Exchange {
     }
 
     async withdraw (code, amount, address, tag = undefined, params = {}) {
+        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
         // In order to use this method
         // you need to allow API withdrawal from the API Settings Page, and
         // and register the list of withdrawal addresses and destination tags on the API Settings page
@@ -1102,13 +1125,20 @@ module.exports = class probit extends Exchange {
             // 'platform_id': 'ETH', // if omitted it will use the default platform for the currency
             'address': address,
             'destination_tag': tag,
-            'amount': this.currencyToPrecision (code, amount),
+            'amount': this.numberToString (amount),
             // which currency to pay the withdrawal fees
             // only applicable for currencies that accepts multiple withdrawal fee options
             // 'fee_currency_id': 'ETH', // if omitted it will use the default fee policy for each currency
             // whether the amount field includes fees
             // 'include_fee': false, // makes sense only when fee_currency_id is equal to currency_id
         };
+        const networks = this.safeValue (this.options, 'networks', {});
+        let network = this.safeStringUpper (params, 'network'); // this line allows the user to specify either ERC20 or ETH
+        network = this.safeString (networks, network, network); // handle ERC20>ETH alias
+        if (network !== undefined) {
+            request['platform_id'] = network;
+            params = this.omit (params, 'network');
+        }
         const response = await this.privatePostWithdrawal (this.extend (request, params));
         const data = this.safeValue (response, 'data');
         return this.parseTransaction (data, currency);

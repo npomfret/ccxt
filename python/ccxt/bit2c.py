@@ -17,7 +17,6 @@ from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import PermissionDenied
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import InvalidNonce
-from ccxt.base.precise import Precise
 
 
 class bit2c(Exchange):
@@ -30,7 +29,7 @@ class bit2c(Exchange):
             'rateLimit': 3000,
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
+                'CORS': None,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchMyTrades': True,
@@ -84,19 +83,19 @@ class bit2c(Exchange):
                 },
             },
             'markets': {
-                'BTC/NIS': {'id': 'BtcNis', 'symbol': 'BTC/NIS', 'base': 'BTC', 'quote': 'NIS', 'baseId': 'Btc', 'quoteId': 'Nis'},
-                'ETH/NIS': {'id': 'EthNis', 'symbol': 'ETH/NIS', 'base': 'ETH', 'quote': 'NIS', 'baseId': 'Eth', 'quoteId': 'Nis'},
-                'BCH/NIS': {'id': 'BchabcNis', 'symbol': 'BCH/NIS', 'base': 'BCH', 'quote': 'NIS', 'baseId': 'Bchabc', 'quoteId': 'Nis'},
-                'LTC/NIS': {'id': 'LtcNis', 'symbol': 'LTC/NIS', 'base': 'LTC', 'quote': 'NIS', 'baseId': 'Ltc', 'quoteId': 'Nis'},
-                'ETC/NIS': {'id': 'EtcNis', 'symbol': 'ETC/NIS', 'base': 'ETC', 'quote': 'NIS', 'baseId': 'Etc', 'quoteId': 'Nis'},
-                'BTG/NIS': {'id': 'BtgNis', 'symbol': 'BTG/NIS', 'base': 'BTG', 'quote': 'NIS', 'baseId': 'Btg', 'quoteId': 'Nis'},
-                'BSV/NIS': {'id': 'BchsvNis', 'symbol': 'BSV/NIS', 'base': 'BSV', 'quote': 'NIS', 'baseId': 'Bchsv', 'quoteId': 'Nis'},
-                'GRIN/NIS': {'id': 'GrinNis', 'symbol': 'GRIN/NIS', 'base': 'GRIN', 'quote': 'NIS', 'baseId': 'Grin', 'quoteId': 'Nis'},
+                'BTC/NIS': {'id': 'BtcNis', 'symbol': 'BTC/NIS', 'base': 'BTC', 'quote': 'NIS', 'baseId': 'Btc', 'quoteId': 'Nis', 'type': 'spot', 'spot': True},
+                'ETH/NIS': {'id': 'EthNis', 'symbol': 'ETH/NIS', 'base': 'ETH', 'quote': 'NIS', 'baseId': 'Eth', 'quoteId': 'Nis', 'type': 'spot', 'spot': True},
+                'BCH/NIS': {'id': 'BchabcNis', 'symbol': 'BCH/NIS', 'base': 'BCH', 'quote': 'NIS', 'baseId': 'Bchabc', 'quoteId': 'Nis', 'type': 'spot', 'spot': True},
+                'LTC/NIS': {'id': 'LtcNis', 'symbol': 'LTC/NIS', 'base': 'LTC', 'quote': 'NIS', 'baseId': 'Ltc', 'quoteId': 'Nis', 'type': 'spot', 'spot': True},
+                'ETC/NIS': {'id': 'EtcNis', 'symbol': 'ETC/NIS', 'base': 'ETC', 'quote': 'NIS', 'baseId': 'Etc', 'quoteId': 'Nis', 'type': 'spot', 'spot': True},
+                'BTG/NIS': {'id': 'BtgNis', 'symbol': 'BTG/NIS', 'base': 'BTG', 'quote': 'NIS', 'baseId': 'Btg', 'quoteId': 'Nis', 'type': 'spot', 'spot': True},
+                'BSV/NIS': {'id': 'BchsvNis', 'symbol': 'BSV/NIS', 'base': 'BSV', 'quote': 'NIS', 'baseId': 'Bchsv', 'quoteId': 'Nis', 'type': 'spot', 'spot': True},
+                'GRIN/NIS': {'id': 'GrinNis', 'symbol': 'GRIN/NIS', 'base': 'GRIN', 'quote': 'NIS', 'baseId': 'Grin', 'quoteId': 'Nis', 'type': 'spot', 'spot': True},
             },
             'fees': {
                 'trading': {
-                    'maker': 0.5 / 100,
-                    'taker': 0.5 / 100,
+                    'maker': self.parse_number('0.005'),
+                    'taker': self.parse_number('0.005'),
                 },
             },
             'options': {
@@ -115,9 +114,27 @@ class bit2c(Exchange):
             },
         })
 
+    def parse_balance(self, response):
+        result = {
+            'info': response,
+            'timestamp': None,
+            'datetime': None,
+        }
+        codes = list(self.currencies.keys())
+        for i in range(0, len(codes)):
+            code = codes[i]
+            account = self.account()
+            currency = self.currency(code)
+            uppercase = currency['id'].upper()
+            if uppercase in response:
+                account['free'] = self.safe_string(response, 'AVAILABLE_' + uppercase)
+                account['total'] = self.safe_string(response, uppercase)
+            result[code] = account
+        return self.safe_balance(result)
+
     def fetch_balance(self, params={}):
         self.load_markets()
-        balance = self.privateGetAccountBalanceV2(params)
+        response = self.privateGetAccountBalanceV2(params)
         #
         #     {
         #         "AVAILABLE_NIS": 0.0,
@@ -160,22 +177,7 @@ class bit2c(Exchange):
         #         }
         #     }
         #
-        result = {
-            'info': balance,
-            'timestamp': None,
-            'datetime': None,
-        }
-        codes = list(self.currencies.keys())
-        for i in range(0, len(codes)):
-            code = codes[i]
-            account = self.account()
-            currencyId = self.currency_id(code)
-            uppercase = currencyId.upper()
-            if uppercase in balance:
-                account['free'] = self.safe_string(balance, 'AVAILABLE_' + uppercase)
-                account['total'] = self.safe_string(balance, uppercase)
-            result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(response)
 
     def fetch_order_book(self, symbol, limit=None, params={}):
         self.load_markets()
@@ -185,12 +187,8 @@ class bit2c(Exchange):
         orderbook = self.publicGetExchangesPairOrderbook(self.extend(request, params))
         return self.parse_order_book(orderbook, symbol)
 
-    def fetch_ticker(self, symbol, params={}):
-        self.load_markets()
-        request = {
-            'pair': self.market_id(symbol),
-        }
-        ticker = self.publicGetExchangesPairTicker(self.extend(request, params))
+    def parse_ticker(self, ticker, market=None):
+        symbol = self.safe_symbol(None, market)
         timestamp = self.milliseconds()
         averagePrice = self.safe_number(ticker, 'av')
         baseVolume = self.safe_number(ticker, 'a')
@@ -198,7 +196,7 @@ class bit2c(Exchange):
         if baseVolume is not None and averagePrice is not None:
             quoteVolume = baseVolume * averagePrice
         last = self.safe_number(ticker, 'll')
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -219,7 +217,16 @@ class bit2c(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
+        }, market)
+
+    def fetch_ticker(self, symbol, params={}):
+        self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'pair': market['id'],
         }
+        response = self.publicGetExchangesPairTicker(self.extend(request, params))
+        return self.parse_ticker(response, market)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
         self.load_markets()
@@ -278,8 +285,8 @@ class bit2c(Exchange):
 
     def parse_order(self, order, market=None):
         timestamp = self.safe_integer(order, 'created')
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'amount')
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'amount')
         symbol = None
         if market is not None:
             symbol = market['symbol']
@@ -312,7 +319,7 @@ class bit2c(Exchange):
             'fee': None,
             'info': order,
             'average': None,
-        })
+        }, market)
 
     def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         self.load_markets()
@@ -322,8 +329,8 @@ class bit2c(Exchange):
             request['take'] = limit
         request['take'] = limit
         if since is not None:
-            request['toTime'] = self.ymd(self.milliseconds(), '.')
-            request['fromTime'] = self.ymd(since, '.')
+            request['toTime'] = self.yyyymmdd(self.milliseconds(), '.')
+            request['fromTime'] = self.yyyymmdd(since, '.')
         if symbol is not None:
             market = self.market(symbol)
             request['pair'] = market['id']
@@ -333,16 +340,16 @@ class bit2c(Exchange):
     def parse_trade(self, trade, market=None):
         timestamp = None
         id = None
-        priceString = None
-        amountString = None
+        price = None
+        amount = None
         orderId = None
-        feeCost = None
+        fee = None
         side = None
         reference = self.safe_string(trade, 'reference')
         if reference is not None:
             timestamp = self.safe_timestamp(trade, 'ticks')
-            priceString = self.safe_string(trade, 'price')
-            amountString = self.safe_string(trade, 'firstAmount')
+            price = self.safe_string(trade, 'price')
+            amount = self.safe_string(trade, 'firstAmount')
             reference_parts = reference.split('|')  # reference contains 'pair|orderId|tradeId'
             if market is None:
                 marketId = self.safe_string(trade, 'pair')
@@ -357,12 +364,17 @@ class bit2c(Exchange):
                 side = 'buy'
             elif side == 1:
                 side = 'sell'
-            feeCost = self.safe_number(trade, 'feeAmount')
+            feeCost = self.safe_string(trade, 'feeAmount')
+            if feeCost is not None:
+                fee = {
+                    'cost': feeCost,
+                    'currency': 'NIS',
+                }
         else:
             timestamp = self.safe_timestamp(trade, 'date')
             id = self.safe_string(trade, 'tid')
-            priceString = self.safe_string(trade, 'price')
-            amountString = self.safe_string(trade, 'amount')
+            price = self.safe_string(trade, 'price')
+            amount = self.safe_string(trade, 'amount')
             side = self.safe_value(trade, 'isBid')
             if side is not None:
                 if side:
@@ -372,10 +384,7 @@ class bit2c(Exchange):
         symbol = None
         if market is not None:
             symbol = market['symbol']
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
-        return {
+        return self.safe_trade({
             'info': trade,
             'id': id,
             'timestamp': timestamp,
@@ -387,13 +396,9 @@ class bit2c(Exchange):
             'takerOrMaker': None,
             'price': price,
             'amount': amount,
-            'cost': cost,
-            'fee': {
-                'cost': feeCost,
-                'currency': 'NIS',
-                'rate': None,
-            },
-        }
+            'cost': None,
+            'fee': fee,
+        }, market)
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = self.urls['api'] + '/' + self.implode_params(path, params)

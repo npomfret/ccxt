@@ -7,6 +7,7 @@ from ccxt.async_support.base.exchange import Exchange
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import PermissionDenied
+from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
@@ -186,6 +187,8 @@ class bitbank(Exchange):
                 'quote': quote,
                 'precision': precision,
                 'limits': limits,
+                'type': 'spot',
+                'spot': True,
                 'active': active,
                 'maker': maker,
                 'taker': taker,
@@ -193,12 +196,10 @@ class bitbank(Exchange):
         return result
 
     def parse_ticker(self, ticker, market=None):
-        symbol = None
-        if market is not None:
-            symbol = market['symbol']
+        symbol = self.safe_symbol(None, market)
         timestamp = self.safe_integer(ticker, 'timestamp')
         last = self.safe_number(ticker, 'last')
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -219,7 +220,7 @@ class bitbank(Exchange):
             'baseVolume': self.safe_number(ticker, 'vol'),
             'quoteVolume': None,
             'info': ticker,
-        }
+        }, market)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
@@ -250,22 +251,19 @@ class bitbank(Exchange):
             feeCurrency = market['quote']
         priceString = self.safe_string(trade, 'price')
         amountString = self.safe_string(trade, 'amount')
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         id = self.safe_string_2(trade, 'transaction_id', 'trade_id')
         takerOrMaker = self.safe_string(trade, 'maker_taker')
         fee = None
-        feeCost = self.safe_number(trade, 'fee_amount_quote')
-        if feeCost is not None:
+        feeCostString = self.safe_string(trade, 'fee_amount_quote')
+        if feeCostString is not None:
             fee = {
                 'currency': feeCurrency,
-                'cost': feeCost,
+                'cost': feeCostString,
             }
         orderId = self.safe_string(trade, 'order_id')
         type = self.safe_string(trade, 'type')
         side = self.safe_string(trade, 'side')
-        return {
+        return self.safe_trade({
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'symbol': symbol,
@@ -274,12 +272,12 @@ class bitbank(Exchange):
             'type': type,
             'side': side,
             'takerOrMaker': takerOrMaker,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'fee': fee,
             'info': trade,
-        }
+        }, market)
 
     async def fetch_trades(self, symbol, since=None, limit=None, params={}):
         await self.load_markets()
@@ -313,15 +311,14 @@ class bitbank(Exchange):
         ]
 
     async def fetch_ohlcv(self, symbol, timeframe='5m', since=None, limit=None, params={}):
+        if since is None:
+            raise ArgumentsRequired(self.id + ' fetchOHLCV requires a since argument')
         await self.load_markets()
         market = self.market(symbol)
-        date = self.milliseconds()
-        date = self.ymd(date)
-        date = date.split('-')
         request = {
             'pair': market['id'],
             'candletype': self.timeframes[timeframe],
-            'yyyymmdd': ''.join(date),
+            'yyyymmdd': self.yyyymmdd(since, ''),
         }
         response = await self.publicGetPairCandlestickCandletypeYyyymmdd(self.extend(request, params))
         #
@@ -347,6 +344,25 @@ class bitbank(Exchange):
         first = self.safe_value(candlestick, 0, {})
         ohlcv = self.safe_value(first, 'ohlcv', [])
         return self.parse_ohlcvs(ohlcv, market, timeframe, since, limit)
+
+    def parse_balance(self, response):
+        result = {
+            'info': response,
+            'timestamp': None,
+            'datetime': None,
+        }
+        data = self.safe_value(response, 'data', {})
+        assets = self.safe_value(data, 'assets', [])
+        for i in range(0, len(assets)):
+            balance = assets[i]
+            currencyId = self.safe_string(balance, 'asset')
+            code = self.safe_currency_code(currencyId)
+            account = self.account()
+            account['free'] = self.safe_string(balance, 'free_amount')
+            account['used'] = self.safe_string(balance, 'locked_amount')
+            account['total'] = self.safe_string(balance, 'onhand_amount')
+            result[code] = account
+        return self.safe_balance(result)
 
     async def fetch_balance(self, params={}):
         await self.load_markets()
@@ -384,23 +400,7 @@ class bitbank(Exchange):
         #       }
         #     }
         #
-        result = {
-            'info': response,
-            'timestamp': None,
-            'datetime': None,
-        }
-        data = self.safe_value(response, 'data', {})
-        assets = self.safe_value(data, 'assets', [])
-        for i in range(0, len(assets)):
-            balance = assets[i]
-            currencyId = self.safe_string(balance, 'asset')
-            code = self.safe_currency_code(currencyId)
-            account = self.account()
-            account['free'] = self.safe_string(balance, 'free_amount')
-            account['used'] = self.safe_string(balance, 'locked_amount')
-            account['total'] = self.safe_string(balance, 'onhand_amount')
-            result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(response)
 
     def parse_order_status(self, status):
         statuses = {
@@ -416,16 +416,16 @@ class bitbank(Exchange):
         id = self.safe_string(order, 'order_id')
         marketId = self.safe_string(order, 'pair')
         symbol = None
-        if marketId and not market and (marketId in self.marketsById):
-            market = self.marketsById[marketId]
+        if marketId and not market and (marketId in self.markets_by_id):
+            market = self.markets_by_id[marketId]
         if market is not None:
             symbol = market['symbol']
         timestamp = self.safe_integer(order, 'ordered_at')
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'start_amount')
-        filled = self.safe_number(order, 'executed_amount')
-        remaining = self.safe_number(order, 'remaining_amount')
-        average = self.safe_number(order, 'average_price')
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'start_amount')
+        filled = self.safe_string(order, 'executed_amount')
+        remaining = self.safe_string(order, 'remaining_amount')
+        average = self.safe_string(order, 'average_price')
         status = self.parse_order_status(self.safe_string(order, 'status'))
         type = self.safe_string_lower(order, 'type')
         side = self.safe_string_lower(order, 'side')
@@ -451,20 +451,19 @@ class bitbank(Exchange):
             'trades': None,
             'fee': None,
             'info': order,
-        })
+        }, market)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
-        if price is None:
-            raise InvalidOrder(self.id + ' createOrder() requires a price argument for both market and limit orders')
         request = {
             'pair': market['id'],
             'amount': self.amount_to_precision(symbol, amount),
-            'price': self.price_to_precision(symbol, price),
             'side': side,
             'type': type,
         }
+        if type == 'limit':
+            request['price'] = self.price_to_precision(symbol, price)
         response = await self.privatePostUserSpotOrder(self.extend(request, params))
         data = self.safe_value(response, 'data')
         return self.parse_order(data, market)
@@ -539,10 +538,12 @@ class bitbank(Exchange):
             'currency': currency,
             'address': address,
             'tag': None,
+            'network': None,
             'info': response,
         }
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         if not ('uuid' in params):
             raise ExchangeError(self.id + ' uuid is required for withdrawal')
         await self.load_markets()
@@ -564,7 +565,7 @@ class bitbank(Exchange):
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         query = self.omit(params, self.extract_params(path))
-        url = self.implode_params(self.urls['api'][api], {'hostname': self.hostname}) + '/'
+        url = self.implode_hostname(self.urls['api'][api]) + '/'
         if (api == 'public') or (api == 'markets'):
             url += self.implode_params(path, params)
             if query:
@@ -591,8 +592,9 @@ class bitbank(Exchange):
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    async def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        response = await self.fetch2(path, api, method, params, headers, body)
+    def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        if response is None:
+            return
         success = self.safe_integer(response, 'success')
         data = self.safe_value(response, 'data')
         if not success or not data:
@@ -666,4 +668,3 @@ class bitbank(Exchange):
                 raise ErrorClass(message)
             else:
                 raise ExchangeError(self.id + ' ' + self.json(response))
-        return response

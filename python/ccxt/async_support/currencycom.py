@@ -4,7 +4,6 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
-import math
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import ArgumentsRequired
@@ -33,7 +32,7 @@ class currencycom(Exchange):
             # new metainfo interface
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
+                'CORS': None,
                 'createOrder': True,
                 'fetchAccounts': True,
                 'fetchBalance': True,
@@ -45,8 +44,8 @@ class currencycom(Exchange):
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTime': True,
-                'fetchTradingFees': True,
                 'fetchTrades': True,
+                'fetchTradingFees': True,
             },
             'timeframes': {
                 '1m': '1m',
@@ -64,6 +63,10 @@ class currencycom(Exchange):
                 'api': {
                     'public': 'https://api-adapter.backend.currency.com/api',
                     'private': 'https://api-adapter.backend.currency.com/api',
+                },
+                'test': {
+                    'public': 'https://demo-api-adapter.backend.currency.com/api',
+                    'private': 'https://demo-api-adapter.backend.currency.com/api',
                 },
                 'www': 'https://www.currency.com',
                 'referral': 'https://currency.com/trading/signup?c=362jaimv&pid=referral',
@@ -107,8 +110,8 @@ class currencycom(Exchange):
                     'feeSide': 'get',
                     'tierBased': False,
                     'percentage': True,
-                    'taker': 0.002,
-                    'maker': 0.002,
+                    'taker': self.parse_number('0.002'),
+                    'maker': self.parse_number('0.002'),
                 },
             },
             'precisionMode': TICK_SIZE,
@@ -151,7 +154,12 @@ class currencycom(Exchange):
                 },
             },
             'commonCurrencies': {
+                'ACN': 'Accenture',
+                'BNS': 'Bank of Nova Scotia',
+                'CAR': 'Avis Budget Group Inc',
+                'EDU': 'New Oriental Education & Technology Group Inc',
                 'ETN': 'Eaton',
+                'FOX': 'Fox Corporation',
                 'IQ': 'iQIYI',
                 'PLAY': "Dave & Buster's Entertainment",
             },
@@ -257,10 +265,6 @@ class currencycom(Exchange):
                 symbol = id
             filters = self.safe_value(market, 'filters', [])
             filtersByType = self.index_by(filters, 'filterType')
-            precision = {
-                'amount': 1 / math.pow(1, self.safe_integer(market, 'baseAssetPrecision')),
-                'price': self.safe_number(market, 'tickSize'),
-            }
             status = self.safe_string(market, 'status')
             active = (status == 'TRADING')
             type = self.safe_string_lower(market, 'marketType')
@@ -268,72 +272,104 @@ class currencycom(Exchange):
                 type = 'margin'
             spot = (type == 'spot')
             margin = (type == 'margin')
-            entry = {
-                'id': id,
-                'symbol': symbol,
-                'base': base,
-                'quote': quote,
-                'baseId': baseId,
-                'quoteId': quoteId,
-                'type': type,
-                'spot': spot,
-                'margin': margin,
-                'info': market,
-                'active': active,
-                'precision': precision,
-                'limits': {
-                    'amount': {
-                        'min': math.pow(10, -precision['amount']),
-                        'max': None,
-                    },
-                    'price': {
-                        'min': None,
-                        'max': None,
-                    },
-                    'cost': {
-                        'min': -math.log10(precision['amount']),
-                        'max': None,
-                    },
-                },
-            }
             exchangeFee = self.safe_number_2(market, 'exchangeFee', 'tradingFee')
             makerFee = self.safe_number(market, 'makerFee', exchangeFee)
             takerFee = self.safe_number(market, 'takerFee', exchangeFee)
+            maker = None
+            taker = None
             if makerFee is not None:
-                entry['maker'] = makerFee / 100
+                maker = makerFee / 100
             if takerFee is not None:
-                entry['taker'] = takerFee / 100
+                taker = takerFee / 100
+            limitPriceMin = None
+            limitPriceMax = None
+            precisionPrice = self.safe_number(market, 'tickSize')
             if 'PRICE_FILTER' in filtersByType:
                 filter = self.safe_value(filtersByType, 'PRICE_FILTER', {})
-                entry['precision']['price'] = self.safe_number(filter, 'tickSize')
+                precisionPrice = self.safe_number(filter, 'tickSize')
                 # PRICE_FILTER reports zero values for maxPrice
                 # since they updated filter types in November 2018
                 # https://github.com/ccxt/ccxt/issues/4286
                 # therefore limits['price']['max'] doesn't have any meaningful value except None
-                entry['limits']['price'] = {
-                    'min': self.safe_number(filter, 'minPrice'),
-                    'max': None,
-                }
+                limitPriceMin = self.safe_number(filter, 'minPrice')
                 maxPrice = self.safe_number(filter, 'maxPrice')
                 if (maxPrice is not None) and (maxPrice > 0):
-                    entry['limits']['price']['max'] = maxPrice
+                    limitPriceMax = maxPrice
+            precisionAmount = self.parse_precision(self.safe_string(market, 'baseAssetPrecision'))
+            limitAmount = {
+                'min': None,
+                'max': None,
+            }
             if 'LOT_SIZE' in filtersByType:
                 filter = self.safe_value(filtersByType, 'LOT_SIZE', {})
-                entry['precision']['amount'] = self.safe_number(filter, 'stepSize')
-                entry['limits']['amount'] = {
+                precisionAmount = self.safe_number(filter, 'stepSize')
+                limitAmount = {
                     'min': self.safe_number(filter, 'minQty'),
                     'max': self.safe_number(filter, 'maxQty'),
                 }
+            limitMarket = {
+                'min': None,
+                'max': None,
+            }
             if 'MARKET_LOT_SIZE' in filtersByType:
                 filter = self.safe_value(filtersByType, 'MARKET_LOT_SIZE', {})
-                entry['limits']['market'] = {
+                limitMarket = {
                     'min': self.safe_number(filter, 'minQty'),
                     'max': self.safe_number(filter, 'maxQty'),
                 }
+            costMin = None
             if 'MIN_NOTIONAL' in filtersByType:
                 filter = self.safe_value(filtersByType, 'MIN_NOTIONAL', {})
-                entry['limits']['cost']['min'] = self.safe_number(filter, 'minNotional')
-            result.append(entry)
+                costMin = self.safe_number(filter, 'minNotional')
+            result.append({
+                'id': id,
+                'symbol': symbol,
+                'base': base,
+                'quote': quote,
+                'settle': None,
+                'baseId': baseId,
+                'quoteId': quoteId,
+                'settleId': None,
+                'type': type,
+                'spot': spot,
+                'margin': margin,
+                'swap': False,
+                'future': False,
+                'option': False,
+                'derivative': False,
+                'contract': False,
+                'linear': None,
+                'inverse': None,
+                'taker': taker,
+                'maker': maker,
+                'contractSize': None,
+                'active': active,
+                'expiry': None,
+                'expiryDatetime': None,
+                'strike': None,
+                'optionType': None,
+                'precision': {
+                    'amount': precisionAmount,
+                    'price': precisionPrice,
+                },
+                'limits': {
+                    'leverage': {
+                        'min': None,
+                        'max': None,
+                    },
+                    'amount': limitAmount,
+                    'market': limitMarket,
+                    'price': {
+                        'min': limitPriceMin,
+                        'max': limitPriceMax,
+                    },
+                    'cost': {
+                        'min': costMin,
+                        'max': None,
+                    },
+                },
+                'info': market,
+            })
         return result
 
     async def fetch_accounts(self, params={}):
@@ -384,7 +420,7 @@ class currencycom(Exchange):
             'taker': self.safe_number(response, 'takerCommission'),
         }
 
-    def parse_balance_response(self, response):
+    def parse_balance(self, response, type=None):
         #
         #     {
         #         "makerCommission":0.20,
@@ -417,7 +453,7 @@ class currencycom(Exchange):
             account['free'] = self.safe_string(balance, 'free')
             account['used'] = self.safe_string(balance, 'locked')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.safe_balance(result)
 
     async def fetch_balance(self, params={}):
         await self.load_markets()
@@ -444,7 +480,7 @@ class currencycom(Exchange):
         #         ]
         #     }
         #
-        return self.parse_balance_response(response)
+        return self.parse_balance(response)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -668,9 +704,6 @@ class currencycom(Exchange):
         timestamp = self.safe_integer_2(trade, 'T', 'time')
         priceString = self.safe_string_2(trade, 'p', 'price')
         amountString = self.safe_string_2(trade, 'q', 'qty')
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         id = self.safe_string_2(trade, 'a', 'id')
         side = None
         orderId = self.safe_string(trade, 'orderId')
@@ -684,7 +717,7 @@ class currencycom(Exchange):
         fee = None
         if 'commission' in trade:
             fee = {
-                'cost': self.safe_number(trade, 'commission'),
+                'cost': self.safe_string(trade, 'commission'),
                 'currency': self.safe_currency_code(self.safe_string(trade, 'commissionAsset')),
             }
         takerOrMaker = None
@@ -692,7 +725,7 @@ class currencycom(Exchange):
             takerOrMaker = 'maker' if trade['isMaker'] else 'taker'
         marketId = self.safe_string(trade, 'symbol')
         symbol = self.safe_symbol(marketId, market)
-        return {
+        return self.safe_trade({
             'info': trade,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -702,11 +735,11 @@ class currencycom(Exchange):
             'type': None,
             'takerOrMaker': takerOrMaker,
             'side': side,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'fee': fee,
-        }
+        }, market)
 
     async def fetch_trades(self, symbol, since=None, limit=None, params={}):
         await self.load_markets()
@@ -775,18 +808,14 @@ class currencycom(Exchange):
             timestamp = self.safe_integer(order, 'time')
         elif 'transactTime' in order:
             timestamp = self.safe_integer(order, 'transactTime')
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'origQty')
-        filled = self.safe_number(order, 'executedQty')
-        remaining = None
-        cost = self.safe_number(order, 'cummulativeQuoteQty')
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'origQty')
+        filled = Precise.string_abs(self.safe_string(order, 'executedQty'))
+        cost = self.safe_string(order, 'cummulativeQuoteQty')
         id = self.safe_string(order, 'orderId')
         type = self.safe_string_lower(order, 'type')
         side = self.safe_string_lower(order, 'side')
-        trades = None
         fills = self.safe_value(order, 'fills')
-        if fills is not None:
-            trades = self.parse_trades(fills, market)
         timeInForce = self.safe_string(order, 'timeInForce')
         return self.safe_order({
             'info': order,
@@ -804,11 +833,11 @@ class currencycom(Exchange):
             'cost': cost,
             'average': None,
             'filled': filled,
-            'remaining': remaining,
+            'remaining': None,
             'status': status,
             'fee': None,
-            'trades': trades,
-        })
+            'trades': fills,
+        }, market)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()

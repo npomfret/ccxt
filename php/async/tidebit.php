@@ -22,7 +22,7 @@ class tidebit extends Exchange {
             'version' => 'v2',
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchDepositAddress' => true,
@@ -114,8 +114,8 @@ class tidebit extends Exchange {
                 'trading' => array(
                     'tierBased' => false,
                     'percentage' => true,
-                    'maker' => 0.3 / 100,
-                    'taker' => 0.3 / 100,
+                    'maker' => $this->parse_number('0.003'),
+                    'taker' => $this->parse_number('0.003'),
                 ),
                 'funding' => array(
                     'tierBased' => false,
@@ -169,6 +169,8 @@ class tidebit extends Exchange {
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
                 'info' => $market,
+                'type' => 'spot',
+                'spot' => true,
                 'active' => null,
                 'precision' => $this->precision,
                 'limits' => $this->limits,
@@ -177,9 +179,7 @@ class tidebit extends Exchange {
         return $result;
     }
 
-    public function fetch_balance($params = array ()) {
-        yield $this->load_markets();
-        $response = yield $this->privateGetMembersMe ($params);
+    public function parse_balance($response) {
         $balances = $this->safe_value($response, 'accounts');
         $result = array( 'info' => $balances );
         for ($i = 0; $i < count($balances); $i++) {
@@ -191,7 +191,13 @@ class tidebit extends Exchange {
             $account['used'] = $this->safe_string($balance, 'locked');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        yield $this->load_markets();
+        $response = yield $this->privateGetMembersMe ($params);
+        return $this->parse_balance($response);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -371,9 +377,9 @@ class tidebit extends Exchange {
     public function parse_order($order, $market = null) {
         //
         //     {
-        //         "$id" => 7,                              // 唯一的 Order ID
-        //         "$side" => "sell",                       // Buy/Sell 代表买单/卖单
-        //         "$price" => "3100.0",                    // 出价
+        //         "id" => 7,                              // 唯一的 Order ID
+        //         "side" => "sell",                       // Buy/Sell 代表买单/卖单
+        //         "price" => "3100.0",                    // 出价
         //         "avg_price" => "3101.2",                // 平均成交价
         //         "state" => "wait",                      // 订单的当前状态 [wait,done,cancel]
         //                                               //   wait   表明订单正在市场上挂单
@@ -381,7 +387,7 @@ class tidebit extends Exchange {
         //                                               //          此时订单可能部分成交或者尚未成交
         //                                               //   done   代表订单已经完全成交
         //                                               //   cancel 代表订单已经被撤销
-        //         "$market" => "btccny",                   // 订单参与的交易市场
+        //         "market" => "btccny",                   // 订单参与的交易市场
         //         "created_at" => "2014-04-18T02:02:33Z", // 下单时间 ISO8601格式
         //         "volume" => "100.0",                    // 购买/卖出数量
         //         "remaining_volume" => "89.8",           // 还未成交的数量 remaining_volume 总是小于等于 volume
@@ -394,12 +400,12 @@ class tidebit extends Exchange {
         //         "trades" => array(                           // 订单的详细成交记录 参见Trade
         //                                               //   注意 => 只有某些返回详细订单数据的 API 才会包含 Trade 数据
         //             {
-        //                 "$id" => 2,
-        //                 "$price" => "3100.0",
+        //                 "id" => 2,
+        //                 "price" => "3100.0",
         //                 "volume" => "10.2",
-        //                 "$market" => "btccny",
+        //                 "market" => "btccny",
         //                 "created_at" => "2014-04-18T02:04:49Z",
-        //                 "$side" => "sell"
+        //                 "side" => "sell"
         //             }
         //         )
         //     }
@@ -411,11 +417,11 @@ class tidebit extends Exchange {
         $id = $this->safe_string($order, 'id');
         $type = $this->safe_string($order, 'ord_type');
         $side = $this->safe_string($order, 'side');
-        $price = $this->safe_number($order, 'price');
-        $amount = $this->safe_number($order, 'volume');
-        $filled = $this->safe_number($order, 'executed_volume');
-        $remaining = $this->safe_number($order, 'remaining_volume');
-        $average = $this->safe_number($order, 'avg_price');
+        $price = $this->safe_string($order, 'price');
+        $amount = $this->safe_string($order, 'volume');
+        $filled = $this->safe_string($order, 'executed_volume');
+        $remaining = $this->safe_string($order, 'remaining_volume');
+        $average = $this->safe_string($order, 'avg_price');
         return $this->safe_order(array(
             'id' => $id,
             'clientOrderId' => null,
@@ -438,7 +444,7 @@ class tidebit extends Exchange {
             'fee' => null,
             'info' => $order,
             'average' => $average,
-        ));
+        ), $market);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -471,6 +477,7 @@ class tidebit extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->check_address($address);
         yield $this->load_markets();
         $currency = $this->currency($code);

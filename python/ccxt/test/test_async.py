@@ -508,7 +508,7 @@ keys_local = os.path.join(keys_folder, 'keys.local.json')
 keys_file = keys_local if os.path.exists(keys_local) else keys_global
 
 # load the api keys from config
-with open(keys_file) as file:
+with open(keys_file, encoding='utf8') as file:
     config = json.load(file)
 
 # instantiate all exchanges
@@ -555,4 +555,4 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.get_event_loop().run_until_complete(main())
+    asyncio.run(main())

@@ -12,7 +12,6 @@ from ccxt.base.errors import PermissionDenied
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import AddressPending
 from ccxt.base.errors import NotSupported
-from ccxt.base.precise import Precise
 
 
 class buda(Exchange):
@@ -26,7 +25,7 @@ class buda(Exchange):
             'version': 'v2',
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
+                'CORS': None,
                 'createDepositAddress': True,
                 'createOrder': True,
                 'fetchBalance': True,
@@ -36,14 +35,14 @@ class buda(Exchange):
                 'fetchDeposits': True,
                 'fetchFundingFees': True,
                 'fetchMarkets': True,
-                'fetchMyTrades': False,
+                'fetchMyTrades': None,
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
                 'fetchOrders': True,
-                'fetchTrades': True,
                 'fetchTicker': True,
+                'fetchTrades': True,
                 'fetchWithdrawals': True,
                 'withdraw': True,
             },
@@ -207,6 +206,8 @@ class buda(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': True,
                 'precision': precision,
                 'limits': limits,
@@ -378,10 +379,7 @@ class buda(Exchange):
             amountString = self.safe_string(trade, 2)
             side = self.safe_string(trade, 3)
             id = self.safe_string(trade, 4)
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
-        return {
+        return self.safe_trade({
             'id': id,
             'order': order,
             'info': trade,
@@ -391,11 +389,11 @@ class buda(Exchange):
             'type': type,
             'side': side,
             'takerOrMaker': None,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'fee': fee,
-        }
+        }, market)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -421,9 +419,7 @@ class buda(Exchange):
         response = await self.publicGetTvHistory(self.extend(request, params))
         return self.parse_trading_view_ohlcv(response, market, timeframe, since, limit)
 
-    async def fetch_balance(self, params={}):
-        await self.load_markets()
-        response = await self.privateGetBalances(params)
+    def parse_balance(self, response):
         result = {'info': response}
         balances = self.safe_value(response, 'balances')
         for i in range(0, len(balances)):
@@ -434,7 +430,12 @@ class buda(Exchange):
             account['free'] = self.safe_string(balance['available_amount'], 0)
             account['total'] = self.safe_string(balance['amount'], 0)
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.safe_balance(result)
+
+    async def fetch_balance(self, params={}):
+        await self.load_markets()
+        response = await self.privateGetBalances(params)
+        return self.parse_balance(response)
 
     async def fetch_order(self, id, symbol=None, params={}):
         await self.load_markets()
@@ -526,26 +527,27 @@ class buda(Exchange):
         #
         id = self.safe_string(order, 'id')
         timestamp = self.parse8601(self.safe_string(order, 'created_at'))
+        datetime = self.iso8601(timestamp)
         marketId = self.safe_string(order, 'market_id')
         symbol = self.safe_symbol(marketId, market, '-')
         type = self.safe_string(order, 'price_type')
         side = self.safe_string_lower(order, 'type')
         status = self.parse_order_status(self.safe_string(order, 'state'))
         originalAmount = self.safe_value(order, 'original_amount', [])
-        amount = self.safe_number(originalAmount, 0)
+        amount = self.safe_string(originalAmount, 0)
         remainingAmount = self.safe_value(order, 'amount', [])
-        remaining = self.safe_number(remainingAmount, 0)
+        remaining = self.safe_string(remainingAmount, 0)
         tradedAmount = self.safe_value(order, 'traded_amount', [])
-        filled = self.safe_number(tradedAmount, 0)
+        filled = self.safe_string(tradedAmount, 0)
         totalExchanged = self.safe_value(order, 'totalExchanged', [])
-        cost = self.safe_number(totalExchanged, 0)
+        cost = self.safe_string(totalExchanged, 0)
         limitPrice = self.safe_value(order, 'limit', [])
-        price = self.safe_number(limitPrice, 0)
+        price = self.safe_string(limitPrice, 0)
         if price is None:
             if limitPrice is not None:
                 price = limitPrice
         paidFee = self.safe_value(order, 'paid_fee', [])
-        feeCost = self.safe_number(paidFee, 0)
+        feeCost = self.safe_string(paidFee, 0)
         fee = None
         if feeCost is not None:
             feeCurrencyId = self.safe_string(paidFee, 1)
@@ -558,7 +560,7 @@ class buda(Exchange):
             'info': order,
             'id': id,
             'clientOrderId': None,
-            'datetime': self.iso8601(timestamp),
+            'datetime': datetime,
             'timestamp': timestamp,
             'lastTradeTimestamp': None,
             'status': status,
@@ -576,7 +578,7 @@ class buda(Exchange):
             'remaining': remaining,
             'trades': None,
             'fee': fee,
-        })
+        }, market)
 
     def is_fiat(self, code):
         fiats = {
@@ -612,6 +614,7 @@ class buda(Exchange):
             'currency': code,
             'address': address,
             'tag': None,
+            'network': None,
             'info': receiveAddresses,
         }
 
@@ -701,6 +704,7 @@ class buda(Exchange):
         return self.parse_transactions(withdrawals, currency, since, limit)
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         await self.load_markets()
         currency = self.currency(code)

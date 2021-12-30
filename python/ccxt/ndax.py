@@ -39,13 +39,14 @@ class ndax(Exchange):
                 'fetchMyTrades': True,
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
-                'fetchOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
+                'fetchOrders': True,
                 'fetchOrderTrades': True,
                 'fetchTicker': True,
                 'fetchTrades': True,
                 'fetchWithdrawals': True,
+                'signIn': True,
             },
             'timeframes': {
                 '1m': '60',
@@ -196,6 +197,10 @@ class ndax(Exchange):
                 'apiKey': True,
                 'secret': True,
                 'uid': True,
+                # these credentials are required for signIn() and withdraw()
+                'login': True,
+                'password': True,
+                # 'twofa': True,
             },
             'precisionMode': TICK_SIZE,
             'exceptions': {
@@ -222,6 +227,48 @@ class ndax(Exchange):
                 },
             },
         })
+
+    def sign_in(self, params={}):
+        self.check_required_credentials()
+        if self.login is None or self.password is None:
+            raise AuthenticationError(self.id + ' signIn() requires exchange.login, exchange.password')
+        request = {
+            'grant_type': 'client_credentials',  # the only supported value
+        }
+        response = self.publicGetAuthenticate(self.extend(request, params))
+        #
+        #     {
+        #         "Authenticated":true,
+        #         "Requires2FA":true,
+        #         "AuthType":"Google",
+        #         "AddtlInfo":"",
+        #         "Pending2FaToken": "6f5c4e66-f3ee-493e-9227-31cc0583b55f"
+        #     }
+        #
+        sessionToken = self.safe_string(response, 'SessionToken')
+        if sessionToken is not None:
+            self.options['sessionToken'] = sessionToken
+            return response
+        pending2faToken = self.safe_string(response, 'Pending2FaToken')
+        if pending2faToken is not None:
+            if self.twofa is None:
+                raise AuthenticationError(self.id + ' signIn() requires exchange.twofa credentials')
+            self.options['pending2faToken'] = pending2faToken
+            request = {
+                'Code': self.oath(),
+            }
+            response = self.publicGetAuthenticate2FA(self.extend(request, params))
+            #
+            #     {
+            #         "Authenticated": True,
+            #         "UserId":57765,
+            #         "SessionToken":"4a2a5857-c4e5-4fac-b09e-2c4c30b591a0"
+            #     }
+            #
+            sessionToken = self.safe_string(response, 'SessionToken')
+            self.options['sessionToken'] = sessionToken
+            return response
+        return response
 
     def fetch_currencies(self, params={}):
         omsId = self.safe_integer(self.options, 'omsId', 1)
@@ -346,6 +393,8 @@ class ndax(Exchange):
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'info': market,
+                'type': 'spot',
+                'spot': True,
                 'active': active,
                 'precision': precision,
                 'limits': {
@@ -701,7 +750,7 @@ class ndax(Exchange):
         #         "PegPriceType":"Unknown",
         #         "PegOffset":0.0000000000000000000000000000,
         #         "PegLimitOffset":0.0000000000000000000000000000,
-        #         "IpAddress":"5.228.233.138",
+        #         "IpAddress":"x.x.x.x",
         #         "ClientOrderIdUuid":null,
         #         "OMSId":1
         #     }
@@ -787,12 +836,14 @@ class ndax(Exchange):
         return self.parse_trades(response, market, since, limit)
 
     def fetch_accounts(self, params={}):
+        if not self.login:
+            raise AuthenticationError(self.id + ' fetchAccounts() requires exchange.login email credential')
         omsId = self.safe_integer(self.options, 'omsId', 1)
         self.check_required_credentials()
         request = {
             'omsId': omsId,
             'UserId': self.uid,
-            'UserName': 'igor@ccxt.trade',
+            'UserName': self.login,
         }
         response = self.privateGetGetUserAccounts(self.extend(request, params))
         #
@@ -808,6 +859,23 @@ class ndax(Exchange):
                 'info': accountId,
             })
         return result
+
+    def parse_balance(self, response):
+        result = {
+            'info': response,
+            'timestamp': None,
+            'datetime': None,
+        }
+        for i in range(0, len(response)):
+            balance = response[i]
+            currencyId = self.safe_string(balance, 'ProductId')
+            if currencyId in self.currencies_by_id:
+                code = self.safe_currency_code(currencyId)
+                account = self.account()
+                account['total'] = self.safe_string(balance, 'Amount')
+                account['used'] = self.safe_string(balance, 'Hold')
+                result[code] = account
+        return self.safe_balance(result)
 
     def fetch_balance(self, params={}):
         omsId = self.safe_integer(self.options, 'omsId', 1)
@@ -852,20 +920,7 @@ class ndax(Exchange):
         #         },
         #     ]
         #
-        result = {
-            'info': response,
-            'timestamp': None,
-            'datetime': None,
-        }
-        for i in range(0, len(response)):
-            balance = response[i]
-            currencyId = self.safe_string(balance, 'ProductId')
-            code = self.safe_currency_code(currencyId)
-            account = self.account()
-            account['total'] = self.safe_string(balance, 'Amount')
-            account['used'] = self.safe_string(balance, 'Hold')
-            result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(response)
 
     def parse_ledger_entry_type(self, type):
         types = {
@@ -1069,19 +1124,13 @@ class ndax(Exchange):
         side = self.safe_string_lower(order, 'Side')
         type = self.safe_string_lower(order, 'OrderType')
         clientOrderId = self.safe_string_2(order, 'ReplacementClOrdId', 'ClientOrderId')
-        price = self.safe_number(order, 'Price', 0.0)
-        price = price if (price > 0.0) else None
-        amount = self.safe_number(order, 'OrigQuantity')
-        filled = self.safe_number(order, 'QuantityExecuted')
-        cost = self.safe_number(order, 'GrossValueExecuted')
-        average = self.safe_number(order, 'AvgPrice', 0.0)
-        average = average if (average > 0) else None
-        stopPrice = self.safe_number(order, 'StopPrice', 0.0)
-        stopPrice = stopPrice if (stopPrice > 0.0) else None
-        timeInForce = None
+        price = self.safe_string(order, 'Price')
+        amount = self.safe_string(order, 'OrigQuantity')
+        filled = self.safe_string(order, 'QuantityExecuted')
+        cost = self.safe_string(order, 'GrossValueExecuted')
+        average = self.safe_string(order, 'AvgPrice')
+        stopPrice = self.parse_number(self.omit_zero(self.safe_string(order, 'StopPrice')))
         status = self.parse_order_status(self.safe_string(order, 'OrderState'))
-        fee = None
-        trades = None
         return self.safe_order({
             'id': id,
             'clientOrderId': clientOrderId,
@@ -1092,7 +1141,7 @@ class ndax(Exchange):
             'status': status,
             'symbol': symbol,
             'type': type,
-            'timeInForce': timeInForce,
+            'timeInForce': None,
             'postOnly': None,
             'side': side,
             'price': price,
@@ -1102,9 +1151,9 @@ class ndax(Exchange):
             'filled': filled,
             'average': average,
             'remaining': None,
-            'fee': fee,
-            'trades': trades,
-        })
+            'fee': None,
+            'trades': None,
+        }, market)
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         omsId = self.safe_integer(self.options, 'omsId', 1)
@@ -1460,7 +1509,7 @@ class ndax(Exchange):
         #             "PegPriceType":"Unknown",
         #             "PegOffset":0.0000000000000000000000000000,
         #             "PegLimitOffset":0.0000000000000000000000000000,
-        #             "IpAddress":"5.228.233.138",
+        #             "IpAddress":"x.x.x.x",
         #             "ClientOrderIdUuid":null,
         #             "OMSId":1
         #         },
@@ -1527,7 +1576,7 @@ class ndax(Exchange):
         #         "PegPriceType":"Unknown",
         #         "PegOffset":0.0000000000000000000000000000,
         #         "PegLimitOffset":0.0000000000000000000000000000,
-        #         "IpAddress":"5.228.233.138",
+        #         "IpAddress":"x.x.x.x",
         #         "ClientOrderIdUuid":null,
         #         "OMSId":1
         #     }
@@ -1547,7 +1596,7 @@ class ndax(Exchange):
         request = {
             'OMSId': int(omsId),
             # 'AccountId': accountId,
-            'OrderId': id,
+            'OrderId': int(id),
         }
         response = self.privatePostGetOrderHistoryByOrderId(self.extend(request, params))
         #
@@ -1594,7 +1643,7 @@ class ndax(Exchange):
         #             "PegPriceType":"Unknown",
         #             "PegOffset":0.0000000000000000000000000000,
         #             "PegLimitOffset":0.0000000000000000000000000000,
-        #             "IpAddress":"5.228.233.138",
+        #             "IpAddress":"x.x.x.x",
         #             "ClientOrderIdUuid":null,
         #             "OMSId":1
         #         },
@@ -1663,6 +1712,7 @@ class ndax(Exchange):
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': None,
             'info': depositAddress,
         }
 
@@ -1891,8 +1941,13 @@ class ndax(Exchange):
         }
 
     def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
+        # self method required login, password and twofa key
+        sessionToken = self.safe_string(self.options, 'sessionToken')
+        if sessionToken is None:
+            raise AuthenticationError(self.id + ' call signIn() method to obtain a session token')
         if self.twofa is None:
-            raise ExchangeError(self.id + ' withdraw() requires exchange.twofa credential for OATH codes')
+            raise AuthenticationError(self.id + ' withdraw() requires exchange.twofa credentials')
         self.check_address(address)
         omsId = self.safe_integer(self.options, 'omsId', 1)
         self.load_markets()
@@ -1973,19 +2028,40 @@ class ndax(Exchange):
         url = self.urls['api'][api] + '/' + self.implode_params(path, params)
         query = self.omit(params, self.extract_params(path))
         if api == 'public':
+            if path == 'Authenticate':
+                auth = self.login + ':' + self.password
+                auth64 = self.string_to_base64(auth)
+                headers = {
+                    'Authorization': 'Basic ' + self.decode(auth64),
+                    # 'Content-Type': 'application/json',
+                }
+            elif path == 'Authenticate2FA':
+                pending2faToken = self.safe_string(self.options, 'pending2faToken')
+                if pending2faToken is not None:
+                    headers = {
+                        'Pending2FaToken': pending2faToken,
+                        # 'Content-Type': 'application/json',
+                    }
+                    query = self.omit(query, 'pending2faToken')
             if query:
                 url += '?' + self.urlencode(query)
         elif api == 'private':
             self.check_required_credentials()
-            nonce = str(self.nonce())
-            auth = nonce + self.uid + self.apiKey
-            signature = self.hmac(self.encode(auth), self.encode(self.secret))
-            headers = {
-                'Nonce': nonce,
-                'APIKey': self.apiKey,
-                'Signature': signature,
-                'UserId': self.uid,
-            }
+            sessionToken = self.safe_string(self.options, 'sessionToken')
+            if sessionToken is None:
+                nonce = str(self.nonce())
+                auth = nonce + self.uid + self.apiKey
+                signature = self.hmac(self.encode(auth), self.encode(self.secret))
+                headers = {
+                    'Nonce': nonce,
+                    'APIKey': self.apiKey,
+                    'Signature': signature,
+                    'UserId': self.uid,
+                }
+            else:
+                headers = {
+                    'APToken': sessionToken,
+                }
             if method == 'POST':
                 headers['Content-Type'] = 'application/json'
                 body = self.json(query)

@@ -16,7 +16,7 @@ from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import BadSymbol
 from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
-from ccxt.base.precise import Precise
+from ccxt.base.errors import RateLimitExceeded
 
 
 class qtrade(Exchange):
@@ -36,30 +36,30 @@ class qtrade(Exchange):
                 'referral': 'https://qtrade.io/?ref=BKOQWVFGRH2C',
             },
             'has': {
-                'CORS': False,
-                'fetchTrades': True,
+                'cancelOrder': True,
+                'CORS': None,
+                'createMarketOrder': None,
+                'createOrder': True,
+                'fetchBalance': True,
+                'fetchClosedOrders': True,
+                'fetchCurrencies': True,
+                'fetchDeposit': True,
+                'fetchDepositAddress': True,
+                'fetchDeposits': True,
+                'fetchMarkets': True,
+                'fetchMyTrades': True,
+                'fetchOHLCV': True,
+                'fetchOpenOrders': True,
+                'fetchOrder': True,
+                'fetchOrderBook': True,
+                'fetchOrders': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
-                'fetchMarkets': True,
-                'fetchCurrencies': True,
-                'fetchBalance': True,
-                'fetchOrderBook': True,
-                'fetchOrder': True,
-                'fetchOrders': True,
-                'fetchMyTrades': True,
-                'fetchClosedOrders': True,
-                'fetchOpenOrders': True,
-                'fetchOHLCV': True,
-                'createOrder': True,
-                'cancelOrder': True,
-                'createMarketOrder': False,
-                'withdraw': True,
-                'fetchDepositAddress': True,
-                'fetchTransactions': False,
-                'fetchDeposits': True,
-                'fetchWithdrawals': True,
-                'fetchDeposit': True,
+                'fetchTrades': True,
+                'fetchTransactions': None,
                 'fetchWithdrawal': True,
+                'fetchWithdrawals': True,
+                'withdraw': True,
             },
             'timeframes': {
                 '5m': 'fivemin',
@@ -111,14 +111,18 @@ class qtrade(Exchange):
             },
             'fees': {
                 'trading': {
+                    'feeSide': 'quote',
                     'tierBased': True,
                     'percentage': True,
-                    'taker': 0.0025,
+                    'taker': 0.005,
                     'maker': 0.0,
                 },
                 'funding': {
                     'withdraw': {},
                 },
+            },
+            'commonCurrencies': {
+                'BTM': 'Bitmark',
             },
             'exceptions': {
                 'exact': {
@@ -126,6 +130,7 @@ class qtrade(Exchange):
                     'insuff_funds': InsufficientFunds,
                     'market_not_found': BadSymbol,  # {"errors":[{"code":"market_not_found","title":"Requested market does not exist"}]}
                     'too_small': InvalidOrder,
+                    'limit_exceeded': RateLimitExceeded,  # {"errors":[{"code":"limit_exceeded","title":"You have exceeded the windowed rate limit. Please see docs."}]}
                 },
             },
         })
@@ -191,6 +196,8 @@ class qtrade(Exchange):
                 'quoteId': quoteId,
                 'base': base,
                 'quote': quote,
+                'type': 'spot',
+                'spot': True,
                 'active': active,
                 'precision': precision,
                 'taker': self.safe_number(market, 'taker_fee'),
@@ -410,12 +417,10 @@ class qtrade(Exchange):
             percentage = day_change * 100
             if previous is not None:
                 change = day_change * previous
-        if (average is None) and (last is not None) and (previous is not None):
-            average = self.sum(last, previous) / 2
         baseVolume = self.safe_number(ticker, 'day_volume_market')
         quoteVolume = self.safe_number(ticker, 'day_volume_base')
         vwap = self.vwap(baseVolume, quoteVolume)
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -436,7 +441,7 @@ class qtrade(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }
+        }, market)
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
@@ -622,16 +627,12 @@ class qtrade(Exchange):
             timestamp = self.parse8601(self.safe_string(trade, 'created_at'))
         side = self.safe_string(trade, 'side')
         marketId = self.safe_string(trade, 'market_string')
-        symbol = self.safe_symbol(marketId, market, '_')
-        cost = self.safe_number_2(trade, 'base_volume', 'base_amount')
-        priceString = self.safe_string(trade, 'price')
-        amountString = self.safe_string_2(trade, 'market_amount', 'amount')
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        if cost is None:
-            cost = self.parse_number(Precise.string_mul(priceString, amountString))
+        market = self.safe_market(marketId, market)
+        cost = self.safe_string_2(trade, 'base_volume', 'base_amount')
+        price = self.safe_string(trade, 'price')
+        amount = self.safe_string_2(trade, 'market_amount', 'amount')
         fee = None
-        feeCost = self.safe_number(trade, 'base_fee')
+        feeCost = self.safe_string(trade, 'base_fee')
         if feeCost is not None:
             feeCurrencyCode = None if (market is None) else market['quote']
             fee = {
@@ -641,12 +642,12 @@ class qtrade(Exchange):
         taker = self.safe_value(trade, 'taker', True)
         takerOrMaker = 'taker' if taker else 'maker'
         orderId = self.safe_string(trade, 'order_id')
-        result = {
+        return self.safe_trade({
             'id': id,
             'info': trade,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'symbol': symbol,
+            'symbol': market['symbol'],
             'order': orderId,
             'type': None,
             'side': side,
@@ -655,27 +656,9 @@ class qtrade(Exchange):
             'amount': amount,
             'cost': cost,
             'fee': fee,
-        }
-        return result
+        }, market)
 
-    async def fetch_balance(self, params={}):
-        await self.load_markets()
-        response = await self.privateGetBalancesAll(params)
-        #
-        #     {
-        #         "data":{
-        #             "balances": [
-        #                 {"balance": "100000000", "currency": "BCH"},
-        #                 {"balance": "99992435.78253015", "currency": "LTC"},
-        #                 {"balance": "99927153.76074182", "currency": "BTC"},
-        #             ],
-        #             "order_balances":[],
-        #             "limit_used":0,
-        #             "limit_remaining":4000,
-        #             "limit":4000
-        #         }
-        #     }
-        #
+    def parse_balance(self, response):
         data = self.safe_value(response, 'data', {})
         balances = self.safe_value(data, 'balances', [])
         result = {
@@ -699,7 +682,27 @@ class qtrade(Exchange):
             account = result[code] if (code in result) else self.account()
             account['used'] = self.safe_string(balance, 'balance')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.safe_balance(result)
+
+    async def fetch_balance(self, params={}):
+        await self.load_markets()
+        response = await self.privateGetBalancesAll(params)
+        #
+        #     {
+        #         "data":{
+        #             "balances": [
+        #                 {"balance": "100000000", "currency": "BCH"},
+        #                 {"balance": "99992435.78253015", "currency": "LTC"},
+        #                 {"balance": "99927153.76074182", "currency": "BTC"},
+        #             ],
+        #             "order_balances":[],
+        #             "limit_used":0,
+        #             "limit_remaining":4000,
+        #             "limit":4000
+        #         }
+        #     }
+        #
+        return self.parse_balance(response)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         if type != 'limit':
@@ -824,9 +827,9 @@ class qtrade(Exchange):
             parts = sideType.split('_')
             side = self.safe_string(parts, 0)
             orderType = self.safe_string(parts, 1)
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'market_amount')
-        remaining = self.safe_number(order, 'market_amount_remaining')
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'market_amount')
+        remaining = self.safe_string(order, 'market_amount_remaining')
         open = self.safe_value(order, 'open', False)
         closeReason = self.safe_string(order, 'close_reason')
         status = None
@@ -840,11 +843,6 @@ class qtrade(Exchange):
         market = self.safe_market(marketId, market, '_')
         symbol = market['symbol']
         rawTrades = self.safe_value(order, 'trades', [])
-        parsedTrades = self.parse_trades(rawTrades, market, None, None, {
-            'order': id,
-            'side': side,
-            'type': orderType,
-        })
         return self.safe_order({
             'info': order,
             'id': id,
@@ -867,8 +865,8 @@ class qtrade(Exchange):
             'fee': None,
             'fees': None,
             'cost': None,
-            'trades': parsedTrades,
-        })
+            'trades': rawTrades,
+        }, market)
 
     async def cancel_order(self, id, symbol=None, params={}):
         request = {
@@ -997,6 +995,7 @@ class qtrade(Exchange):
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': None,
             'info': depositAddress,
         }
 
@@ -1359,6 +1358,7 @@ class qtrade(Exchange):
         return self.safe_string(statuses, status, status)
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         await self.load_markets()
         currency = self.currency(code)
         request = {

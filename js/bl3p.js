@@ -12,13 +12,13 @@ module.exports = class bl3p extends Exchange {
         return this.deepExtend (super.describe (), {
             'id': 'bl3p',
             'name': 'BL3P',
-            'countries': [ 'NL', 'EU' ], // Netherlands, EU
+            'countries': [ 'NL' ], // Netherlands
             'rateLimit': 1000,
             'version': '1',
             'comment': 'An exchange market by BitonicNL',
             'has': {
-                'CORS': false,
                 'cancelOrder': true,
+                'CORS': undefined,
                 'createOrder': true,
                 'fetchBalance': true,
                 'fetchOrderBook': true,
@@ -61,15 +61,13 @@ module.exports = class bl3p extends Exchange {
                 },
             },
             'markets': {
-                'BTC/EUR': { 'id': 'BTCEUR', 'symbol': 'BTC/EUR', 'base': 'BTC', 'quote': 'EUR', 'baseId': 'BTC', 'quoteId': 'EUR', 'maker': 0.0025, 'taker': 0.0025 },
-                'LTC/EUR': { 'id': 'LTCEUR', 'symbol': 'LTC/EUR', 'base': 'LTC', 'quote': 'EUR', 'baseId': 'LTC', 'quoteId': 'EUR', 'maker': 0.0025, 'taker': 0.0025 },
+                'BTC/EUR': { 'id': 'BTCEUR', 'symbol': 'BTC/EUR', 'base': 'BTC', 'quote': 'EUR', 'baseId': 'BTC', 'quoteId': 'EUR', 'maker': 0.0025, 'taker': 0.0025, 'type': 'spot', 'spot': true },
+                'LTC/EUR': { 'id': 'LTCEUR', 'symbol': 'LTC/EUR', 'base': 'LTC', 'quote': 'EUR', 'baseId': 'LTC', 'quoteId': 'EUR', 'maker': 0.0025, 'taker': 0.0025, 'type': 'spot', 'spot': true },
             },
         });
     }
 
-    async fetchBalance (params = {}) {
-        await this.loadMarkets ();
-        const response = await this.privatePostGENMKTMoneyInfo (params);
+    parseBalance (response) {
         const data = this.safeValue (response, 'data', {});
         const wallets = this.safeValue (data, 'wallets');
         const result = { 'info': data };
@@ -86,7 +84,13 @@ module.exports = class bl3p extends Exchange {
             account['total'] = this.safeString (balance, 'value');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.safeBalance (result);
+    }
+
+    async fetchBalance (params = {}) {
+        await this.loadMarkets ();
+        const response = await this.privatePostGENMKTMoneyInfo (params);
+        return this.parseBalance (response);
     }
 
     parseBidAsk (bidask, priceKey = 0, amountKey = 1) {

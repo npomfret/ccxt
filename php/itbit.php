@@ -22,7 +22,7 @@ class itbit extends Exchange {
             'has' => array(
                 'cancelOrder' => true,
                 'CORS' => true,
-                'createMarketOrder' => false,
+                'createMarketOrder' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchClosedOrders' => true,
@@ -76,15 +76,15 @@ class itbit extends Exchange {
                 ),
             ),
             'markets' => array(
-                'BTC/USD' => array( 'id' => 'XBTUSD', 'symbol' => 'BTC/USD', 'base' => 'BTC', 'quote' => 'USD', 'baseId' => 'XBT', 'quoteId' => 'USD' ),
-                'BTC/SGD' => array( 'id' => 'XBTSGD', 'symbol' => 'BTC/SGD', 'base' => 'BTC', 'quote' => 'SGD', 'baseId' => 'XBT', 'quoteId' => 'SGD' ),
-                'BTC/EUR' => array( 'id' => 'XBTEUR', 'symbol' => 'BTC/EUR', 'base' => 'BTC', 'quote' => 'EUR', 'baseId' => 'XBT', 'quoteId' => 'EUR' ),
-                'ETH/USD' => array( 'id' => 'ETHUSD', 'symbol' => 'ETH/USD', 'base' => 'ETH', 'quote' => 'USD', 'baseId' => 'ETH', 'quoteId' => 'USD' ),
-                'ETH/EUR' => array( 'id' => 'ETHEUR', 'symbol' => 'ETH/EUR', 'base' => 'ETH', 'quote' => 'EUR', 'baseId' => 'ETH', 'quoteId' => 'EUR' ),
-                'ETH/SGD' => array( 'id' => 'ETHSGD', 'symbol' => 'ETH/SGD', 'base' => 'ETH', 'quote' => 'SGD', 'baseId' => 'ETH', 'quoteId' => 'SGD' ),
-                'PAXGUSD' => array( 'id' => 'PAXGUSD', 'symbol' => 'PAXG/USD', 'base' => 'PAXG', 'quote' => 'USD', 'baseId' => 'PAXG', 'quoteId' => 'USD' ),
-                'BCHUSD' => array( 'id' => 'BCHUSD', 'symbol' => 'BCH/USD', 'base' => 'BCH', 'quote' => 'USD', 'baseId' => 'BCH', 'quoteId' => 'USD' ),
-                'LTCUSD' => array( 'id' => 'LTCUSD', 'symbol' => 'LTC/USD', 'base' => 'LTC', 'quote' => 'USD', 'baseId' => 'LTC', 'quoteId' => 'USD' ),
+                'BTC/USD' => array( 'id' => 'XBTUSD', 'symbol' => 'BTC/USD', 'base' => 'BTC', 'quote' => 'USD', 'baseId' => 'XBT', 'quoteId' => 'USD', 'type' => 'spot', 'spot' => true ),
+                'BTC/SGD' => array( 'id' => 'XBTSGD', 'symbol' => 'BTC/SGD', 'base' => 'BTC', 'quote' => 'SGD', 'baseId' => 'XBT', 'quoteId' => 'SGD', 'type' => 'spot', 'spot' => true ),
+                'BTC/EUR' => array( 'id' => 'XBTEUR', 'symbol' => 'BTC/EUR', 'base' => 'BTC', 'quote' => 'EUR', 'baseId' => 'XBT', 'quoteId' => 'EUR', 'type' => 'spot', 'spot' => true ),
+                'ETH/USD' => array( 'id' => 'ETHUSD', 'symbol' => 'ETH/USD', 'base' => 'ETH', 'quote' => 'USD', 'baseId' => 'ETH', 'quoteId' => 'USD', 'type' => 'spot', 'spot' => true ),
+                'ETH/EUR' => array( 'id' => 'ETHEUR', 'symbol' => 'ETH/EUR', 'base' => 'ETH', 'quote' => 'EUR', 'baseId' => 'ETH', 'quoteId' => 'EUR', 'type' => 'spot', 'spot' => true ),
+                'ETH/SGD' => array( 'id' => 'ETHSGD', 'symbol' => 'ETH/SGD', 'base' => 'ETH', 'quote' => 'SGD', 'baseId' => 'ETH', 'quoteId' => 'SGD', 'type' => 'spot', 'spot' => true ),
+                'PAXGUSD' => array( 'id' => 'PAXGUSD', 'symbol' => 'PAXG/USD', 'base' => 'PAXG', 'quote' => 'USD', 'baseId' => 'PAXG', 'quoteId' => 'USD', 'type' => 'spot', 'spot' => true ),
+                'BCHUSD' => array( 'id' => 'BCHUSD', 'symbol' => 'BCH/USD', 'base' => 'BCH', 'quote' => 'USD', 'baseId' => 'BCH', 'quoteId' => 'USD', 'type' => 'spot', 'spot' => true ),
+                'LTCUSD' => array( 'id' => 'LTCUSD', 'symbol' => 'LTC/USD', 'base' => 'LTC', 'quote' => 'USD', 'baseId' => 'LTC', 'quoteId' => 'USD', 'type' => 'spot', 'spot' => true ),
             ),
             'fees' => array(
                 'trading' => array(
@@ -163,8 +163,8 @@ class itbit extends Exchange {
         // fetchMyTrades (private)
         //
         //     {
-        //         "$orderId" => "248ffda4-83a0-4033-a5bb-8929d523f59f",
-        //         "$timestamp" => "2015-05-11T14:48:01.9870000Z",
+        //         "orderId" => "248ffda4-83a0-4033-a5bb-8929d523f59f",
+        //         "timestamp" => "2015-05-11T14:48:01.9870000Z",
         //         "instrument" => "XBTUSD",
         //         "direction" => "buy",                      // buy or sell
         //         "currency1" => "XBT",                      // $base currency
@@ -174,8 +174,8 @@ class itbit extends Exchange {
         //         "rate" => "250.53000000",
         //         "commissionPaid" => "0.00000000",   // net $trade fee paid after using any available rebate balance
         //         "commissionCurrency" => "USD",
-        //         "$rebatesApplied" => "-0.000125265", // negative values represent $amount of rebate balance used for trades removing liquidity from order book; positive values represent $amount of rebate balance earned from trades adding liquidity to order book
-        //         "$rebateCurrency" => "USD",
+        //         "rebatesApplied" => "-0.000125265", // negative values represent $amount of rebate balance used for trades removing liquidity from order book; positive values represent $amount of rebate balance earned from trades adding liquidity to order book
+        //         "rebateCurrency" => "USD",
         //         "executionId" => "23132"
         //     }
         //
@@ -288,14 +288,14 @@ class itbit extends Exchange {
         //         walletName => 'Wallet',
         //         $status => 'completed' ),
         //
-        //     { "$time" => "2018-01-02T19:52:22.4176503",
+        //     { "time" => "2018-01-02T19:52:22.4176503",
         //     "amount" => "0.50000000",
-        //     "$status" => "completed",
-        //     "$txnHash" => "1b6fff67ed83cb9e9a38ca4976981fc047322bc088430508fe764a127d3ace95",
-        //     "$currency" => "XBT",
+        //     "status" => "completed",
+        //     "txnHash" => "1b6fff67ed83cb9e9a38ca4976981fc047322bc088430508fe764a127d3ace95",
+        //     "currency" => "XBT",
         //     "walletName" => "Wallet",
-        //     "$transactionType" => "Deposit",
-        //     "$destinationAddress" => "3AAWTH9et4e8o51YKp9qPpmujrNXKwHWNX"}
+        //     "transactionType" => "Deposit",
+        //     "destinationAddress" => "3AAWTH9et4e8o51YKp9qPpmujrNXKwHWNX"}
         $items = $response['fundingHistory'];
         $result = array();
         for ($i = 0; $i < count($items); $i++) {
@@ -408,9 +408,7 @@ class itbit extends Exchange {
         return $this->parse_trades($trades, $market, $since, $limit);
     }
 
-    public function fetch_balance($params = array ()) {
-        $this->load_markets();
-        $response = $this->fetch_wallets($params);
+    public function parse_balance($response) {
         $balances = $response[0]['balances'];
         $result = array( 'info' => $response );
         for ($i = 0; $i < count($balances); $i++) {
@@ -422,7 +420,13 @@ class itbit extends Exchange {
             $account['total'] = $this->safe_string($balance, 'totalBalance');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        $this->load_markets();
+        $response = $this->fetch_wallets($params);
+        return $this->parse_balance($response);
     }
 
     public function fetch_wallets($params = array ()) {
@@ -490,15 +494,15 @@ class itbit extends Exchange {
     public function parse_order($order, $market = null) {
         //
         //     {
-        //         "$id" => "13d6af57-8b0b-41e5-af30-becf0bcc574d",
+        //         "id" => "13d6af57-8b0b-41e5-af30-becf0bcc574d",
         //         "walletId" => "7e037345-1288-4c39-12fe-d0f99a475a98",
-        //         "$side" => "buy",
+        //         "side" => "buy",
         //         "instrument" => "XBTUSD",
-        //         "$type" => "limit",
+        //         "type" => "limit",
         //         "currency" => "XBT",
-        //         "$amount" => "2.50000000",
+        //         "amount" => "2.50000000",
         //         "displayAmount" => "2.50000000",
-        //         "$price" => "650.00000000",
+        //         "price" => "650.00000000",
         //         "volumeWeightedAveragePrice" => "0.00000000",
         //         "amountFilled" => "0.00000000",
         //         "createdTime" => "2014-02-11T17:05:15Z",
@@ -506,18 +510,18 @@ class itbit extends Exchange {
         //         "funds" => null,
         //         "metadata" => array(),
         //         "clientOrderIdentifier" => null,
-        //         "$postOnly" => "False"
+        //         "postOnly" => "False"
         //     }
         //
         $side = $this->safe_string($order, 'side');
         $type = $this->safe_string($order, 'type');
         $symbol = $this->markets_by_id[$order['instrument']]['symbol'];
         $timestamp = $this->parse8601($order['createdTime']);
-        $amount = $this->safe_number($order, 'amount');
-        $filled = $this->safe_number($order, 'amountFilled');
+        $amount = $this->safe_string($order, 'amount');
+        $filled = $this->safe_string($order, 'amountFilled');
         $fee = null;
-        $price = $this->safe_number($order, 'price');
-        $average = $this->safe_number($order, 'volumeWeightedAveragePrice');
+        $price = $this->safe_string($order, 'price');
+        $average = $this->safe_string($order, 'volumeWeightedAveragePrice');
         $clientOrderId = $this->safe_string($order, 'clientOrderIdentifier');
         $id = $this->safe_string($order, 'id');
         $postOnlyString = $this->safe_string($order, 'postOnly');
@@ -545,7 +549,7 @@ class itbit extends Exchange {
             'fee' => $fee,
             // 'trades' => $this->parse_trades($order['trades'], $market),
             'trades' => null,
-        ));
+        ), $market);
     }
 
     public function nonce() {
@@ -634,11 +638,13 @@ class itbit extends Exchange {
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 
-    public function request($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
-        $response = $this->fetch2($path, $api, $method, $params, $headers, $body);
-        if (is_array($response) && array_key_exists('code', $response)) {
+    public function handle_errors($httpCode, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
+        if ($response === null) {
+            return;
+        }
+        $code = $this->safe_string($response, 'code');
+        if ($code !== null) {
             throw new ExchangeError($this->id . ' ' . $this->json($response));
         }
-        return $response;
     }
 }

@@ -24,7 +24,7 @@ class lbank extends Exchange {
                 'fetchClosedOrders' => true,
                 'fetchMarkets' => true,
                 'fetchOHLCV' => true,
-                'fetchOpenOrders' => false, // status 0 API doesn't work
+                'fetchOpenOrders' => null, // status 0 API doesn't work
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
                 'fetchOrders' => true,
@@ -82,34 +82,11 @@ class lbank extends Exchange {
             ),
             'fees' => array(
                 'trading' => array(
-                    'maker' => 0.1 / 100,
-                    'taker' => 0.1 / 100,
+                    'maker' => $this->parse_number('0.001'),
+                    'taker' => $this->parse_number('0.001'),
                 ),
                 'funding' => array(
-                    'withdraw' => array(
-                        'BTC' => null,
-                        'ZEC' => 0.01,
-                        'ETH' => 0.01,
-                        'ETC' => 0.01,
-                        // 'QTUM' => amount => max (0.01, amount * (0.1 / 100)),
-                        'VEN' => 10.0,
-                        'BCH' => 0.0002,
-                        'SC' => 50.0,
-                        'BTM' => 20.0,
-                        'NAS' => 1.0,
-                        'EOS' => 1.0,
-                        'XWC' => 5.0,
-                        'BTS' => 1.0,
-                        'INK' => 10.0,
-                        'BOT' => 3.0,
-                        'YOYOW' => 15.0,
-                        'TGC' => 10.0,
-                        'NEO' => 0.0,
-                        'CMT' => 20.0,
-                        'SEER' => 2000.0,
-                        'FIL' => null,
-                        'BTG' => null,
-                    ),
+                    'withdraw' => array(),
                 ),
             ),
             'commonCurrencies' => array(
@@ -154,6 +131,8 @@ class lbank extends Exchange {
                 'quote' => $quote,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
+                'type' => 'spot',
+                'spot' => true,
                 'active' => true,
                 'precision' => $precision,
                 'limits' => array(
@@ -181,7 +160,7 @@ class lbank extends Exchange {
         if ($market === null) {
             $marketId = $this->safe_string($ticker, 'symbol');
             if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
-                $market = $this->marketsById[$marketId];
+                $market = $this->markets_by_id[$marketId];
                 $symbol = $market['symbol'];
             } else {
                 $parts = explode('_', $marketId);
@@ -381,31 +360,7 @@ class lbank extends Exchange {
         return $this->parse_ohlcvs($response, $market, $timeframe, $since, $limit);
     }
 
-    public function fetch_balance($params = array ()) {
-        yield $this->load_markets();
-        $response = yield $this->privatePostUserInfo ($params);
-        //
-        //     {
-        //         "$result":"true",
-        //         "$info":{
-        //             "$freeze":array(
-        //                 "iog":"0.00000000",
-        //                 "ssc":"0.00000000",
-        //                 "eon":"0.00000000",
-        //             ),
-        //             "$asset":array(
-        //                 "iog":"0.00000000",
-        //                 "ssc":"0.00000000",
-        //                 "eon":"0.00000000",
-        //             ),
-        //             "$free":array(
-        //                 "iog":"0.00000000",
-        //                 "ssc":"0.00000000",
-        //                 "eon":"0.00000000",
-        //             ),
-        //         }
-        //     }
-        //
+    public function parse_balance($response) {
         $result = array(
             'info' => $response,
             'timestamp' => null,
@@ -425,7 +380,35 @@ class lbank extends Exchange {
             $account['total'] = $this->safe_string($asset, $currencyId);
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        yield $this->load_markets();
+        $response = yield $this->privatePostUserInfo ($params);
+        //
+        //     {
+        //         "result":"true",
+        //         "info":{
+        //             "freeze":array(
+        //                 "iog":"0.00000000",
+        //                 "ssc":"0.00000000",
+        //                 "eon":"0.00000000",
+        //             ),
+        //             "asset":array(
+        //                 "iog":"0.00000000",
+        //                 "ssc":"0.00000000",
+        //                 "eon":"0.00000000",
+        //             ),
+        //             "free":array(
+        //                 "iog":"0.00000000",
+        //                 "ssc":"0.00000000",
+        //                 "eon":"0.00000000",
+        //             ),
+        //         }
+        //     }
+        //
+        return $this->parse_balance($response);
     }
 
     public function parse_order_status($status) {
@@ -442,15 +425,15 @@ class lbank extends Exchange {
     public function parse_order($order, $market = null) {
         //
         //     {
-        //         "$symbol"："eth_btc",
-        //         "$amount"：10.000000,
+        //         "symbol"："eth_btc",
+        //         "amount"：10.000000,
         //         "create_time"：1484289832081,
-        //         "$price"：5000.000000,
+        //         "price"：5000.000000,
         //         "avg_price"：5277.301200,
-        //         "$type"："sell",
+        //         "type"："sell",
         //         "order_id"："ab704110-af0d-48fd-a083-c218f19a4a55",
         //         "deal_amount"：10.000000,
-        //         "$status"：2
+        //         "status"：2
         //     }
         //
         $marketId = $this->safe_string($order, 'symbol');
@@ -458,10 +441,10 @@ class lbank extends Exchange {
         $timestamp = $this->safe_integer($order, 'create_time');
         // Limit Order Request Returns => Order Price
         // Market Order Returns => cny $amount of $market $order
-        $price = $this->safe_number($order, 'price');
-        $amount = $this->safe_number($order, 'amount', 0.0);
-        $filled = $this->safe_number($order, 'deal_amount', 0.0);
-        $average = $this->safe_number($order, 'avg_price');
+        $price = $this->safe_string($order, 'price');
+        $amount = $this->safe_string($order, 'amount');
+        $filled = $this->safe_string($order, 'deal_amount');
+        $average = $this->safe_string($order, 'avg_price');
         $status = $this->parse_order_status($this->safe_string($order, 'status'));
         $id = $this->safe_string($order, 'order_id');
         $type = $this->safe_string($order, 'order_type');
@@ -488,7 +471,7 @@ class lbank extends Exchange {
             'fee' => null,
             'info' => $this->safe_value($order, 'info', $order),
             'average' => $average,
-        ));
+        ), $market);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -569,6 +552,7 @@ class lbank extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         // mark and fee are optional $params, mark is a note and must be less than 255 characters
         $this->check_address($address);
         yield $this->load_markets();
@@ -637,8 +621,10 @@ class lbank extends Exchange {
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 
-    public function request($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
-        $response = yield $this->fetch2($path, $api, $method, $params, $headers, $body);
+    public function handle_errors($httpCode, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
+        if ($response === null) {
+            return;
+        }
         $success = $this->safe_string($response, 'result');
         if ($success === 'false') {
             $errorCode = $this->safe_string($response, 'error_code');
@@ -684,6 +670,5 @@ class lbank extends Exchange {
             ), $errorCode, '\\ccxt\\ExchangeError');
             throw new $ErrorClass($message);
         }
-        return $response;
     }
 }

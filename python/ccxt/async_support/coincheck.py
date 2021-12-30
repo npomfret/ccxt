@@ -5,8 +5,8 @@
 
 from ccxt.async_support.base.exchange import Exchange
 from ccxt.base.errors import ExchangeError
+from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import BadSymbol
-from ccxt.base.precise import Precise
 
 
 class coincheck(Exchange):
@@ -19,12 +19,12 @@ class coincheck(Exchange):
             'rateLimit': 1500,
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
+                'CORS': None,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchMyTrades': True,
-                'fetchOrderBook': True,
                 'fetchOpenOrders': True,
+                'fetchOrderBook': True,
                 'fetchTicker': True,
                 'fetchTrades': True,
             },
@@ -82,13 +82,13 @@ class coincheck(Exchange):
                 },
             },
             'markets': {
-                'BTC/JPY': {'id': 'btc_jpy', 'symbol': 'BTC/JPY', 'base': 'BTC', 'quote': 'JPY', 'baseId': 'btc', 'quoteId': 'jpy'},  # the only real pair
+                'BTC/JPY': {'id': 'btc_jpy', 'symbol': 'BTC/JPY', 'base': 'BTC', 'quote': 'JPY', 'baseId': 'btc', 'quoteId': 'jpy', 'type': 'spot', 'spot': True},  # the only real pair
                 # 'ETH/JPY': {'id': 'eth_jpy', 'symbol': 'ETH/JPY', 'base': 'ETH', 'quote': 'JPY', 'baseId': 'eth', 'quoteId': 'jpy'},
-                'ETC/JPY': {'id': 'etc_jpy', 'symbol': 'ETC/JPY', 'base': 'ETC', 'quote': 'JPY', 'baseId': 'etc', 'quoteId': 'jpy'},
+                'ETC/JPY': {'id': 'etc_jpy', 'symbol': 'ETC/JPY', 'base': 'ETC', 'quote': 'JPY', 'baseId': 'etc', 'quoteId': 'jpy', 'type': 'spot', 'spot': True},
                 # 'DAO/JPY': {'id': 'dao_jpy', 'symbol': 'DAO/JPY', 'base': 'DAO', 'quote': 'JPY', 'baseId': 'dao', 'quoteId': 'jpy'},
                 # 'LSK/JPY': {'id': 'lsk_jpy', 'symbol': 'LSK/JPY', 'base': 'LSK', 'quote': 'JPY', 'baseId': 'lsk', 'quoteId': 'jpy'},
-                'FCT/JPY': {'id': 'fct_jpy', 'symbol': 'FCT/JPY', 'base': 'FCT', 'quote': 'JPY', 'baseId': 'fct', 'quoteId': 'jpy'},
-                'MONA/JPY': {'id': 'mona_jpy', 'symbol': 'MONA/JPY', 'base': 'MONA', 'quote': 'JPY', 'baseId': 'mona', 'quoteId': 'jpy'},
+                'FCT/JPY': {'id': 'fct_jpy', 'symbol': 'FCT/JPY', 'base': 'FCT', 'quote': 'JPY', 'baseId': 'fct', 'quoteId': 'jpy', 'type': 'spot', 'spot': True},
+                'MONA/JPY': {'id': 'mona_jpy', 'symbol': 'MONA/JPY', 'base': 'MONA', 'quote': 'JPY', 'baseId': 'mona', 'quoteId': 'jpy', 'type': 'spot', 'spot': True},
                 # 'XMR/JPY': {'id': 'xmr_jpy', 'symbol': 'XMR/JPY', 'base': 'XMR', 'quote': 'JPY', 'baseId': 'xmr', 'quoteId': 'jpy'},
                 # 'REP/JPY': {'id': 'rep_jpy', 'symbol': 'REP/JPY', 'base': 'REP', 'quote': 'JPY', 'baseId': 'rep', 'quoteId': 'jpy'},
                 # 'XRP/JPY': {'id': 'xrp_jpy', 'symbol': 'XRP/JPY', 'base': 'XRP', 'quote': 'JPY', 'baseId': 'xrp', 'quoteId': 'jpy'},
@@ -97,7 +97,7 @@ class coincheck(Exchange):
                 # 'LTC/JPY': {'id': 'ltc_jpy', 'symbol': 'LTC/JPY', 'base': 'LTC', 'quote': 'JPY', 'baseId': 'ltc', 'quoteId': 'jpy'},
                 # 'DASH/JPY': {'id': 'dash_jpy', 'symbol': 'DASH/JPY', 'base': 'DASH', 'quote': 'JPY', 'baseId': 'dash', 'quoteId': 'jpy'},
                 # 'ETH/BTC': {'id': 'eth_btc', 'symbol': 'ETH/BTC', 'base': 'ETH', 'quote': 'BTC', 'baseId': 'eth', 'quoteId': 'btc'},
-                'ETC/BTC': {'id': 'etc_btc', 'symbol': 'ETC/BTC', 'base': 'ETC', 'quote': 'BTC', 'baseId': 'etc', 'quoteId': 'btc'},
+                'ETC/BTC': {'id': 'etc_btc', 'symbol': 'ETC/BTC', 'base': 'ETC', 'quote': 'BTC', 'baseId': 'etc', 'quoteId': 'btc', 'type': 'spot', 'spot': True},
                 # 'LSK/BTC': {'id': 'lsk_btc', 'symbol': 'LSK/BTC', 'base': 'LSK', 'quote': 'BTC', 'baseId': 'lsk', 'quoteId': 'btc'},
                 # 'FCT/BTC': {'id': 'fct_btc', 'symbol': 'FCT/BTC', 'base': 'FCT', 'quote': 'BTC', 'baseId': 'fct', 'quoteId': 'btc'},
                 # 'XMR/BTC': {'id': 'xmr_btc', 'symbol': 'XMR/BTC', 'base': 'XMR', 'quote': 'BTC', 'baseId': 'xmr', 'quoteId': 'btc'},
@@ -112,27 +112,38 @@ class coincheck(Exchange):
                 'trading': {
                     'tierBased': False,
                     'percentage': True,
-                    'maker': 0,
-                    'taker': 0,
+                    'maker': self.parse_number('0'),
+                    'taker': self.parse_number('0'),
                 },
+            },
+            'exceptions': {
+                'exact': {
+                    'disabled API Key': AuthenticationError,  # {"success":false,"error":"disabled API Key"}'
+                    'invalid authentication': AuthenticationError,  # {"success":false,"error":"invalid authentication"}
+                },
+                'broad': {},
             },
         })
 
-    async def fetch_balance(self, params={}):
-        await self.load_markets()
-        balances = await self.privateGetAccountsBalance(params)
-        result = {'info': balances}
+    def parse_balance(self, response):
+        result = {'info': response}
         codes = list(self.currencies.keys())
         for i in range(0, len(codes)):
             code = codes[i]
-            currencyId = self.currency_id(code)
-            if currencyId in balances:
+            currency = self.currency(code)
+            currencyId = currency['id']
+            if currencyId in response:
                 account = self.account()
                 reserved = currencyId + '_reserved'
-                account['free'] = self.safe_string(balances, currencyId)
-                account['used'] = self.safe_string(balances, reserved)
+                account['free'] = self.safe_string(response, currencyId)
+                account['used'] = self.safe_string(response, reserved)
                 result[code] = account
-        return self.parse_balance(result, False)
+        return self.safe_balance(result)
+
+    async def fetch_balance(self, params={}):
+        await self.load_markets()
+        response = await self.privateGetAccountsBalance(params)
+        return self.parse_balance(response)
 
     async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -166,9 +177,9 @@ class coincheck(Exchange):
         id = self.safe_string(order, 'id')
         side = self.safe_string(order, 'order_type')
         timestamp = self.parse8601(self.safe_string(order, 'created_at'))
-        amount = self.safe_number(order, 'pending_amount')
-        remaining = self.safe_number(order, 'pending_amount')
-        price = self.safe_number(order, 'rate')
+        amount = self.safe_string(order, 'pending_amount')
+        remaining = self.safe_string(order, 'pending_amount')
+        price = self.safe_string(order, 'rate')
         status = None
         marketId = self.safe_string(order, 'pair')
         symbol = self.safe_symbol(marketId, market, '_')
@@ -194,7 +205,7 @@ class coincheck(Exchange):
             'info': order,
             'average': None,
             'trades': None,
-        })
+        }, market)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -240,6 +251,36 @@ class coincheck(Exchange):
         }
 
     def parse_trade(self, trade, market=None):
+        #
+        # fetchTrades(public)
+        #
+        #      {
+        #          "id": "206849494",
+        #          "amount": "0.01",
+        #          "rate": "5598346.0",
+        #          "pair": "btc_jpy",
+        #          "order_type": "sell",
+        #          "created_at": "2021-12-08T14:10:33.000Z"
+        #      }
+        #
+        # fetchMyTrades(private) - example from docs
+        #
+        #      {
+        #          "id": 38,
+        #          "order_id": 49,
+        #          "created_at": "2015-11-18T07:02:21.000Z",
+        #          "funds": {
+        #              "btc": "0.1",
+        #              "jpy": "-4096.135"
+        #                  },
+        #           "pair": "btc_jpy",
+        #           "rate": "40900.0",
+        #           "fee_currency": "JPY",
+        #           "fee": "6.135",
+        #           "liquidity": "T",
+        #           "side": "buy"
+        #      }
+        #
         timestamp = self.parse8601(self.safe_string(trade, 'created_at'))
         id = self.safe_string(trade, 'id')
         priceString = self.safe_string(trade, 'rate')
@@ -266,7 +307,7 @@ class coincheck(Exchange):
                 symbol = market['symbol']
         takerOrMaker = None
         amountString = None
-        cost = None
+        costString = None
         side = None
         fee = None
         orderId = None
@@ -277,21 +318,17 @@ class coincheck(Exchange):
                 takerOrMaker = 'maker'
             funds = self.safe_value(trade, 'funds', {})
             amountString = self.safe_string(funds, baseId)
-            cost = self.safe_number(funds, quoteId)
+            costString = self.safe_string(funds, quoteId)
             fee = {
                 'currency': self.safe_string(trade, 'fee_currency'),
-                'cost': self.safe_number(trade, 'fee'),
+                'cost': self.safe_string(trade, 'fee'),
             }
             side = self.safe_string(trade, 'side')
             orderId = self.safe_string(trade, 'order_id')
         else:
             amountString = self.safe_string(trade, 'amount')
             side = self.safe_string(trade, 'order_type')
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        if cost is None:
-            cost = self.parse_number(Precise.string_mul(priceString, amountString))
-        return {
+        return self.safe_trade({
             'id': id,
             'info': trade,
             'datetime': self.iso8601(timestamp),
@@ -301,16 +338,38 @@ class coincheck(Exchange):
             'side': side,
             'order': orderId,
             'takerOrMaker': takerOrMaker,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': costString,
             'fee': fee,
-        }
+        }, market)
 
     async def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
         response = await self.privateGetExchangeOrdersTransactions(self.extend({}, params))
+        #
+        #      {
+        #          "success": True,
+        #          "transactions": [
+        #                              {
+        #                                  "id": 38,
+        #                                  "order_id": 49,
+        #                                  "created_at": "2015-11-18T07:02:21.000Z",
+        #                                  "funds": {
+        #                                      "btc": "0.1",
+        #                                      "jpy": "-4096.135"
+        #                                          },
+        #                                  "pair": "btc_jpy",
+        #                                  "rate": "40900.0",
+        #                                  "fee_currency": "JPY",
+        #                                  "fee": "6.135",
+        #                                  "liquidity": "T",
+        #                                  "side": "buy"
+        #                               },
+        #                          ]
+        #      }
+        #
         transactions = self.safe_value(response, 'transactions', [])
         return self.parse_trades(transactions, market, since, limit)
 
@@ -323,6 +382,16 @@ class coincheck(Exchange):
         if limit is not None:
             request['limit'] = limit
         response = await self.publicGetTrades(self.extend(request, params))
+        #
+        #      {
+        #          "id": "206849494",
+        #          "amount": "0.01",
+        #          "rate": "5598346.0",
+        #          "pair": "btc_jpy",
+        #          "order_type": "sell",
+        #          "created_at": "2021-12-08T14:10:33.000Z"
+        #      }
+        #
         data = self.safe_value(response, 'data', [])
         return self.parse_trades(data, market, since, limit)
 
@@ -382,11 +451,17 @@ class coincheck(Exchange):
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    async def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        response = await self.fetch2(path, api, method, params, headers, body)
-        if api == 'public':
-            return response
-        if 'success' in response:
-            if response['success']:
-                return response
-        raise ExchangeError(self.id + ' ' + self.json(response))
+    def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        if response is None:
+            return
+        #
+        #     {"success":false,"error":"disabled API Key"}'
+        #     {"success":false,"error":"invalid authentication"}
+        #
+        success = self.safe_value(response, 'success', True)
+        if not success:
+            error = self.safe_string(response, 'error')
+            feedback = self.id + ' ' + self.json(response)
+            self.throw_exactly_matched_exception(self.exceptions['exact'], error, feedback)
+            self.throw_broadly_matched_exception(self.exceptions['broad'], body, feedback)
+            raise ExchangeError(self.id + ' ' + self.json(response))

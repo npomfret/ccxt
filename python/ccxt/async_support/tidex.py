@@ -14,6 +14,7 @@ except NameError:
 import hashlib
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
+from ccxt.base.errors import PermissionDenied
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
@@ -35,8 +36,8 @@ class tidex(Exchange):
             'userAgent': self.userAgents['chrome'],
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
-                'createMarketOrder': False,
+                'CORS': None,
+                'createMarketOrder': None,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchCurrencies': True,
@@ -95,10 +96,9 @@ class tidex(Exchange):
                         'OrderInfo',
                         'CancelOrder',
                         'TradeHistory',
-                        'CoinDepositAddress',
-                        'WithdrawCoin',
-                        'CreateCoupon',
-                        'RedeemCoupon',
+                        'getDepositAddress',
+                        'createWithdraw',
+                        'getWithdraw',
                     ],
                 },
             },
@@ -107,8 +107,8 @@ class tidex(Exchange):
                     'feeSide': 'get',
                     'tierBased': False,
                     'percentage': True,
-                    'taker': 0.1 / 100,
-                    'maker': 0.1 / 100,
+                    'taker': self.parse_number('0.001'),
+                    'maker': self.parse_number('0.001'),
                 },
             },
             'commonCurrencies': {
@@ -138,6 +138,7 @@ class tidex(Exchange):
                     'not available': ExchangeNotAvailable,
                     'data unavailable': ExchangeNotAvailable,
                     'external service unavailable': ExchangeNotAvailable,
+                    'IP restricted': PermissionDenied,  # {"success":0,"code":0,"error":"IP restricted(223.xxx.xxx.xxx)"}
                 },
             },
             'options': {
@@ -281,6 +282,8 @@ class tidex(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': active,
                 'taker': takerFee,
                 'precision': precision,
@@ -288,6 +291,26 @@ class tidex(Exchange):
                 'info': market,
             })
         return result
+
+    def parse_balance(self, response):
+        balances = self.safe_value(response, 'return')
+        timestamp = self.safe_timestamp(balances, 'server_time')
+        result = {
+            'info': response,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+        }
+        funds = self.safe_value(balances, 'funds', {})
+        currencyIds = list(funds.keys())
+        for i in range(0, len(currencyIds)):
+            currencyId = currencyIds[i]
+            code = self.safe_currency_code(currencyId)
+            balance = self.safe_value(funds, currencyId, {})
+            account = self.account()
+            account['free'] = self.safe_string(balance, 'value')
+            account['used'] = self.safe_string(balance, 'inOrders')
+            result[code] = account
+        return self.safe_balance(result)
 
     async def fetch_balance(self, params={}):
         await self.load_markets()
@@ -318,24 +341,7 @@ class tidex(Exchange):
         #         }
         #     }
         #
-        balances = self.safe_value(response, 'return')
-        timestamp = self.safe_timestamp(balances, 'server_time')
-        result = {
-            'info': response,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-        }
-        funds = self.safe_value(balances, 'funds', {})
-        currencyIds = list(funds.keys())
-        for i in range(0, len(currencyIds)):
-            currencyId = currencyIds[i]
-            code = self.safe_currency_code(currencyId)
-            balance = self.safe_value(funds, currencyId, {})
-            account = self.account()
-            account['free'] = self.safe_string(balance, 'value')
-            account['used'] = self.safe_string(balance, 'inOrders')
-            result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(response)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -518,6 +524,8 @@ class tidex(Exchange):
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         if type == 'market':
             raise ExchangeError(self.id + ' allows limit orders only')
+        amountString = str(amount)
+        priceString = str(price)
         await self.load_markets()
         market = self.market(symbol)
         request = {
@@ -526,21 +534,19 @@ class tidex(Exchange):
             'amount': self.amount_to_precision(symbol, amount),
             'rate': self.price_to_precision(symbol, price),
         }
-        price = float(price)
-        amount = float(amount)
         response = await self.privatePostTrade(self.extend(request, params))
         id = None
         status = 'open'
-        filled = 0.0
-        remaining = amount
+        filledString = '0.0'
+        remainingString = amountString
         returnResult = self.safe_value(response, 'return')
         if returnResult is not None:
             id = self.safe_string(returnResult, 'order_id')
             if id == '0':
                 id = self.safe_string(returnResult, 'init_order_id')
                 status = 'closed'
-            filled = self.safe_number(returnResult, 'received', filled)
-            remaining = self.safe_number(returnResult, 'remains', amount)
+            filledString = self.safe_string(returnResult, 'received', filledString)
+            remainingString = self.safe_string(returnResult, 'remains', amountString)
         timestamp = self.milliseconds()
         return self.safe_order({
             'id': id,
@@ -551,18 +557,18 @@ class tidex(Exchange):
             'symbol': symbol,
             'type': type,
             'side': side,
-            'price': price,
+            'price': priceString,
             'cost': None,
-            'amount': amount,
-            'remaining': remaining,
-            'filled': filled,
+            'amount': amountString,
+            'remaining': remainingString,
+            'filled': filledString,
             'fee': None,
             # 'trades': self.parse_trades(order['trades'], market),
             'info': response,
             'clientOrderId': None,
             'average': None,
             'trades': None,
-        })
+        }, market)
 
     async def cancel_order(self, id, symbol=None, params={}):
         await self.load_markets()
@@ -588,12 +594,12 @@ class tidex(Exchange):
         symbol = self.safe_symbol(marketId, market)
         remaining = None
         amount = None
-        price = self.safe_number(order, 'rate')
+        price = self.safe_string(order, 'rate')
         if 'start_amount' in order:
-            amount = self.safe_number(order, 'start_amount')
-            remaining = self.safe_number(order, 'amount')
+            amount = self.safe_string(order, 'start_amount')
+            remaining = self.safe_string(order, 'amount')
         else:
-            remaining = self.safe_number(order, 'amount')
+            remaining = self.safe_string(order, 'amount')
         fee = None
         return self.safe_order({
             'info': order,
@@ -617,7 +623,7 @@ class tidex(Exchange):
             'fee': fee,
             'average': None,
             'trades': None,
-        })
+        }, market)
 
     async def fetch_order(self, id, symbol=None, params={}):
         await self.load_markets()
@@ -689,21 +695,46 @@ class tidex(Exchange):
         return self.parse_trades(trades, market, since, limit)
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         await self.load_markets()
         currency = self.currency(code)
         request = {
-            'coinName': currency['id'],
+            'asset': currency['id'],
             'amount': float(amount),
             'address': address,
         }
-        # no docs on the tag, yet...
         if tag is not None:
-            raise ExchangeError(self.id + ' withdraw() does not support the tag argument yet due to a lack of docs on withdrawing with tag/memo on behalf of the exchange.')
-        response = await self.privatePostWithdrawCoin(self.extend(request, params))
+            request['memo'] = tag
+        response = await self.privatePostCreateWithdraw(self.extend(request, params))
+        #
+        #     {
+        #         "success":1,
+        #         "return":{
+        #             "withdraw_id":1111,
+        #             "withdraw_info":{
+        #                 "id":1111,
+        #                 "asset_id":1,
+        #                 "asset":"BTC",
+        #                 "amount":0.0093,
+        #                 "fee":0.0007,
+        #                 "create_time":1575128018,
+        #                 "status":"Created",
+        #                 "data":{
+        #                     "address":"1KFHE7w8BhaENAswwryaoccDb6qcT6DbYY",
+        #                     "memo":"memo",
+        #                     "tx":null,
+        #                     "error":null
+        #                 },
+        #             "in_blockchain":false
+        #             }
+        #         }
+        #     }
+        #
+        result = self.safe_value(response, 'return', {})
         return {
             'info': response,
-            'id': response['return']['tId'],
+            'id': self.safe_string(result, 'withdraw_id'),
         }
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):

@@ -22,14 +22,14 @@ class zaif(Exchange):
             'version': '1',
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
-                'createMarketOrder': False,
+                'CORS': None,
+                'createMarketOrder': None,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchClosedOrders': True,
                 'fetchMarkets': True,
-                'fetchOrderBook': True,
                 'fetchOpenOrders': True,
+                'fetchOrderBook': True,
                 'fetchTicker': True,
                 'fetchTrades': True,
                 'withdraw': True,
@@ -50,8 +50,8 @@ class zaif(Exchange):
             'fees': {
                 'trading': {
                     'percentage': True,
-                    'taker': 0.1 / 100,
-                    'maker': 0,
+                    'taker': self.parse_number('0.001'),
+                    'maker': self.parse_number('0'),
                 },
             },
             'api': {
@@ -175,6 +175,8 @@ class zaif(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': True,  # can trade or not
                 'precision': precision,
                 'taker': taker,
@@ -197,9 +199,7 @@ class zaif(Exchange):
             })
         return result
 
-    async def fetch_balance(self, params={}):
-        await self.load_markets()
-        response = await self.privatePostGetInfo(params)
+    def parse_balance(self, response):
         balances = self.safe_value(response, 'return', {})
         deposit = self.safe_value(balances, 'deposit')
         result = {
@@ -220,7 +220,12 @@ class zaif(Exchange):
                 if currencyId in deposit:
                     account['total'] = self.safe_string(deposit, currencyId)
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.safe_balance(result)
+
+    async def fetch_balance(self, params={}):
+        await self.load_markets()
+        response = await self.privatePostGetInfo(params)
+        return self.parse_balance(response)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -346,8 +351,8 @@ class zaif(Exchange):
         timestamp = self.safe_timestamp(order, 'timestamp')
         marketId = self.safe_string(order, 'currency_pair')
         symbol = self.safe_symbol(marketId, market, '_')
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'amount')
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'amount')
         id = self.safe_string(order, 'id')
         return self.safe_order({
             'id': id,
@@ -371,7 +376,7 @@ class zaif(Exchange):
             'fee': None,
             'info': order,
             'average': None,
-        })
+        }, market)
 
     async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -406,6 +411,7 @@ class zaif(Exchange):
         return self.parse_orders(response['return'], market, since, limit)
 
     async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         await self.load_markets()
         currency = self.currency(code)

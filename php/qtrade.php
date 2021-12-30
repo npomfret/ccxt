@@ -26,30 +26,30 @@ class qtrade extends Exchange {
                 'referral' => 'https://qtrade.io/?ref=BKOQWVFGRH2C',
             ),
             'has' => array(
-                'CORS' => false,
-                'fetchTrades' => true,
+                'cancelOrder' => true,
+                'CORS' => null,
+                'createMarketOrder' => null,
+                'createOrder' => true,
+                'fetchBalance' => true,
+                'fetchClosedOrders' => true,
+                'fetchCurrencies' => true,
+                'fetchDeposit' => true,
+                'fetchDepositAddress' => true,
+                'fetchDeposits' => true,
+                'fetchMarkets' => true,
+                'fetchMyTrades' => true,
+                'fetchOHLCV' => true,
+                'fetchOpenOrders' => true,
+                'fetchOrder' => true,
+                'fetchOrderBook' => true,
+                'fetchOrders' => true,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
-                'fetchMarkets' => true,
-                'fetchCurrencies' => true,
-                'fetchBalance' => true,
-                'fetchOrderBook' => true,
-                'fetchOrder' => true,
-                'fetchOrders' => true,
-                'fetchMyTrades' => true,
-                'fetchClosedOrders' => true,
-                'fetchOpenOrders' => true,
-                'fetchOHLCV' => true,
-                'createOrder' => true,
-                'cancelOrder' => true,
-                'createMarketOrder' => false,
-                'withdraw' => true,
-                'fetchDepositAddress' => true,
-                'fetchTransactions' => false,
-                'fetchDeposits' => true,
-                'fetchWithdrawals' => true,
-                'fetchDeposit' => true,
+                'fetchTrades' => true,
+                'fetchTransactions' => null,
                 'fetchWithdrawal' => true,
+                'fetchWithdrawals' => true,
+                'withdraw' => true,
             ),
             'timeframes' => array(
                 '5m' => 'fivemin',
@@ -101,14 +101,18 @@ class qtrade extends Exchange {
             ),
             'fees' => array(
                 'trading' => array(
+                    'feeSide' => 'quote',
                     'tierBased' => true,
                     'percentage' => true,
-                    'taker' => 0.0025,
+                    'taker' => 0.005,
                     'maker' => 0.0,
                 ),
                 'funding' => array(
                     'withdraw' => array(),
                 ),
+            ),
+            'commonCurrencies' => array(
+                'BTM' => 'Bitmark',
             ),
             'exceptions' => array(
                 'exact' => array(
@@ -116,6 +120,7 @@ class qtrade extends Exchange {
                     'insuff_funds' => '\\ccxt\\InsufficientFunds',
                     'market_not_found' => '\\ccxt\\BadSymbol', // array("errors":[array("code":"market_not_found","title":"Requested market does not exist")])
                     'too_small' => '\\ccxt\\InvalidOrder',
+                    'limit_exceeded' => '\\ccxt\\RateLimitExceeded', // array("errors":[array("code":"limit_exceeded","title":"You have exceeded the windowed rate limit. Please see docs.")])
                 ),
             ),
         ));
@@ -125,8 +130,8 @@ class qtrade extends Exchange {
         $response = $this->publicGetMarkets ($params);
         //
         //     {
-        //         "$data":{
-        //             "$markets":array(
+        //         "data":{
+        //             "markets":array(
         //                 {
         //                     "id":5,
         //                     "market_currency":"BAC",
@@ -182,6 +187,8 @@ class qtrade extends Exchange {
                 'quoteId' => $quoteId,
                 'base' => $base,
                 'quote' => $quote,
+                'type' => 'spot',
+                'spot' => true,
                 'active' => $active,
                 'precision' => $precision,
                 'taker' => $this->safe_number($market, 'taker_fee'),
@@ -210,14 +217,14 @@ class qtrade extends Exchange {
         $response = $this->publicGetCurrencies ($params);
         //
         //     {
-        //         "$data":{
-        //             "$currencies":array(
+        //         "data":{
+        //             "currencies":array(
         //                 {
-        //                     "$code":"DGB",
+        //                     "code":"DGB",
         //                     "long_name":"Digibyte",
-        //                     "$type":"bitcoin_like",
+        //                     "type":"bitcoin_like",
         //                     "precision":8,
-        //                     "$config":array(
+        //                     "config":array(
         //                         "price":0.0035,
         //                         "withdraw_fee":"10",
         //                         "deposit_types":array(
@@ -237,7 +244,7 @@ class qtrade extends Exchange {
         //                     ),
         //                     "metadata":array(),
         //                     "minimum_order":"0.0001",
-        //                     "$status":"ok",
+        //                     "status":"ok",
         //                     "can_withdraw":true,
         //                     "delisted":false,
         //                     "deposit_disabled":false,
@@ -319,7 +326,7 @@ class qtrade extends Exchange {
         $response = $this->publicGetMarketMarketStringOhlcvInterval (array_merge($request, $params));
         //
         //     {
-        //         "$data":{
+        //         "data":{
         //             "slices":array(
         //                 array("time":"2019-12-07T22:55:00Z","open":"0.00197","high":"0.00197","low":"0.00197","close":"0.00197","volume":"0.00016676","market_volume":"0.08465047"),
         //                 array("time":"2019-12-07T23:00:00Z","open":"0.00197","high":"0.00197","low":"0.00197","close":"0.00197","volume":"0","market_volume":"0"),
@@ -340,7 +347,7 @@ class qtrade extends Exchange {
         $response = $this->publicGetOrderbookMarketString (array_merge($request, $params));
         //
         //     {
-        //         "$data":{
+        //         "data":{
         //             "buy":array(
         //                 "0.00700015":"4.76196367",
         //                 "0.00700017":"1.89755391",
@@ -385,7 +392,7 @@ class qtrade extends Exchange {
         //         "ask":"0.02423119",
         //         "bid":"0.0230939",
         //         "day_avg_price":"0.0247031874349301",
-        //         "$day_change":"-0.0237543162270376",
+        //         "day_change":"-0.0237543162270376",
         //         "day_high":"0.02470552",
         //         "day_low":"0.02470172",
         //         "day_open":"0.02530277",
@@ -393,7 +400,7 @@ class qtrade extends Exchange {
         //         "day_volume_market":"0.10851798",
         //         "id":41,
         //         "id_hr":"ETH_BTC",
-        //         "$last":"0.02470172",
+        //         "last":"0.02470172",
         //         "last_change":1588533365354609
         //     }
         //
@@ -412,13 +419,10 @@ class qtrade extends Exchange {
                 $change = $day_change * $previous;
             }
         }
-        if (($average === null) && ($last !== null) && ($previous !== null)) {
-            $average = $this->sum($last, $previous) / 2;
-        }
         $baseVolume = $this->safe_number($ticker, 'day_volume_market');
         $quoteVolume = $this->safe_number($ticker, 'day_volume_base');
         $vwap = $this->vwap($baseVolume, $quoteVolume);
-        return array(
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -439,7 +443,7 @@ class qtrade extends Exchange {
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
-        );
+        ), $market);
     }
 
     public function fetch_tickers($symbols = null, $params = array ()) {
@@ -447,7 +451,7 @@ class qtrade extends Exchange {
         $response = $this->publicGetTickers ($params);
         //
         //     {
-        //         "$data":{
+        //         "data":{
         //             "markets":array(
         //                 array(
         //                     "ask":"0.0000003",
@@ -488,7 +492,7 @@ class qtrade extends Exchange {
         $response = $this->publicGetTickerMarketString (array_merge($request, $params));
         //
         //     {
-        //         "$data":{
+        //         "data":{
         //             "ask":"0.02423119",
         //             "bid":"0.0230939",
         //             "day_avg_price":"0.0247031874349301",
@@ -520,8 +524,8 @@ class qtrade extends Exchange {
         $response = $this->publicGetMarketMarketStringTrades (array_merge($request, $params));
         //
         //     {
-        //         "$data":{
-        //             "$trades":array(
+        //         "data":{
+        //             "trades":array(
         //                 array(
         //                     "id":85507,
         //                     "amount":"0.09390502",
@@ -559,8 +563,8 @@ class qtrade extends Exchange {
         $response = $this->privateGetTrades (array_merge($request, $params));
         //
         //     {
-        //         "$data":{
-        //             "$trades":array(
+        //         "data":{
+        //             "trades":array(
         //                 {
         //                     "id":107331,
         //                     "market_amount":"0.1082536946986",
@@ -588,12 +592,12 @@ class qtrade extends Exchange {
         // fetchTrades (public)
         //
         //     {
-        //         "$id":85507,
-        //         "$amount":"0.09390502",
-        //         "$price":"0.02556325",
+        //         "id":85507,
+        //         "amount":"0.09390502",
+        //         "price":"0.02556325",
         //         "base_volume":"0.00240051",
         //         "seller_taker":true,
-        //         "$side":"sell",
+        //         "side":"sell",
         //         "created_at":"0001-01-01T00:00:00Z",
         //         "created_at_ts":1581560391338718
         //     }
@@ -601,16 +605,16 @@ class qtrade extends Exchange {
         // fetchMyTrades (private)
         //
         //     {
-        //         "$id":107331,
+        //         "id":107331,
         //         "market_amount":"0.1082536946986",
-        //         "$price":"0.0230939",
+        //         "price":"0.0230939",
         //         "base_amount":"0.00249999",
         //         "order_id":13790596,
         //         "market_id":41,
         //         "market_string":"ETH_BTC",
-        //         "$taker":true,
+        //         "taker":true,
         //         "base_fee":"0.00001249",
-        //         "$side":"sell",
+        //         "side":"sell",
         //         "created_at":"2020-05-04T06:08:18.513413Z"
         //     }
         //
@@ -620,10 +624,10 @@ class qtrade extends Exchange {
         //         "base_amount" => "9.58970687",
         //         "base_fee" => "0.02397426",
         //         "created_at" => "0001-01-01T00:00:00Z",
-        //         "$id" => 0,
+        //         "id" => 0,
         //         "market_amount" => "0.97179355",
-        //         "$price" => "9.86804952",
-        //         "$taker" => true
+        //         "price" => "9.86804952",
+        //         "taker" => true
         //     }
         //
         $id = $this->safe_string($trade, 'id');
@@ -633,17 +637,12 @@ class qtrade extends Exchange {
         }
         $side = $this->safe_string($trade, 'side');
         $marketId = $this->safe_string($trade, 'market_string');
-        $symbol = $this->safe_symbol($marketId, $market, '_');
-        $cost = $this->safe_number_2($trade, 'base_volume', 'base_amount');
-        $priceString = $this->safe_string($trade, 'price');
-        $amountString = $this->safe_string_2($trade, 'market_amount', 'amount');
-        $price = $this->parse_number($priceString);
-        $amount = $this->parse_number($amountString);
-        if ($cost === null) {
-            $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
-        }
+        $market = $this->safe_market($marketId, $market);
+        $cost = $this->safe_string_2($trade, 'base_volume', 'base_amount');
+        $price = $this->safe_string($trade, 'price');
+        $amount = $this->safe_string_2($trade, 'market_amount', 'amount');
         $fee = null;
-        $feeCost = $this->safe_number($trade, 'base_fee');
+        $feeCost = $this->safe_string($trade, 'base_fee');
         if ($feeCost !== null) {
             $feeCurrencyCode = ($market === null) ? null : $market['quote'];
             $fee = array(
@@ -654,12 +653,12 @@ class qtrade extends Exchange {
         $taker = $this->safe_value($trade, 'taker', true);
         $takerOrMaker = $taker ? 'taker' : 'maker';
         $orderId = $this->safe_string($trade, 'order_id');
-        $result = array(
+        return $this->safe_trade(array(
             'id' => $id,
             'info' => $trade,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'symbol' => $symbol,
+            'symbol' => $market['symbol'],
             'order' => $orderId,
             'type' => null,
             'side' => $side,
@@ -668,28 +667,10 @@ class qtrade extends Exchange {
             'amount' => $amount,
             'cost' => $cost,
             'fee' => $fee,
-        );
-        return $result;
+        ), $market);
     }
 
-    public function fetch_balance($params = array ()) {
-        $this->load_markets();
-        $response = $this->privateGetBalancesAll ($params);
-        //
-        //     {
-        //         "$data":{
-        //             "$balances" => array(
-        //                 array( "$balance" => "100000000", "currency" => "BCH" ),
-        //                 array( "$balance" => "99992435.78253015", "currency" => "LTC" ),
-        //                 array( "$balance" => "99927153.76074182", "currency" => "BTC" ),
-        //             ),
-        //             "order_balances":array(),
-        //             "limit_used":0,
-        //             "limit_remaining":4000,
-        //             "limit":4000
-        //         }
-        //     }
-        //
+    public function parse_balance($response) {
         $data = $this->safe_value($response, 'data', array());
         $balances = $this->safe_value($data, 'balances', array());
         $result = array(
@@ -715,7 +696,28 @@ class qtrade extends Exchange {
             $account['used'] = $this->safe_string($balance, 'balance');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        $this->load_markets();
+        $response = $this->privateGetBalancesAll ($params);
+        //
+        //     {
+        //         "data":{
+        //             "balances" => array(
+        //                 array( "balance" => "100000000", "currency" => "BCH" ),
+        //                 array( "balance" => "99992435.78253015", "currency" => "LTC" ),
+        //                 array( "balance" => "99927153.76074182", "currency" => "BTC" ),
+        //             ),
+        //             "order_balances":array(),
+        //             "limit_used":0,
+        //             "limit_remaining":4000,
+        //             "limit":4000
+        //         }
+        //     }
+        //
+        return $this->parse_balance($response);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -733,8 +735,8 @@ class qtrade extends Exchange {
         $response = $this->$method (array_merge($request, $params));
         //
         //     {
-        //         "$data" => {
-        //             "$order" => {
+        //         "data" => {
+        //             "order" => {
         //                 "created_at" => "2018-04-06T20:46:52.899248Z",
         //                 "id" => 13253,
         //                 "market_amount" => "1",
@@ -742,7 +744,7 @@ class qtrade extends Exchange {
         //                 "market_id" => 1,
         //                 "open" => false,
         //                 "order_type" => "sell_limit",
-        //                 "$price" => "0.01",
+        //                 "price" => "0.01",
         //                 "trades" => array(
         //                     array(
         //                         "base_amount" => "0.27834267",
@@ -750,7 +752,7 @@ class qtrade extends Exchange {
         //                         "created_at" => "0001-01-01T00:00:00Z",
         //                         "id" => 0,
         //                         "market_amount" => "0.02820645",
-        //                         "$price" => "9.86805058",
+        //                         "price" => "9.86805058",
         //                         "taker" => true
         //                     ),
         //                     {
@@ -759,7 +761,7 @@ class qtrade extends Exchange {
         //                         "created_at" => "0001-01-01T00:00:00Z",
         //                         "id" => 0,
         //                         "market_amount" => "0.97179355",
-        //                         "$price" => "9.86804952",
+        //                         "price" => "9.86804952",
         //                         "taker" => true
         //                     }
         //                 )
@@ -778,30 +780,30 @@ class qtrade extends Exchange {
         //
         //     {
         //         "created_at" => "2018-04-06T20:46:52.899248Z",
-        //         "$id" => 13253,
+        //         "id" => 13253,
         //         "market_amount" => "1",
         //         "market_amount_remaining" => "0",
         //         "market_id" => 1,
-        //         "$open" => false,
+        //         "open" => false,
         //         "order_type" => "sell_limit",
-        //         "$price" => "0.01",
+        //         "price" => "0.01",
         //         "trades" => array(
         //             array(
         //                 "base_amount" => "0.27834267",
         //                 "base_fee" => "0.00069585",
         //                 "created_at" => "0001-01-01T00:00:00Z",
-        //                 "$id" => 0,
+        //                 "id" => 0,
         //                 "market_amount" => "0.02820645",
-        //                 "$price" => "9.86805058",
+        //                 "price" => "9.86805058",
         //                 "taker" => true
         //             ),
         //             {
         //                 "base_amount" => "9.58970687",
         //                 "base_fee" => "0.02397426",
         //                 "created_at" => "0001-01-01T00:00:00Z",
-        //                 "$id" => 0,
+        //                 "id" => 0,
         //                 "market_amount" => "0.97179355",
-        //                 "$price" => "9.86804952",
+        //                 "price" => "9.86804952",
         //                 "taker" => true
         //             }
         //         )
@@ -844,9 +846,9 @@ class qtrade extends Exchange {
             $side = $this->safe_string($parts, 0);
             $orderType = $this->safe_string($parts, 1);
         }
-        $price = $this->safe_number($order, 'price');
-        $amount = $this->safe_number($order, 'market_amount');
-        $remaining = $this->safe_number($order, 'market_amount_remaining');
+        $price = $this->safe_string($order, 'price');
+        $amount = $this->safe_string($order, 'market_amount');
+        $remaining = $this->safe_string($order, 'market_amount_remaining');
         $open = $this->safe_value($order, 'open', false);
         $closeReason = $this->safe_string($order, 'close_reason');
         $status = null;
@@ -861,11 +863,6 @@ class qtrade extends Exchange {
         $market = $this->safe_market($marketId, $market, '_');
         $symbol = $market['symbol'];
         $rawTrades = $this->safe_value($order, 'trades', array());
-        $parsedTrades = $this->parse_trades($rawTrades, $market, null, null, array(
-            'order' => $id,
-            'side' => $side,
-            'type' => $orderType,
-        ));
         return $this->safe_order(array(
             'info' => $order,
             'id' => $id,
@@ -888,8 +885,8 @@ class qtrade extends Exchange {
             'fee' => null,
             'fees' => null,
             'cost' => null,
-            'trades' => $parsedTrades,
-        ));
+            'trades' => $rawTrades,
+        ), $market);
     }
 
     public function cancel_order($id, $symbol = null, $params = array ()) {
@@ -906,9 +903,9 @@ class qtrade extends Exchange {
         $response = $this->privateGetOrderOrderId (array_merge($request, $params));
         //
         //     {
-        //         "$data":{
-        //             "$order":{
-        //                 "$id":13790596,
+        //         "data":{
+        //             "order":{
+        //                 "id":13790596,
         //                 "market_amount":"0.15",
         //                 "market_amount_remaining":"0.0417463053014",
         //                 "created_at":"2020-05-04T06:08:18.513413Z",
@@ -919,7 +916,7 @@ class qtrade extends Exchange {
         //                 "open":true,
         //                 "trades":array(
         //                     {
-        //                         "$id":107331,
+        //                         "id":107331,
         //                         "market_amount":"0.1082536946986",
         //                         "price":"0.0230939",
         //                         "base_amount":"0.00249999",
@@ -955,8 +952,8 @@ class qtrade extends Exchange {
         $response = $this->privateGetOrders (array_merge($request, $params));
         //
         //     {
-        //         "$data":{
-        //             "$orders":array(
+        //         "data":{
+        //             "orders":array(
         //                 {
         //                     "id":13790596,
         //                     "market_amount":"0.15",
@@ -1001,14 +998,14 @@ class qtrade extends Exchange {
     public function parse_deposit_address($depositAddress, $currency = null) {
         //
         //     {
-        //         "$address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
+        //         "address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
         //         "currency_status":"ok",
         //         "deposit_methods":array(
-        //             "$address":array(
-        //                 "deposit_type":"$address",
-        //                 "render_type":"$address",
+        //             "address":array(
+        //                 "deposit_type":"address",
+        //                 "render_type":"address",
         //                 "label":"Address",
-        //                 "$address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
+        //                 "address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
         //             ),
         //         ),
         //     }
@@ -1026,6 +1023,7 @@ class qtrade extends Exchange {
             'currency' => $code,
             'address' => $address,
             'tag' => $tag,
+            'network' => null,
             'info' => $depositAddress,
         );
     }
@@ -1039,7 +1037,7 @@ class qtrade extends Exchange {
         $response = $this->privatePostDepositAddressCurrency (array_merge($request, $params));
         //
         //     {
-        //         "$data":array(
+        //         "data":array(
         //             "address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
         //             "currency_status":"ok",
         //             "deposit_methods":array(
@@ -1065,9 +1063,9 @@ class qtrade extends Exchange {
         $response = $this->privateGetDepositDepositId (array_merge($request, $params));
         //
         //     {
-        //         "$data":{
-        //             "$deposit":{
-        //                 "$id":"0xaa6e65ed274c4786e5dec3671de96f81021cacdbc453b1a133ab84356f3620a0",
+        //         "data":{
+        //             "deposit":{
+        //                 "id":"0xaa6e65ed274c4786e5dec3671de96f81021cacdbc453b1a133ab84356f3620a0",
         //                 "amount":"0.13",
         //                 "currency":"ETH",
         //                 "address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
@@ -1116,12 +1114,12 @@ class qtrade extends Exchange {
         $response = $this->privateGetDeposits ($params);
         //
         //     {
-        //         "$data":{
-        //             "$deposits":array(
+        //         "data":{
+        //             "deposits":array(
         //                 {
         //                     "id":"0xaa6e65ed274c4786e5dec3671de96f81021cacdbc453b1a133ab84356f3620a0",
         //                     "amount":"0.13",
-        //                     "$currency":"ETH",
+        //                     "currency":"ETH",
         //                     "address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
         //                     "status":"credited",
         //                     "relay_status":"",
@@ -1171,7 +1169,7 @@ class qtrade extends Exchange {
         //     {
         //         $data => {
         //             withdraw => {
-        //                 "$id":25524,
+        //                 "id":25524,
         //                 "amount":"0.0417463053014",
         //                 "user_id":0,
         //                 "currency":"ETH",
@@ -1216,13 +1214,13 @@ class qtrade extends Exchange {
         }
         $response = $this->privateGetWithdraws ($params);
         //     {
-        //         "$data":{
+        //         "data":{
         //             "withdraws":array(
         //                 {
         //                     "id":25524,
         //                     "amount":"0.0417463053014",
         //                     "user_id":0,
-        //                     "$currency":"ETH",
+        //                     "currency":"ETH",
         //                     "network_data":{
         //                         "unsigned_tx":array(
         //                             "chainId":1,
@@ -1262,11 +1260,11 @@ class qtrade extends Exchange {
         // fetchDeposits, fetchDeposit
         //
         //     {
-        //         "$id":"0xaa6e65ed274c4786e5dec3671de96f81021cacdbc453b1a133ab84356f3620a0",
-        //         "$amount":"0.13",
-        //         "$currency":"ETH",
-        //         "$address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
-        //         "$status":"credited",
+        //         "id":"0xaa6e65ed274c4786e5dec3671de96f81021cacdbc453b1a133ab84356f3620a0",
+        //         "amount":"0.13",
+        //         "currency":"ETH",
+        //         "address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
+        //         "status":"credited",
         //         "relay_status":"",
         //         "network_data":array(
         //             "confirms":87,
@@ -1282,7 +1280,7 @@ class qtrade extends Exchange {
         //                 "to":"0x76Cd80202a2C31e9D8F595a31ed071CE7F75BB93",
         //                 "value":"0x214646b6347d800"
         //             ),
-        //             "$txid":"0xaa6e65ed274c4786e5dec3671de96f81021cacdbc453b1a133ab84356f3620a0",
+        //             "txid":"0xaa6e65ed274c4786e5dec3671de96f81021cacdbc453b1a133ab84356f3620a0",
         //             "tx_index":"0x6f",
         //             "tx_value":"0.130000000000000000",
         //             "key_index":311,
@@ -1299,10 +1297,10 @@ class qtrade extends Exchange {
         // fetchWithdrawals, fetchWithdrawal
         //
         //     {
-        //         "$id":25524,
-        //         "$amount":"0.0417463053014",
+        //         "id":25524,
+        //         "amount":"0.0417463053014",
         //         "user_id":0,
-        //         "$currency":"ETH",
+        //         "currency":"ETH",
         //         "network_data":{
         //             "unsigned_tx":array(
         //                 "chainId":1,
@@ -1315,15 +1313,15 @@ class qtrade extends Exchange {
         //             ),
         //             "estimated_tx_fee":184800004893000,
         //             "confirms_required":80,
-        //             "$txid":"0x79439b62473d61d99ce1dc6c3b8a417da36d45323a394bb0d4af870608fef38d",
+        //             "txid":"0x79439b62473d61d99ce1dc6c3b8a417da36d45323a394bb0d4af870608fef38d",
         //             "confirms":83,
         //             "signed_tx":array(
         //                 "hash":"0x79439b62473d61d99ce1dc6c3b8a417da36d45323a394bb0d4af870608fef38d",
         //                 "rawTransaction":"0xf86c81f385021c8558e98252089401b0a9b7b4cde774af0f3e87cb4f1c2ccdba08068771712acd1133078025a0088157d119d924d47413c81b91b9f18ff148623a2ef13dab1895ca3ba546b771a046a021b1e1f64d1a60bb66c19231f641b352326188a9ed3b931b698a939f78d0"
         //             }
         //         ),
-        //         "$address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
-        //         "$status":"confirmed",
+        //         "address":"0xe0cd26f9A60118555247aE6769A5d241D91f07f2",
+        //         "status":"confirmed",
         //         "relay_status":"",
         //         "created_at":"2020-05-05T06:32:19.907061Z",
         //         "cancel_requested":false
@@ -1332,8 +1330,8 @@ class qtrade extends Exchange {
         // withdraw
         //
         //     {
-        //         "$code" => "initiated",
-        //         "$id" => 3,
+        //         "code" => "initiated",
+        //         "id" => 3,
         //         "result" => "Withdraw initiated. Please allow 3-5 minutes for our system to process."
         //     }
         //
@@ -1401,6 +1399,7 @@ class qtrade extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->load_markets();
         $currency = $this->currency($code);
         $request = array(
@@ -1414,10 +1413,10 @@ class qtrade extends Exchange {
         $response = $this->privatePostWithdraw (array_merge($request, $params));
         //
         //     {
-        //         "$data" => {
-        //             "$code" => "initiated",
+        //         "data" => {
+        //             "code" => "initiated",
         //             "id" => 3,
-        //             "$result" => "Withdraw initiated. Please allow 3-5 minutes for our system to process."
+        //             "result" => "Withdraw initiated. Please allow 3-5 minutes for our system to process."
         //         }
         //     }
         //
@@ -1479,8 +1478,8 @@ class qtrade extends Exchange {
 
     public function handle_errors($code, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
         //
-        //     array("$errors":[array("$code":"insuff_funds","title":"Your available balance is too low for that action")])
-        //     array("$errors":[array("$code" => "invalid_auth","title" => "Invalid HMAC signature")])
+        //     array("errors":[array("code":"insuff_funds","title":"Your available balance is too low for that action")])
+        //     array("errors":[array("code" => "invalid_auth","title" => "Invalid HMAC signature")])
         //
         if ($response === null) {
             return;

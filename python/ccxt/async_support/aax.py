@@ -48,6 +48,7 @@ class aax(Exchange):
                 'fetchBalance': True,
                 'fetchCanceledOrders': True,
                 'fetchClosedOrders': True,
+                'fetchCurrencies': True,
                 'fetchDepositAddress': True,
                 'fetchMarkets': True,
                 'fetchMyTrades': True,
@@ -108,6 +109,7 @@ class aax(Exchange):
                     #     'tickers/{market}',  # Get ticker of specific market
                     # ],
                     'get': [
+                        'currencies',
                         'announcement/maintenance',  # System Maintenance Notice
                         'instruments',  # Retrieve all trading pairs information
                         'market/orderbook',  # Order Book
@@ -119,7 +121,8 @@ class aax(Exchange):
                         'market/markPrice',  # Get Current Mark Price
                         'futures/funding/predictedFunding/{symbol}',  # Get Predicted Funding Rate
                         'futures/funding/prevFundingRate/{symbol}',  # Get Last Funding Rate
-                        'market/candles/index',  # Get Current Index Candlestick
+                        'market/candles/index',  # * Deprecated
+                        'market/index/candles',
                     ],
                 },
                 'private': {
@@ -164,8 +167,8 @@ class aax(Exchange):
                 'trading': {
                     'tierBased': False,
                     'percentage': True,
-                    'maker': 0.06 / 100,
-                    'taker': 0.10 / 100,
+                    'maker': self.parse_number('0.0006'),
+                    'taker': self.parse_number('0.001'),
                 },
                 'funding': {
                     'tierBased': False,
@@ -262,6 +265,11 @@ class aax(Exchange):
                     'FUTP': 'future',
                     'F2CP': 'otc',
                     'VLTP': 'saving',
+                },
+                'networks': {
+                    'ETH': 'ERC20',
+                    'TRX': 'TRC20',
+                    'SOL': 'SPL',
                 },
             },
         })
@@ -376,51 +384,66 @@ class aax(Exchange):
             id = self.safe_string(market, 'symbol')
             baseId = self.safe_string(market, 'base')
             quoteId = self.safe_string(market, 'quote')
+            settleId = self.safe_string(market, 'settleCurrency')
             base = self.safe_currency_code(baseId)
             quote = self.safe_currency_code(quoteId)
+            settle = self.safe_currency_code(settleId)
             status = self.safe_string(market, 'status')
-            active = (status == 'enable')
-            taker = self.safe_number(market, 'takerFee')
-            maker = self.safe_number(market, 'makerFee')
-            type = self.safe_string(market, 'type')
+            marketType = self.safe_string(market, 'type')
             inverse = None
             linear = None
             quanto = None
-            spot = (type == 'spot')
-            futures = (type == 'futures')
+            spot = (marketType == 'spot')
+            swap = (marketType == 'futures')
             settleType = self.safe_string_lower(market, 'settleType')
             if settleType is not None:
                 inverse = (settleType == 'inverse')
                 linear = (settleType == 'vanilla')
                 quanto = (settleType == 'quanto')
-            symbol = id
-            if type == 'spot':
-                symbol = base + '/' + quote
-            precision = {
-                'amount': self.safe_number(market, 'lotSize'),
-                'price': self.safe_number(market, 'tickSize'),
-            }
+            symbol = base + '/' + quote
+            type = 'spot'
+            contractSize = None
+            if swap:
+                symbol = symbol + ':' + settle
+                type = 'swap'
+                contractSize = self.safe_number(market, 'multiplier')
             result.append({
                 'id': id,
                 'symbol': symbol,
                 'base': base,
                 'quote': quote,
+                'settle': settle,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'settleId': settleId,
                 'type': type,
                 'spot': spot,
-                'futures': futures,
-                'inverse': inverse,
+                'margin': False,
+                'swap': swap,
+                'future': False,
+                'option': False,
+                'derivative': swap,
+                'contract': swap,
                 'linear': linear,
+                'inverse': inverse,
+                'taker': self.safe_number(market, 'takerFee'),
+                'maker': self.safe_number(market, 'makerFee'),
+                'contractSize': contractSize,
+                'active': (status == 'enable'),
+                'expiry': None,
+                'expiryDatetime': None,
+                'strike': None,
+                'optionType': None,
                 'quanto': quanto,
-                'precision': precision,
-                'info': market,
-                'active': active,
-                'taker': taker,
-                'maker': maker,
-                'percentage': False,
-                'tierBased': True,
+                'precision': {
+                    'amount': self.safe_number(market, 'lotSize'),
+                    'price': self.safe_number(market, 'tickSize'),
+                },
                 'limits': {
+                    'leverage': {
+                        'min': self.parse_number('1'),
+                        'max': None,
+                    },
                     'amount': {
                         'min': self.safe_string(market, 'minQuantity'),
                         'max': self.safe_string(market, 'maxQuantity'),
@@ -434,7 +457,74 @@ class aax(Exchange):
                         'max': None,
                     },
                 },
+                'info': market,
             })
+        return result
+
+    async def fetch_currencies(self, params={}):
+        response = await self.publicGetCurrencies(params)
+        #
+        #     {
+        #         "code":1,
+        #         "data":[
+        #             {
+        #                 "chain":"BTC",
+        #                 "displayName":"Bitcoin",
+        #                 "withdrawFee":"0.0004",
+        #                 "withdrawMin":"0.001",
+        #                 "otcFee":"0",
+        #                 "enableOTC":true,
+        #                 "visible":true,
+        #                 "enableTransfer":true,
+        #                 "transferMin":"0.00001",
+        #                 "depositMin":"0.0005",
+        #                 "enableWithdraw":true,
+        #                 "enableDeposit":true,
+        #                 "addrWithMemo":false,
+        #                 "withdrawPrecision":"0.00000001",
+        #                 "currency":"BTC",
+        #                 "network":"BTC",  # ETH, ERC20, TRX, TRC20, OMNI, LTC, XRP, XLM, ...
+        #                 "minConfirm":"2"
+        #             },
+        #         ],
+        #         "message":"success",
+        #         "ts":1624330530697
+        #     }
+        #
+        result = {}
+        data = self.safe_value(response, 'data', [])
+        for i in range(0, len(data)):
+            currency = data[i]
+            id = self.safe_string(currency, 'chain')
+            name = self.safe_string(currency, 'displayName')
+            code = self.safe_currency_code(id)
+            precision = self.safe_number(currency, 'withdrawPrecision')
+            enableWithdraw = self.safe_value(currency, 'enableWithdraw')
+            enableDeposit = self.safe_value(currency, 'enableDeposit')
+            fee = self.safe_number(currency, 'withdrawFee')
+            visible = self.safe_value(currency, 'visible')
+            active = (enableWithdraw and enableDeposit and visible)
+            network = self.safe_string(currency, 'network')
+            result[code] = {
+                'id': id,
+                'name': name,
+                'code': code,
+                'precision': precision,
+                'info': currency,
+                'active': active,
+                'fee': fee,
+                'network': network,
+                'limits': {
+                    'deposit': {
+                        'min': self.safe_number(currency, 'depositMin'),
+                        'max': None,
+                    },
+                    'withdraw': {
+                        'min': self.safe_number(currency, 'withdrawMin'),
+                        'max': None,
+                    },
+                },
+            }
         return result
 
     def parse_ticker(self, ticker, market=None):
@@ -456,19 +546,11 @@ class aax(Exchange):
         symbol = self.safe_symbol(marketId, market)
         last = self.safe_number(ticker, 'c')
         open = self.safe_number(ticker, 'o')
-        change = None
-        percentage = None
-        average = None
-        if last is not None and open is not None:
-            change = last - open
-            if open > 0:
-                percentage = change / open * 100
-            average = self.sum(last, open) / 2
         quoteVolume = self.safe_number(ticker, 'v')
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
+            'datetime': None,
             'high': self.safe_number(ticker, 'h'),
             'low': self.safe_number(ticker, 'l'),
             'bid': None,
@@ -480,13 +562,13 @@ class aax(Exchange):
             'close': last,
             'last': last,
             'previousClose': None,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': None,
+            'percentage': None,
+            'average': None,
             'baseVolume': None,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }
+        }, market)
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
@@ -555,9 +637,11 @@ class aax(Exchange):
         # public fetchTrades
         #
         #     {
-        #         "p":"9395.50000000",
-        #         "q":"50.000000",
-        #         "t":1592563996718
+        #         "i":"T1qzQeZG9g",
+        #         "p":"-61348.81000000",
+        #         "q":"0.045400",
+        #         "s":"sell",
+        #         "t":1635731102731
         #     }
         #
         # private fetchMyTrades
@@ -596,11 +680,10 @@ class aax(Exchange):
         if timestamp is None:
             timestamp = self.parse8601(self.safe_string(trade, 'createTime'))
         id = self.safe_string_2(trade, 'tid', 'tradeID')
-        symbol = None
+        id = self.safe_string(trade, 'i', id)
         marketId = self.safe_string(trade, 'symbol')
         market = self.safe_market(marketId, market)
-        if market is not None:
-            symbol = market['symbol']
+        symbol = market['symbol']
         priceString = self.safe_string_2(trade, 'p', 'filledPrice')
         amountString = self.safe_string_2(trade, 'q', 'filledQty')
         orderId = self.safe_string(trade, 'orderID')
@@ -616,12 +699,9 @@ class aax(Exchange):
         if side is None:
             side = 'sell' if (priceString[0] == '-') else 'buy'
         priceString = Precise.string_abs(priceString)
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         orderType = self.parse_order_type(self.safe_string(trade, 'orderType'))
         fee = None
-        feeCost = self.safe_number(trade, 'commission')
+        feeCost = self.safe_string(trade, 'commission')
         if feeCost is not None:
             feeCurrency = None
             if market is not None:
@@ -633,7 +713,7 @@ class aax(Exchange):
                 'currency': feeCurrency,
                 'cost': feeCost,
             }
-        return {
+        return self.safe_trade({
             'info': trade,
             'id': id,
             'timestamp': timestamp,
@@ -643,11 +723,11 @@ class aax(Exchange):
             'side': side,
             'order': orderId,
             'takerOrMaker': takerOrMaker,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'fee': fee,
-        }
+        }, market)
 
     async def fetch_trades(self, symbol, since=None, limit=None, params={}):
         await self.load_markets()
@@ -661,11 +741,12 @@ class aax(Exchange):
         response = await self.publicGetMarketTrades(request)
         #
         #     {
-        #         "e":"BTCUSDFP@trades",
-        #         "trades": [
-        #             {"p":"9395.50000000","q":"50.000000","t":1592563996718},
-        #             {"p":"9395.50000000","q":"50.000000","t":1592563993577},
-        #         ],
+        #         "e":"BTCUSDT@trades",
+        #         "trades":[
+        #             {"i":"T1qzQeZG9g","p":"-61348.81000000","q":"0.045400","s":"sell","t":1635731102731},
+        #             {"i":"T1qzQeU6UK","p":"61343.10000000","q":"0.179300","s":"buy","t":1635731102133},
+        #             {"i":"T1qzQe5BQm","p":"-61346.02000000","q":"0.021100","s":"sell","t":1635731099231},
+        #         ]
         #     }
         #
         trades = self.safe_value(response, 'trades', [])
@@ -773,7 +854,7 @@ class aax(Exchange):
                 account['free'] = self.safe_string(balance, 'available')
                 account['used'] = self.safe_string(balance, 'unavailable')
                 result[code] = account
-        return self.parse_balance(result, False)
+        return self.safe_balance(result)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         orderType = type.upper()
@@ -788,16 +869,15 @@ class aax(Exchange):
             # 'stopPrice': self.price_to_precision(symbol, stopPrice),
             # 'clOrdID': clientOrderId,  # up to 20 chars, lowercase and uppercase letters only
             # 'timeInForce': 'GTC',  # GTC, IOC, FOK, default is GTC
-            # 'execInst': 'Post-Only',  # the only value supported by the exchange, futures-only
+            # 'execInst': 'Post-Only',  # the only value supported by the exchange, futures and spot
         }
-        timeInForce = self.safe_string(params, 'timeInForce')
-        if timeInForce is not None:
-            request['timeInForce'] = timeInForce
-            params = self.omit(params, 'timeInForce')
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         if clientOrderId is not None:
             request['clOrdID'] = clientOrderId
-            params = self.omit(params, ['clOrdID', 'clientOrderId'])
+        postOnly = self.safe_value(params, 'postOnly', False)
+        if postOnly is not None:
+            request['execInst'] = 'Post-Only'
+        params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly'])
         stopPrice = self.safe_number(params, 'stopPrice')
         if stopPrice is None:
             if (orderType == 'STOP-LIMIT') or (orderType == 'STOP'):
@@ -1303,8 +1383,8 @@ class aax(Exchange):
             # 'base': market['baseId'],
             # 'quote': market['quoteId'],
             # 'orderStatus': None,  # 1 new, 2 filled, 3 canceled
-            # 'startDate': self.ymd(since),
-            # 'endDate': self.ymd(self.milliseconds()),
+            # 'startDate': self.yyyymmdd(since),
+            # 'endDate': self.yyyymmdd(self.milliseconds()),
             # 'orderType': None,  # MARKET, LIMIT, STOP, STOP-LIMIT
             # 'side': 'None',  # BUY, SELL
             # 'clOrdID': clientOrderId,
@@ -1329,7 +1409,7 @@ class aax(Exchange):
         if limit is not None:
             request['pageSize'] = limit  # default 10
         if since is not None:
-            request['startDate'] = self.ymd(since)
+            request['startDate'] = self.yyyymmdd(since)
         response = await getattr(self, method)(self.extend(request, params))
         #
         # spot
@@ -1514,16 +1594,16 @@ class aax(Exchange):
         marketId = self.safe_string(order, 'symbol')
         market = self.safe_market(marketId, market)
         symbol = market['symbol']
-        price = self.safe_number(order, 'price')
+        price = self.safe_string(order, 'price')
         stopPrice = self.safe_number(order, 'stopPrice')
         timeInForce = self.parse_time_in_force(self.safe_string(order, 'timeInForce'))
         execInst = self.safe_string(order, 'execInst')
         postOnly = (execInst == 'Post-Only')
-        average = self.safe_number(order, 'avgPrice')
-        amount = self.safe_number(order, 'orderQty')
-        filled = self.safe_number(order, 'cumQty')
-        remaining = self.safe_number(order, 'leavesQty')
-        if (filled == 0) and (remaining == 0):
+        average = self.safe_string(order, 'avgPrice')
+        amount = self.safe_string(order, 'orderQty')
+        filled = self.safe_string(order, 'cumQty')
+        remaining = self.safe_string(order, 'leavesQty')
+        if (Precise.string_equals(filled, '0')) and (Precise.string_equals(remaining, '0')):
             remaining = None
         lastTradeTimestamp = self.safe_value(order, 'transactTime')
         if isinstance(lastTradeTimestamp, basestring):
@@ -1563,7 +1643,7 @@ class aax(Exchange):
             'cost': None,
             'trades': None,
             'fee': fee,
-        })
+        }, market)
 
     async def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -1574,8 +1654,8 @@ class aax(Exchange):
             # 'orderID': id,
             # 'base': market['baseId'],
             # 'quote': market['quoteId'],
-            # 'startDate': self.ymd(since),
-            # 'endDate': self.ymd(self.milliseconds()),
+            # 'startDate': self.yyyymmdd(since),
+            # 'endDate': self.yyyymmdd(self.milliseconds()),
             # 'orderType': None,  # MARKET, LIMIT, STOP, STOP-LIMIT
             # 'side': 'None',  # BUY, SELL
         }
@@ -1595,7 +1675,7 @@ class aax(Exchange):
         if limit is not None:
             request['pageSize'] = limit  # default 10
         if since is not None:
-            request['startDate'] = self.ymd(since)
+            request['startDate'] = self.yyyymmdd(since)
         response = await getattr(self, method)(self.extend(request, params))
         #
         #     {
@@ -1651,6 +1731,11 @@ class aax(Exchange):
             'currency': currency['id'],
             # 'network': None,  # 'ERC20
         }
+        if 'network' in params:
+            networks = self.safe_value(self.options, 'networks', {})
+            network = self.safe_string_upper(params, 'network')
+            params = self.omit(params, 'network')
+            request['network'] = self.safe_string_upper(networks, network, network)
         response = await self.privateGetAccountDepositAddress(self.extend(request, params))
         #
         #     {
@@ -1680,12 +1765,16 @@ class aax(Exchange):
         address = self.safe_string(depositAddress, 'address')
         tag = self.safe_string(depositAddress, 'tag')
         currencyId = self.safe_string(depositAddress, 'currency')
+        network = self.safe_string(depositAddress, 'network')
+        if network is not None:
+            currencyId = currencyId.replace(network, '')
         code = self.safe_currency_code(currencyId)
         return {
             'info': depositAddress,
-            'code': code,
+            'currency': code,
             'address': address,
             'tag': tag,
+            'network': network,
         }
 
     def nonce(self):
@@ -1720,7 +1809,7 @@ class aax(Exchange):
                     auth += url + body
                 signature = self.hmac(self.encode(auth), self.encode(self.secret))
                 headers['X-ACCESS-SIGN'] = signature
-        url = self.implode_params(self.urls['api'][api], {'hostname': self.hostname}) + url
+        url = self.implode_hostname(self.urls['api'][api]) + url
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):

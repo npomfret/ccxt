@@ -20,7 +20,7 @@ class flowbtc extends Exchange {
             'rateLimit' => 1000,
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchMarkets' => true,
@@ -102,6 +102,9 @@ class flowbtc extends Exchange {
                 'quote' => $quote,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
+                'type' => 'spot',
+                'spot' => true,
+                'active' => null,
                 'precision' => $precision,
                 'limits' => array(
                     'amount' => array(
@@ -118,15 +121,12 @@ class flowbtc extends Exchange {
                     ),
                 ),
                 'info' => $market,
-                'active' => null,
             );
         }
         return $result;
     }
 
-    public function fetch_balance($params = array ()) {
-        yield $this->load_markets();
-        $response = yield $this->privatePostGetAccountInfo ($params);
+    public function parse_balance($response) {
         $balances = $this->safe_value($response, 'currencies');
         $result = array( 'info' => $response );
         for ($i = 0; $i < count($balances); $i++) {
@@ -138,7 +138,13 @@ class flowbtc extends Exchange {
             $account['total'] = $this->safe_string($balance, 'hold');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        yield $this->load_markets();
+        $response = yield $this->privatePostGetAccountInfo ($params);
+        return $this->parse_balance($response);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -246,7 +252,7 @@ class flowbtc extends Exchange {
             );
             return yield $this->privatePostCancelOrder (array_merge($request, $params));
         }
-        throw new ExchangeError($this->id . ' cancelOrder() requires an `ins` $symbol parameter for cancelling an order');
+        throw new ExchangeError($this->id . ' cancelOrder() requires an `ins` parameter for cancelling an order');
     }
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
@@ -272,13 +278,13 @@ class flowbtc extends Exchange {
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 
-    public function request($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
-        $response = yield $this->fetch2($path, $api, $method, $params, $headers, $body);
-        if (is_array($response) && array_key_exists('isAccepted', $response)) {
-            if ($response['isAccepted']) {
-                return $response;
-            }
+    public function handle_errors($httpCode, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
+        if ($response === null) {
+            return;
         }
-        throw new ExchangeError($this->id . ' ' . $this->json($response));
+        $isAccepted = $this->safe_value($response, 'isAccepted', true);
+        if (!$isAccepted) {
+            throw new ExchangeError($this->id . ' ' . $this->json($response));
+        }
     }
 }

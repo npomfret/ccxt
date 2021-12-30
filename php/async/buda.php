@@ -10,7 +10,6 @@ use \ccxt\ExchangeError;
 use \ccxt\ArgumentsRequired;
 use \ccxt\AddressPending;
 use \ccxt\NotSupported;
-use \ccxt\Precise;
 
 class buda extends Exchange {
 
@@ -23,7 +22,7 @@ class buda extends Exchange {
             'version' => 'v2',
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createDepositAddress' => true,
                 'createOrder' => true,
                 'fetchBalance' => true,
@@ -33,14 +32,14 @@ class buda extends Exchange {
                 'fetchDeposits' => true,
                 'fetchFundingFees' => true,
                 'fetchMarkets' => true,
-                'fetchMyTrades' => false,
+                'fetchMyTrades' => null,
                 'fetchOHLCV' => true,
                 'fetchOpenOrders' => true,
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
                 'fetchOrders' => true,
-                'fetchTrades' => true,
                 'fetchTicker' => true,
+                'fetchTrades' => true,
                 'fetchWithdrawals' => true,
                 'withdraw' => true,
             ),
@@ -209,6 +208,8 @@ class buda extends Exchange {
                 'quote' => $quote,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
+                'type' => 'spot',
+                'spot' => true,
                 'active' => true,
                 'precision' => $precision,
                 'limits' => $limits,
@@ -398,10 +399,7 @@ class buda extends Exchange {
             $side = $this->safe_string($trade, 3);
             $id = $this->safe_string($trade, 4);
         }
-        $price = $this->parse_number($priceString);
-        $amount = $this->parse_number($amountString);
-        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
-        return array(
+        return $this->safe_trade(array(
             'id' => $id,
             'order' => $order,
             'info' => $trade,
@@ -411,11 +409,11 @@ class buda extends Exchange {
             'type' => $type,
             'side' => $side,
             'takerOrMaker' => null,
-            'price' => $price,
-            'amount' => $amount,
-            'cost' => $cost,
+            'price' => $priceString,
+            'amount' => $amountString,
+            'cost' => null,
             'fee' => $fee,
-        );
+        ), $market);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -445,9 +443,7 @@ class buda extends Exchange {
         return $this->parse_trading_view_ohlcv($response, $market, $timeframe, $since, $limit);
     }
 
-    public function fetch_balance($params = array ()) {
-        yield $this->load_markets();
-        $response = yield $this->privateGetBalances ($params);
+    public function parse_balance($response) {
         $result = array( 'info' => $response );
         $balances = $this->safe_value($response, 'balances');
         for ($i = 0; $i < count($balances); $i++) {
@@ -459,7 +455,13 @@ class buda extends Exchange {
             $account['total'] = $this->safe_string($balance['amount'], 0);
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        yield $this->load_markets();
+        $response = yield $this->privateGetBalances ($params);
+        return $this->parse_balance($response);
     }
 
     public function fetch_order($id, $symbol = null, $params = array ()) {
@@ -561,28 +563,29 @@ class buda extends Exchange {
         //
         $id = $this->safe_string($order, 'id');
         $timestamp = $this->parse8601($this->safe_string($order, 'created_at'));
+        $datetime = $this->iso8601($timestamp);
         $marketId = $this->safe_string($order, 'market_id');
         $symbol = $this->safe_symbol($marketId, $market, '-');
         $type = $this->safe_string($order, 'price_type');
         $side = $this->safe_string_lower($order, 'type');
         $status = $this->parse_order_status($this->safe_string($order, 'state'));
         $originalAmount = $this->safe_value($order, 'original_amount', array());
-        $amount = $this->safe_number($originalAmount, 0);
+        $amount = $this->safe_string($originalAmount, 0);
         $remainingAmount = $this->safe_value($order, 'amount', array());
-        $remaining = $this->safe_number($remainingAmount, 0);
+        $remaining = $this->safe_string($remainingAmount, 0);
         $tradedAmount = $this->safe_value($order, 'traded_amount', array());
-        $filled = $this->safe_number($tradedAmount, 0);
+        $filled = $this->safe_string($tradedAmount, 0);
         $totalExchanged = $this->safe_value($order, 'totalExchanged', array());
-        $cost = $this->safe_number($totalExchanged, 0);
+        $cost = $this->safe_string($totalExchanged, 0);
         $limitPrice = $this->safe_value($order, 'limit', array());
-        $price = $this->safe_number($limitPrice, 0);
+        $price = $this->safe_string($limitPrice, 0);
         if ($price === null) {
             if ($limitPrice !== null) {
                 $price = $limitPrice;
             }
         }
         $paidFee = $this->safe_value($order, 'paid_fee', array());
-        $feeCost = $this->safe_number($paidFee, 0);
+        $feeCost = $this->safe_string($paidFee, 0);
         $fee = null;
         if ($feeCost !== null) {
             $feeCurrencyId = $this->safe_string($paidFee, 1);
@@ -596,7 +599,7 @@ class buda extends Exchange {
             'info' => $order,
             'id' => $id,
             'clientOrderId' => null,
-            'datetime' => $this->iso8601($timestamp),
+            'datetime' => $datetime,
             'timestamp' => $timestamp,
             'lastTradeTimestamp' => null,
             'status' => $status,
@@ -614,7 +617,7 @@ class buda extends Exchange {
             'remaining' => $remaining,
             'trades' => null,
             'fee' => $fee,
-        ));
+        ), $market);
     }
 
     public function is_fiat($code) {
@@ -656,6 +659,7 @@ class buda extends Exchange {
             'currency' => $code,
             'address' => $address,
             'tag' => null,
+            'network' => null,
             'info' => $receiveAddresses,
         );
     }
@@ -754,6 +758,7 @@ class buda extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->check_address($address);
         yield $this->load_markets();
         $currency = $this->currency($code);

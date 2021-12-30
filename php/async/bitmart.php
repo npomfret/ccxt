@@ -19,8 +19,10 @@ class bitmart extends Exchange {
             'id' => 'bitmart',
             'name' => 'BitMart',
             'countries' => array( 'US', 'CN', 'HK', 'KR' ),
-            'rateLimit' => 1000,
+            'rateLimit' => 250, // a bit slower than 50 times per second ~40 times per second
             'version' => 'v1',
+            'certified' => true,
+            'pro' => true,
             'has' => array(
                 'cancelAllOrders' => true,
                 'cancelOrder' => true,
@@ -32,6 +34,7 @@ class bitmart extends Exchange {
                 'fetchCurrencies' => true,
                 'fetchDepositAddress' => true,
                 'fetchDeposits' => true,
+                'fetchFundingFee' => true,
                 'fetchMarkets' => true,
                 'fetchMyTrades' => true,
                 'fetchOHLCV' => true,
@@ -40,21 +43,26 @@ class bitmart extends Exchange {
                 'fetchOrderBook' => true,
                 'fetchOrders' => true,
                 'fetchOrderTrades' => true,
+                'fetchStatus' => true,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
                 'fetchTime' => true,
-                'fetchStatus' => true,
                 'fetchTrades' => true,
                 'fetchWithdrawals' => true,
                 'withdraw' => true,
             ),
-            'hostname' => 'bitmart.com', // bitmart.info for Hong Kong users
+            'hostname' => 'bitmart.com', // bitmart.info, bitmart.news for Hong Kong users
             'urls' => array(
-                'logo' => 'https://user-images.githubusercontent.com/1294454/61835713-a2662f80-ae85-11e9-9d00-6442919701fd.jpg',
-                'api' => 'https://api-cloud.{hostname}', // bitmart.info for Hong Kong users
+                'logo' => 'https://user-images.githubusercontent.com/1294454/129991357-8f47464b-d0f4-41d6-8a82-34122f0d1398.jpg',
+                'api' => array(
+                    'rest' => 'https://api-cloud.{hostname}', // bitmart.info for Hong Kong users
+                ),
                 'www' => 'https://www.bitmart.com/',
                 'doc' => 'https://developer-pro.bitmart.com/',
-                'referral' => 'http://www.bitmart.com/?r=rQCFLh',
+                'referral' => array(
+                    'url' => 'http://www.bitmart.com/?r=rQCFLh',
+                    'discount' => 0.3,
+                ),
                 'fees' => 'https://www.bitmart.com/fee/en',
             ),
             'requiredCredentials' => array(
@@ -66,83 +74,57 @@ class bitmart extends Exchange {
                 'public' => array(
                     'system' => array(
                         'get' => array(
-                            'time', // https://api-cloud.bitmart.com/system/time
-                            'service', // https://api-cloud.bitmart.com/system/service
+                            'time' => 5, // https://api-cloud.bitmart.com/system/time
+                            'service' => 5, // https://api-cloud.bitmart.com/system/service
                         ),
                     ),
                     'account' => array(
                         'get' => array(
-                            'currencies', // https://api-cloud.bitmart.com/account/v1/currencies
+                            'currencies' => 10, // https://api-cloud.bitmart.com/account/v1/currencies
                         ),
                     ),
                     'spot' => array(
                         'get' => array(
-                            'currencies',
-                            'symbols',
-                            'symbols/details',
-                            'ticker', // ?symbol=BTC_USDT
-                            'steps', // ?symbol=BMX_ETH
-                            'symbols/kline', // ?symbol=BMX_ETH&step=15&from=1525760116&to=1525769116
-                            'symbols/book', // ?symbol=BMX_ETH&precision=6
-                            'symbols/trades', // ?symbol=BMX_ETH
+                            'currencies' => 1,
+                            'symbols' => 1,
+                            'symbols/details' => 1,
+                            'ticker' => 1, // ?symbol=BTC_USDT
+                            'steps' => 1, // ?symbol=BMX_ETH
+                            'symbols/kline' => 1, // ?symbol=BMX_ETH&step=15&from=1525760116&to=1525769116
+                            'symbols/book' => 1, // ?symbol=BMX_ETH&precision=6
+                            'symbols/trades' => 1, // ?symbol=BMX_ETH
                         ),
                     ),
                     'contract' => array(
                         'get' => array(
-                            'contracts', // https://api-cloud.bitmart.com/contract/v1/ifcontract/contracts
-                            'pnls',
-                            'indexes',
-                            'tickers',
-                            'quote',
-                            'indexquote',
-                            'trades',
-                            'depth',
-                            'fundingrate',
+                            'tickers' => 0.5,
                         ),
                     ),
                 ),
                 'private' => array(
                     'account' => array(
                         'get' => array(
-                            'wallet', // ?account_type=1
-                            'deposit/address', // ?currency=USDT-TRC20
-                            'withdraw/charge', // ?currency=BTC
-                            'deposit-withdraw/history', // ?limit=10&offset=1&operationType=withdraw
-                            'deposit-withdraw/detail', // ?id=1679952
+                            'wallet' => 0.5, // ?account_type=1
+                            'deposit/address' => 1, // ?currency=USDT-TRC20
+                            'withdraw/charge' => 1, // ?currency=BTC
+                            'deposit-withdraw/history' => 1, // ?limit=10&offset=1&operationType=withdraw
+                            'deposit-withdraw/detail' => 1, // ?id=1679952
                         ),
                         'post' => array(
-                            'withdraw/apply',
+                            'withdraw/apply' => 1,
                         ),
                     ),
                     'spot' => array(
                         'get' => array(
-                            'wallet',
-                            'order_detail',
-                            'orders',
-                            'trades',
+                            'wallet' => 0.5,
+                            'order_detail' => 0.1,
+                            'orders' => 0.5,
+                            'trades' => 0.5,
                         ),
                         'post' => array(
-                            'submit_order', // https://api-cloud.bitmart.com/spot/v1/submit_order
-                            'cancel_order', // https://api-cloud.bitmart.com/spot/v2/cancel_order
-                            'cancel_orders',
-                        ),
-                    ),
-                    'contract' => array(
-                        'get' => array(
-                            'userOrders',
-                            'userOrderInfo',
-                            'userTrades',
-                            'orderTrades',
-                            'accounts',
-                            'userPositions',
-                            'userLiqRecords',
-                            'positionFee',
-                        ),
-                        'post' => array(
-                            'batchOrders',
-                            'submitOrder',
-                            'cancelOrders',
-                            'marginOper',
+                            'submit_order' => 0.1, // https://api-cloud.bitmart.com/spot/v1/submit_order
+                            'cancel_order' => 0.1, // https://api-cloud.bitmart.com/spot/v2/cancel_order
+                            'cancel_orders' => 0.1,
                         ),
                     ),
                 ),
@@ -166,28 +148,28 @@ class bitmart extends Exchange {
                 'trading' => array(
                     'tierBased' => true,
                     'percentage' => true,
-                    'taker' => 0.0025,
-                    'maker' => 0.0025,
+                    'taker' => $this->parse_number('0.0025'),
+                    'maker' => $this->parse_number('0.0025'),
                     'tiers' => array(
                         'taker' => [
-                            [0, 0.20 / 100],
-                            [10, 0.18 / 100],
-                            [50, 0.16 / 100],
-                            [250, 0.14 / 100],
-                            [1000, 0.12 / 100],
-                            [5000, 0.10 / 100],
-                            [25000, 0.08 / 100],
-                            [50000, 0.06 / 100],
+                            [$this->parse_number('0'), $this->parse_number('0.0020')],
+                            [$this->parse_number('10'), $this->parse_number('0.18')],
+                            [$this->parse_number('50'), $this->parse_number('0.0016')],
+                            [$this->parse_number('250'), $this->parse_number('0.0014')],
+                            [$this->parse_number('1000'), $this->parse_number('0.0012')],
+                            [$this->parse_number('5000'), $this->parse_number('0.0010')],
+                            [$this->parse_number('25000'), $this->parse_number('0.0008')],
+                            [$this->parse_number('50000'), $this->parse_number('0.0006')],
                         ],
                         'maker' => [
-                            [0, 0.1 / 100],
-                            [10, 0.09 / 100],
-                            [50, 0.08 / 100],
-                            [250, 0.07 / 100],
-                            [1000, 0.06 / 100],
-                            [5000, 0.05 / 100],
-                            [25000, 0.04 / 100],
-                            [50000, 0.03 / 100],
+                            [$this->parse_number('0'), $this->parse_number('0.001')],
+                            [$this->parse_number('10'), $this->parse_number('0.0009')],
+                            [$this->parse_number('50'), $this->parse_number('0.0008')],
+                            [$this->parse_number('250'), $this->parse_number('0.0007')],
+                            [$this->parse_number('1000'), $this->parse_number('0.0006')],
+                            [$this->parse_number('5000'), $this->parse_number('0.0005')],
+                            [$this->parse_number('25000'), $this->parse_number('0.0004')],
+                            [$this->parse_number('50000'), $this->parse_number('0.0003')],
                         ],
                     ),
                 ),
@@ -257,7 +239,10 @@ class bitmart extends Exchange {
                     '50021' => '\\ccxt\\BadRequest', // 400, Invalid %s
                     '50022' => '\\ccxt\\ExchangeNotAvailable', // 400, Service unavailable
                     '50023' => '\\ccxt\\BadSymbol', // 400, This Symbol can't place order by api
+                    '50029' => '\\ccxt\\InvalidOrder', // array("message":"param not match : size * price >=1000","code":50029,"trace":"f931f030-b692-401b-a0c5-65edbeadc598","data":array())
+                    '50030' => '\\ccxt\\InvalidOrder', // array("message":"Order is already canceled","code":50030,"trace":"8d6f64ee-ad26-45a4-9efd-1080f9fca1fa","data":array())
                     '53000' => '\\ccxt\\AccountSuspended', // 403, Your account is frozen due to security policies. Please contact customer service
+                    '53001' => '\\ccxt\\AccountSuspended', // array("message":"Your kyc country is restricted. Please contact customer service.","code":53001,"trace":"8b445940-c123-4de9-86d7-73c5be2e7a24","data":array())
                     '57001' => '\\ccxt\\BadRequest', // 405, Method Not Allowed
                     '58001' => '\\ccxt\\BadRequest', // 415, Unsupported Media Type
                     '59001' => '\\ccxt\\ExchangeError', // 500, User account not found
@@ -303,10 +288,26 @@ class bitmart extends Exchange {
             'commonCurrencies' => array(
                 'COT' => 'Community Coin',
                 'CPC' => 'CPCoin',
+                'DMS' => 'DimSum', // conflict with Dragon Mainland Shards
+                'FOX' => 'Fox Finance',
+                'GDT' => 'Gorilla Diamond',
+                '$HERO' => 'Step Hero',
+                '$PAC' => 'PAC',
+                'MIM' => 'MIM Swarm',
+                'MVP' => 'MVP Coin',
                 'ONE' => 'Menlo One',
                 'PLA' => 'Plair',
+                'TCT' => 'TacoCat Token',
+                'TRU' => 'Truebit', // conflict with TrueFi
             ),
             'options' => array(
+                'networks' => array(
+                    'TRX' => 'TRC20',
+                    'ETH' => 'ERC20',
+                ),
+                'defaultNetworks' => array(
+                    'USDT' => 'ERC20',
+                ),
                 'defaultType' => 'spot', // 'spot', 'swap'
                 'fetchBalance' => array(
                     'type' => 'spot', // 'spot', 'swap', 'contract', 'account'
@@ -323,7 +324,7 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"c4e5e5b7-fe9f-4191-89f7-53f6c5bf9030",
-        //         "$data":{
+        //         "data":{
         //             "server_time":1599843709578
         //         }
         //     }
@@ -344,19 +345,19 @@ class bitmart extends Exchange {
         //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => {
+        //         "data" => {
         //             "serivce":array(
         //                 array(
         //                     "title" => "Spot API Stop",
         //                     "service_type" => "spot",
-        //                     "$status" => "2",
+        //                     "status" => "2",
         //                     "start_time" => 1527777538000,
         //                     "end_time" => 1527777538000
         //                 ),
         //                 {
         //                     "title" => "Contract API Stop",
         //                     "service_type" => "contract",
-        //                     "$status" => "2",
+        //                     "status" => "2",
         //                     "start_time" => 1527777538000,
         //                     "end_time" => 1527777538000
         //                 }
@@ -397,10 +398,10 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"a67c9146-086d-4d3f-9897-5636a9bb26e1",
-        //         "$data":{
-        //             "$symbols":array(
+        //         "data":{
+        //             "symbols":array(
         //                 array(
-        //                     "$symbol":"PRQ_BTC",
+        //                     "symbol":"PRQ_BTC",
         //                     "symbol_id":1232,
         //                     "base_currency":"PRQ",
         //                     "quote_currency":"BTC",
@@ -433,49 +434,66 @@ class bitmart extends Exchange {
             // https://github.com/bitmartexchange/bitmart-official-api-docs/blob/master/rest/public/symbols_details.md#$response-details
             // from the above API doc:
             // quote_increment Minimum order price as well as the price increment
-            // price_min_precision Minimum price $precision (digit) used to query price and kline
-            // price_max_precision Maximum price $precision (digit) used to query price and kline
+            // price_min_precision Minimum price precision (digit) used to query price and kline
+            // price_max_precision Maximum price precision (digit) used to query price and kline
             //
             // the docs are wrong => https://github.com/ccxt/ccxt/issues/5612
             //
             $pricePrecision = $this->safe_integer($market, 'price_max_precision');
-            $precision = array(
-                'amount' => $this->safe_number($market, 'base_min_size'),
-                'price' => floatval($this->decimal_to_precision(pow(10, -$pricePrecision), ROUND, 10)),
-            );
             $minBuyCost = $this->safe_number($market, 'min_buy_amount');
             $minSellCost = $this->safe_number($market, 'min_sell_amount');
             $minCost = max ($minBuyCost, $minSellCost);
-            $limits = array(
-                'amount' => array(
-                    'min' => $this->safe_number($market, 'base_min_size'),
-                    'max' => $this->safe_number($market, 'base_max_size'),
-                ),
-                'price' => array(
-                    'min' => null,
-                    'max' => null,
-                ),
-                'cost' => array(
-                    'min' => $minCost,
-                    'max' => null,
-                ),
-            );
             $result[] = array(
                 'id' => $id,
                 'numericId' => $numericId,
                 'symbol' => $symbol,
                 'base' => $base,
                 'quote' => $quote,
+                'settle' => null,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
+                'settleId' => null,
                 'type' => 'spot',
                 'spot' => true,
-                'future' => false,
+                'margin' => false,
                 'swap' => false,
-                'precision' => $precision,
-                'limits' => $limits,
+                'future' => false,
+                'option' => false,
+                'derivative' => false,
+                'contract' => false,
+                'linear' => null,
+                'inverse' => null,
+                'taker' => null,
+                'maker' => null,
+                'contractSize' => null,
+                'active' => true,
+                'expiry' => null,
+                'expiryDatetime' => null,
+                'strike' => null,
+                'optionType' => null,
+                'precision' => array(
+                    'amount' => $this->safe_number($market, 'base_min_size'),
+                    'price' => $this->parse_number($this->decimal_to_precision(pow(10, -$pricePrecision), ROUND, 14)),
+                ),
+                'limits' => array(
+                    'leverage' => array(
+                        'min' => $this->parse_number('1'),
+                        'max' => null,
+                    ),
+                    'amount' => array(
+                        'min' => $this->safe_number($market, 'base_min_size'),
+                        'max' => $this->safe_number($market, 'base_max_size'),
+                    ),
+                    'price' => array(
+                        'min' => null,
+                        'max' => null,
+                    ),
+                    'cost' => array(
+                        'min' => $minCost,
+                        'max' => null,
+                    ),
+                ),
                 'info' => $market,
-                'active' => null,
             );
         }
         return $result;
@@ -489,10 +507,10 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"7fcedfb5-a660-4780-8a7a-b36a9e2159f7",
-        //         "$data":{
-        //             "$contracts":array(
+        //         "data":{
+        //             "contracts":array(
         //                 array(
-        //                     "$contract":array(
+        //                     "contract":array(
         //                         "contract_id":1,
         //                         "index_id":1,
         //                         "name":"BTCUSDT",
@@ -547,80 +565,125 @@ class bitmart extends Exchange {
             $numericId = $this->safe_integer($contract, 'contract_id');
             $baseId = $this->safe_string($contract, 'base_coin');
             $quoteId = $this->safe_string($contract, 'quote_coin');
+            $settleId = $this->safe_string($contract, 'price_coin');
             $base = $this->safe_currency_code($baseId);
             $quote = $this->safe_currency_code($quoteId);
-            $symbol = $this->safe_string($contract, 'name');
+            $settle = $this->safe_currency_code($settleId);
             //
             // https://github.com/bitmartexchange/bitmart-official-api-docs/blob/master/rest/public/symbols_details.md#$response-details
             // from the above API doc:
             // quote_increment Minimum order price as well as the price increment
-            // price_min_precision Minimum price $precision (digit) used to query price and kline
-            // price_max_precision Maximum price $precision (digit) used to query price and kline
+            // price_min_precision Minimum price precision (digit) used to query price and kline
+            // price_max_precision Maximum price precision (digit) used to query price and kline
             //
             // the docs are wrong => https://github.com/ccxt/ccxt/issues/5612
             //
             $amountPrecision = $this->safe_number($contract, 'vol_unit');
             $pricePrecision = $this->safe_number($contract, 'price_unit');
-            $precision = array(
-                'amount' => $amountPrecision,
-                'price' => $pricePrecision,
-            );
-            $limits = array(
-                'amount' => array(
-                    'min' => $this->safe_number($contract, 'min_vol'),
-                    'max' => $this->safe_number($contract, 'max_vol'),
-                ),
-                'price' => array(
-                    'min' => null,
-                    'max' => null,
-                ),
-                'cost' => array(
-                    'min' => null,
-                    'max' => null,
-                ),
-            );
             $contractType = $this->safe_value($contract, 'contract_type');
             $future = false;
             $swap = false;
             $type = 'contract';
+            $symbol = $base . '/' . $quote;
+            $expiry = $this->parse8601($this->safe_string($contract, 'delive_at'));
             if ($contractType === 1) {
                 $type = 'swap';
                 $swap = true;
+                $symbol = $symbol . ':' . $settle;
             } else if ($contractType === 2) {
                 $type = 'future';
                 $future = true;
+                $symbol = $symbol . ':' . $settle . '-' . $this->yymmdd($expiry, '');
             }
             $feeConfig = $this->safe_value($market, 'fee_config', array());
-            $maker = $this->safe_number($feeConfig, 'maker_fee');
-            $taker = $this->safe_number($feeConfig, 'taker_fee');
             $result[] = array(
                 'id' => $id,
                 'numericId' => $numericId,
                 'symbol' => $symbol,
                 'base' => $base,
                 'quote' => $quote,
+                'settle' => $settle,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
-                'maker' => $maker,
-                'taker' => $taker,
+                'settleId' => $settleId,
                 'type' => $type,
                 'spot' => false,
-                'future' => $future,
+                'margin' => false,
                 'swap' => $swap,
-                'precision' => $precision,
-                'limits' => $limits,
-                'info' => $market,
+                'future' => $future,
+                'option' => false,
+                'derivative' => true,
+                'contract' => true,
+                'linear' => null,
+                'inverse' => null,
+                'taker' => $this->safe_number($feeConfig, 'taker_fee'),
+                'maker' => $this->safe_number($feeConfig, 'maker_fee'),
+                'contractSize' => $this->safe_string($market, 'contract_size'),
                 'active' => null,
+                'expiry' => $expiry,
+                'expiryDatetime' => $this->iso8601($expiry),
+                'strike' => null,
+                'optionType' => null,
+                'precision' => array(
+                    'amount' => $amountPrecision,
+                    'price' => $pricePrecision,
+                ),
+                'limits' => array(
+                    'leverage' => array(
+                        'min' => $this->safe_number($contract, 'min_leverage'),
+                        'max' => $this->safe_number($contract, 'max_leverage'),
+                    ),
+                    'amount' => array(
+                        'min' => $this->safe_number($contract, 'min_vol'),
+                        'max' => $this->safe_number($contract, 'max_vol'),
+                    ),
+                    'price' => array(
+                        'min' => null,
+                        'max' => null,
+                    ),
+                    'cost' => array(
+                        'min' => null,
+                        'max' => null,
+                    ),
+                ),
+                'info' => $market,
             );
         }
         return $result;
     }
 
     public function fetch_markets($params = array ()) {
-        $spotMarkets = yield $this->fetch_spot_markets();
-        $contractMarkets = yield $this->fetch_contract_markets();
-        $allMarkets = $this->array_concat($spotMarkets, $contractMarkets);
-        return $allMarkets;
+        return yield $this->fetch_spot_markets();
+    }
+
+    public function fetch_funding_fee($code, $params = array ()) {
+        yield $this->load_markets();
+        $currency = $this->currency($code);
+        $request = array(
+            'currency' => $currency['id'],
+        );
+        $response = yield $this->privateAccountGetWithdrawCharge (array_merge($request, $params));
+        //
+        //     {
+        //         message => 'OK',
+        //         $code => '1000',
+        //         trace => '3ecc0adf-91bd-4de7-aca1-886c1122f54f',
+        //         $data => {
+        //             today_available_withdraw_BTC => '100.0000',
+        //             min_withdraw => '0.005',
+        //             withdraw_precision => '8',
+        //             withdraw_fee => '0.000500000000000000000000000000'
+        //         }
+        //     }
+        //
+        $data = $response['data'];
+        $withdrawFees = array();
+        $withdrawFees[$code] = $this->safe_number($data, 'withdraw_fee');
+        return array(
+            'info' => $response,
+            'withdraw' => $withdrawFees,
+            'deposit' => array(),
+        );
     }
 
     public function parse_ticker($ticker, $market = null) {
@@ -628,7 +691,7 @@ class bitmart extends Exchange {
         // spot
         //
         //     {
-        //         "$symbol":"ETH_BTC",
+        //         "symbol":"ETH_BTC",
         //         "last_price":"0.036037",
         //         "quote_volume_24h":"4380.6660000000",
         //         "base_volume_24h":"159.3582006712",
@@ -641,53 +704,37 @@ class bitmart extends Exchange {
         //         "best_bid":"0.035983",
         //         "best_bid_size":"4.2792",
         //         "fluctuation":"-0.0143",
+        //         "s_t" => "1630981727", // ws only
         //         "url":"https://www.bitmart.com/trade?$symbol=ETH_BTC"
         //     }
         //
         // contract
         //
         //     {
-        //         "last_price":"422.2",
-        //         "$open":"430.5",
-        //         "close":"422.2",
-        //         "low":"421.9",
-        //         "high":"436.9",
-        //         "avg_price":"430.8569900089815372072",
-        //         "volume":"2720",
-        //         "total_volume":"18912248",
-        //         "$timestamp":1597631495,
-        //         "rise_fall_rate":"-0.0192799070847851336",
-        //         "rise_fall_value":"-8.3",
-        //         "contract_id":2,
-        //         "position_size":"3067404",
-        //         "volume_day":"9557384",
-        //         "amount24":"80995537.0919999999999974153",
-        //         "base_coin_volume":"189122.48",
-        //         "quote_coin_volume":"81484742.475833810590837937856",
-        //         "pps":"1274350547",
-        //         "index_price":"422.135",
-        //         "fair_price":"422.147253318507",
-        //         "depth_price":array("bid_price":"421.9","ask_price":"422","mid_price":"421.95"),
-        //         "fair_basis":"0.000029027013",
-        //         "fair_value":"0.012253318507",
-        //         "rate":array("quote_rate":"0.0006","base_rate":"0.0003","interest_rate":"0.000099999999"),
-        //         "premium_index":"0.000045851604",
-        //         "funding_rate":"0.000158",
-        //         "next_funding_rate":"0.000099999999",
-        //         "next_funding_at":"2020-08-17T04:00:00Z"
+        //         contract_symbol => "DGBUSDT",
+        //         last_price => "0.05759",
+        //         index_price => "0.05757755",
+        //         last_funding_rate => "0.00010000",
+        //         price_change_percent_24h => "0.244",
+        //         volume_24h => "64303817.028126",
+        //         url => "https://futures.bitmart.com/en?$symbol=DGBUSDT"
         //     }
         //
-        $timestamp = $this->safe_timestamp($ticker, 'timestamp', $this->milliseconds());
+        $timestamp = $this->safe_timestamp_2($ticker, 'timestamp', 's_t', $this->milliseconds());
         $marketId = $this->safe_string_2($ticker, 'symbol', 'contract_id');
-        $symbol = $this->safe_symbol($marketId, $market, '_');
+        $marketId = $this->safe_string($ticker, 'contract_symbol', $marketId);
+        $symbol = $this->safe_symbol($marketId, $market);
         $last = $this->safe_number_2($ticker, 'close_24h', 'last_price');
-        $percentage = $this->safe_number($ticker, 'fluctuation', 'rise_fall_rate');
+        $percentage = $this->safe_number_2($ticker, 'fluctuation', 'rise_fall_rate');
         if ($percentage !== null) {
             $percentage *= 100;
         }
-        $baseVolume = $this->safe_number_2($ticker, 'base_volume_24h', 'base_coin_volume');
-        $quoteVolume = $this->safe_number_2($ticker, 'quote_volume_24h', 'quote_coin_volume');
-        $vwap = $this->vwap($baseVolume, $quoteVolume);
+        if ($percentage === null) {
+            $percentage = $this->safe_number($ticker, 'price_change_percent_24h');
+        }
+        $baseVolume = $this->safe_number_2($ticker, 'base_coin_volume', 'base_volume_24h');
+        $quoteVolume = $this->safe_number_2($ticker, 'quote_coin_volume', 'quote_volume_24h');
+        $quoteVolume = $this->safe_number($ticker, 'volume_24h', $quoteVolume);
         $open = $this->safe_number_2($ticker, 'open_24h', 'open');
         $average = null;
         if (($last !== null) && ($open !== null)) {
@@ -701,11 +748,11 @@ class bitmart extends Exchange {
             'datetime' => $this->iso8601($timestamp),
             'high' => $this->safe_number_2($ticker, 'high', 'high_24h'),
             'low' => $this->safe_number_2($ticker, 'low', 'low_24h'),
-            'bid' => $this->safe_number($price, 'best_bid', 'bid_price'),
+            'bid' => $this->safe_number_2($price, 'best_bid', 'bid_price'),
             'bidVolume' => $this->safe_number($ticker, 'best_bid_size'),
-            'ask' => $this->safe_number($price, 'best_ask', 'ask_price'),
+            'ask' => $this->safe_number_2($price, 'best_ask', 'ask_price'),
             'askVolume' => $this->safe_number($ticker, 'best_ask_size'),
-            'vwap' => $vwap,
+            'vwap' => null,
             'open' => $this->safe_number($ticker, 'open_24h'),
             'close' => $last,
             'last' => $last,
@@ -739,10 +786,10 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"6aa5b923-2f57-46e3-876d-feca190e0b82",
-        //         "$data":{
-        //             "$tickers":array(
+        //         "data":{
+        //             "tickers":array(
         //                 {
-        //                     "$symbol":"ETH_BTC",
+        //                     "symbol":"ETH_BTC",
         //                     "last_price":"0.036037",
         //                     "quote_volume_24h":"4380.6660000000",
         //                     "base_volume_24h":"159.3582006712",
@@ -764,44 +811,22 @@ class bitmart extends Exchange {
         // contract
         //
         //     {
-        //         "errno":"OK",
-        //         "message":"OK",
-        //         "code":1000,
-        //         "trace":"d09b57c4-d99b-4a13-91a8-2df98f889909",
-        //         "$data":{
-        //             "$tickers":array(
-        //                 {
-        //                     "last_price":"422.2",
-        //                     "open":"430.5",
-        //                     "close":"422.2",
-        //                     "low":"421.9",
-        //                     "high":"436.9",
-        //                     "avg_price":"430.8569900089815372072",
-        //                     "volume":"2720",
-        //                     "total_volume":"18912248",
-        //                     "timestamp":1597631495,
-        //                     "rise_fall_rate":"-0.0192799070847851336",
-        //                     "rise_fall_value":"-8.3",
-        //                     "contract_id":2,
-        //                     "position_size":"3067404",
-        //                     "volume_day":"9557384",
-        //                     "amount24":"80995537.0919999999999974153",
-        //                     "base_coin_volume":"189122.48",
-        //                     "quote_coin_volume":"81484742.475833810590837937856",
-        //                     "pps":"1274350547",
-        //                     "index_price":"422.135",
-        //                     "fair_price":"422.147253318507",
-        //                     "depth_price":array("bid_price":"421.9","ask_price":"422","mid_price":"421.95"),
-        //                     "fair_basis":"0.000029027013",
-        //                     "fair_value":"0.012253318507",
-        //                     "rate":array("quote_rate":"0.0006","base_rate":"0.0003","interest_rate":"0.000099999999"),
-        //                     "premium_index":"0.000045851604",
-        //                     "funding_rate":"0.000158",
-        //                     "next_funding_rate":"0.000099999999",
-        //                     "next_funding_at":"2020-08-17T04:00:00Z"
-        //                 }
-        //             )
-        //         }
+        //         message => "OK",
+        //         code => "1000",
+        //         trace => "84a0dc44-b395-4bae-a1b7-fe1201defd51",
+        //         $data => array(
+        //             $tickers => array(
+        //                 array(
+        //                     contract_symbol => "DGBUSDT",
+        //                     last_price => "0.05759",
+        //                     index_price => "0.05757755",
+        //                     last_funding_rate => "0.00010000",
+        //                     price_change_percent_24h => "0.244",
+        //                     volume_24h => "64303817.028126",
+        //                     url => "https://futures.bitmart.com/en?$symbol=DGBUSDT"
+        //                 ),
+        //             ),
+        //         ),
         //     }
         //
         $data = $this->safe_value($response, 'data', array());
@@ -839,13 +864,13 @@ class bitmart extends Exchange {
         //
         //     {
         //         "message":"OK",
-        //         "$code":1000,
+        //         "code":1000,
         //         "trace":"8c768b3c-025f-413f-bec5-6d6411d46883",
-        //         "$data":{
-        //             "$currencies":array(
-        //                 array("$currency":"MATIC","$name":"Matic Network","withdraw_enabled":true,"deposit_enabled":true),
-        //                 array("$currency":"KTN","$name":"Kasoutuuka News","withdraw_enabled":true,"deposit_enabled":false),
-        //                 array("$currency":"BRT","$name":"Berith","withdraw_enabled":true,"deposit_enabled":true),
+        //         "data":{
+        //             "currencies":array(
+        //                 array("currency":"MATIC","name":"Matic Network","withdraw_enabled":true,"deposit_enabled":true),
+        //                 array("currency":"KTN","name":"Kasoutuuka News","withdraw_enabled":true,"deposit_enabled":false),
+        //                 array("currency":"BRT","name":"Berith","withdraw_enabled":true,"deposit_enabled":true),
         //             )
         //         }
         //     }
@@ -886,6 +911,9 @@ class bitmart extends Exchange {
         if ($market['spot']) {
             $method = 'publicSpotGetSymbolsBook';
             $request['symbol'] = $market['id'];
+            if ($limit !== null) {
+                $request['size'] = $limit; // default 50, max 200
+            }
             // $request['precision'] = 4; // optional price precision / depth level whose range is defined in $symbol details
         } else if ($market['swap'] || $market['future']) {
             $method = 'publicContractGetDepth';
@@ -902,7 +930,7 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"8254f8fc-431d-404f-ad9a-e716339f66c7",
-        //         "$data":{
+        //         "data":{
         //             "buys":array(
         //                 array("amount":"4.7091","total":"4.71","price":"0.034047","count":"1"),
         //                 array("amount":"5.7439","total":"10.45","price":"0.034039","count":"1"),
@@ -923,7 +951,7 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"c330dfca-ca5b-4f15-b350-9fef3f049b4f",
-        //         "$data":{
+        //         "data":{
         //             "sells":array(
         //                 array("price":"347.6","vol":"6678"),
         //                 array("price":"347.7","vol":"3452"),
@@ -947,15 +975,15 @@ class bitmart extends Exchange {
 
     public function parse_trade($trade, $market = null) {
         //
-        // public fetchTrades spot
+        // public fetchTrades spot ( amount = count * price )
         //
         //     {
-        //         "$amount":"0.005703",
-        //         "order_time":1599652045394,
-        //         "$price":"0.034029",
-        //         "count":"0.1676",
-        //         "$type":"sell"
-        //     }
+        //          "amount" => "818.94",
+        //          "order_time" => "1637601839035",    // ETH/USDT
+        //          "price" => "4221.99",
+        //          "count" => "0.19397",
+        //          "type" => "buy"
+        //      }
         //
         // public fetchTrades contract, private fetchMyTrades contract
         //
@@ -968,7 +996,7 @@ class bitmart extends Exchange {
         //         "make_fee":"-5.8636644",
         //         "take_fee":"9.772774",
         //         "created_at":"2020-09-09T11:49:50.749170536Z",
-        //         "$way":1,
+        //         "way":1,
         //         "fluctuation":"0"
         //     }
         //
@@ -977,9 +1005,9 @@ class bitmart extends Exchange {
         //     {
         //         "detail_id":256348632,
         //         "order_id":2147484350,
-        //         "$symbol":"BTC_USDT",
+        //         "symbol":"BTC_USDT",
         //         "create_time":1590462303000,
-        //         "$side":"buy",
+        //         "side":"buy",
         //         "fees":"0.00001350",
         //         "fee_coin_name":"BTC",
         //         "notional":"88.00000000",
@@ -990,6 +1018,9 @@ class bitmart extends Exchange {
         //
         $id = $this->safe_string_2($trade, 'trade_id', 'detail_id');
         $timestamp = $this->safe_integer_2($trade, 'order_time', 'create_time');
+        if ($timestamp === null) {
+            $timestamp = $this->safe_timestamp($trade, 's_t');
+        }
         if ($timestamp === null) {
             $timestamp = $this->parse8601($this->safe_string($trade, 'created_at'));
         }
@@ -1008,31 +1039,28 @@ class bitmart extends Exchange {
         if ($execType !== null) {
             $takerOrMaker = ($execType === 'M') ? 'maker' : 'taker';
         }
-        $price = $this->safe_number_2($trade, 'price', 'deal_price');
-        $price = $this->safe_number($trade, 'price_avg', $price);
-        $amount = $this->safe_number_2($trade, 'amount', 'deal_vol');
-        $amount = $this->safe_number($trade, 'size', $amount);
-        $cost = $this->safe_number_2($trade, 'count', 'notional');
-        if (($cost === null) && ($price !== null) && ($amount !== null)) {
-            $cost = $amount * $price;
-        }
+        $priceString = $this->safe_string_2($trade, 'price', 'deal_price');
+        $priceString = $this->safe_string($trade, 'price_avg', $priceString);
+        $amountString = $this->safe_string_2($trade, 'count', 'deal_vol');
+        $amountString = $this->safe_string($trade, 'size', $amountString);
+        $costString = $this->safe_string_2($trade, 'amount', 'notional');
         $orderId = $this->safe_integer($trade, 'order_id');
         $marketId = $this->safe_string_2($trade, 'contract_id', 'symbol');
         $symbol = $this->safe_symbol($marketId, $market, '_');
-        $feeCost = $this->safe_number($trade, 'fees');
+        $feeCostString = $this->safe_string($trade, 'fees');
         $fee = null;
-        if ($feeCost !== null) {
+        if ($feeCostString !== null) {
             $feeCurrencyId = $this->safe_string($trade, 'fee_coin_name');
             $feeCurrencyCode = $this->safe_currency_code($feeCurrencyId);
             if (($feeCurrencyCode === null) && ($market !== null)) {
                 $feeCurrencyCode = ($side === 'buy') ? $market['base'] : $market['quote'];
             }
             $fee = array(
-                'cost' => $feeCost,
+                'cost' => $feeCostString,
                 'currency' => $feeCurrencyCode,
             );
         }
-        return array(
+        return $this->safe_trade(array(
             'info' => $trade,
             'id' => $id,
             'order' => $orderId,
@@ -1041,12 +1069,12 @@ class bitmart extends Exchange {
             'symbol' => $symbol,
             'type' => $type,
             'side' => $side,
-            'price' => $price,
-            'amount' => $amount,
-            'cost' => $cost,
+            'price' => $priceString,
+            'amount' => $amountString,
+            'cost' => $costString,
             'takerOrMaker' => $takerOrMaker,
             'fee' => $fee,
-        );
+        ), $market);
     }
 
     public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
@@ -1071,8 +1099,8 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"222d74c0-8f6d-49d9-8e1b-98118c50eeba",
-        //         "$data":{
-        //             "$trades":array(
+        //         "data":{
+        //             "trades":array(
         //                 array(
         //                     "amount":"0.005703",
         //                     "order_time":1599652045394,
@@ -1091,8 +1119,8 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"782bc746-b86e-43bf-8d1a-c68b479c9bdd",
-        //         "$data":{
-        //             "$trades":array(
+        //         "data":{
+        //             "trades":array(
         //                 {
         //                     "order_id":109159616160,
         //                     "trade_id":109159616197,
@@ -1145,14 +1173,36 @@ class bitmart extends Exchange {
         //         "quote_coin_volume":"31017.48"
         //     }
         //
-        return array(
-            $this->safe_timestamp($ohlcv, 'timestamp'),
-            $this->safe_number($ohlcv, 'open'),
-            $this->safe_number($ohlcv, 'high'),
-            $this->safe_number($ohlcv, 'low'),
-            $this->safe_number($ohlcv, 'close'),
-            $this->safe_number($ohlcv, 'volume'),
-        );
+        // ws
+        //
+        //     array(
+        //         1631056350, // timestamp
+        //         '46532.83', // oopen
+        //         '46555.71', // high
+        //         '46511.41', // low
+        //         '46555.71', // close
+        //         '0.25', // volume
+        //     )
+        //
+        if (gettype($ohlcv) === 'array' && count(array_filter(array_keys($ohlcv), 'is_string')) == 0) {
+            return array(
+                $this->safe_timestamp($ohlcv, 0),
+                $this->safe_number($ohlcv, 1),
+                $this->safe_number($ohlcv, 2),
+                $this->safe_number($ohlcv, 3),
+                $this->safe_number($ohlcv, 4),
+                $this->safe_number($ohlcv, 5),
+            );
+        } else {
+            return array(
+                $this->safe_timestamp($ohlcv, 'timestamp'),
+                $this->safe_number($ohlcv, 'open'),
+                $this->safe_number($ohlcv, 'high'),
+                $this->safe_number($ohlcv, 'low'),
+                $this->safe_number($ohlcv, 'close'),
+                $this->safe_number($ohlcv, 'volume'),
+            );
+        }
     }
 
     public function fetch_ohlcv($symbol, $timeframe = '1m', $since = null, $limit = null, $params = array ()) {
@@ -1178,7 +1228,7 @@ class bitmart extends Exchange {
                 $request['from'] = $start;
                 $request['to'] = $end;
             } else {
-                $start = intval($since / 1000);
+                $start = intval($since / 1000) - 1;
                 $end = $this->sum($start, $limit * $duration);
                 $request['from'] = $start;
                 $request['to'] = $end;
@@ -1196,7 +1246,7 @@ class bitmart extends Exchange {
                 $request['startTime'] = $start;
                 $request['endTime'] = $end;
             } else {
-                $start = intval($since / 1000);
+                $start = intval($since / 1000) - 1;
                 $end = $this->sum($start, $limit * $duration);
                 $request['startTime'] = $start;
                 $request['endTime'] = $end;
@@ -1212,8 +1262,8 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"80d86378-ab4e-4c70-819e-b42146cf87ad",
-        //         "$data":{
-        //             "$klines":array(
+        //         "data":{
+        //             "klines":array(
         //                 array("last_price":"0.034987","timestamp":1598787420,"volume":"1.0198","open":"0.035007","close":"0.034987","high":"0.035007","low":"0.034986"),
         //                 array("last_price":"0.034986","timestamp":1598787480,"volume":"0.3959","open":"0.034982","close":"0.034986","high":"0.034986","low":"0.034980"),
         //                 array("last_price":"0.034978","timestamp":1598787540,"volume":"0.3259","open":"0.034987","close":"0.034978","high":"0.034987","low":"0.034977"),
@@ -1228,7 +1278,7 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"32965074-5804-4655-b693-e953e36026a0",
-        //         "$data":array(
+        //         "data":array(
         //             array("low":"404.4","high":"404.4","open":"404.4","close":"404.4","last_price":"404.4","avg_price":"404.4","volume":"7670","timestamp":1598758441,"rise_fall_rate":"0","rise_fall_value":"0","base_coin_volume":"76.7","quote_coin_volume":"31017.48"),
         //             array("low":"404.1","high":"404.4","open":"404.4","close":"404.1","last_price":"404.1","avg_price":"404.15881086","volume":"12076","timestamp":1598758501,"rise_fall_rate":"-0.000741839762611276","rise_fall_value":"-0.3","base_coin_volume":"120.76","quote_coin_volume":"48806.2179994536"),
         //             array("low":"404","high":"404.3","open":"404.1","close":"404","last_price":"404","avg_price":"404.08918918","volume":"740","timestamp":1598758561,"rise_fall_rate":"-0.000247463499133878","rise_fall_value":"-0.1","base_coin_volume":"7.4","quote_coin_volume":"2990.259999932"),
@@ -1276,13 +1326,13 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"a06a5c53-8e6f-42d6-8082-2ff4718d221c",
-        //         "$data":{
+        //         "data":{
         //             "current_page":1,
-        //             "$trades":array(
+        //             "trades":array(
         //                 array(
         //                     "detail_id":256348632,
         //                     "order_id":2147484350,
-        //                     "$symbol":"BTC_USDT",
+        //                     "symbol":"BTC_USDT",
         //                     "create_time":1590462303000,
         //                     "side":"buy",
         //                     "fees":"0.00001350",
@@ -1302,8 +1352,8 @@ class bitmart extends Exchange {
         //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => {
-        //             "$trades" => array(
+        //         "data" => {
+        //             "trades" => array(
         //                 {
         //                     "order_id" => 10116361,
         //                     "trade_id" => 10116363,
@@ -1350,13 +1400,13 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"a06a5c53-8e6f-42d6-8082-2ff4718d221c",
-        //         "$data":{
+        //         "data":{
         //             "current_page":1,
-        //             "$trades":array(
+        //             "trades":array(
         //                 array(
         //                     "detail_id":256348632,
         //                     "order_id":2147484350,
-        //                     "$symbol":"BTC_USDT",
+        //                     "symbol":"BTC_USDT",
         //                     "create_time":1590462303000,
         //                     "side":"buy",
         //                     "fees":"0.00001350",
@@ -1376,8 +1426,8 @@ class bitmart extends Exchange {
         //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => {
-        //             "$trades" => array(
+        //         "data" => {
+        //             "trades" => array(
         //                 {
         //                     "order_id" => 10116361,
         //                     "trade_id" => 10116363,
@@ -1397,6 +1447,23 @@ class bitmart extends Exchange {
         $data = $this->safe_value($response, 'data', array());
         $trades = $this->safe_value($data, 'trades', array());
         return $this->parse_trades($trades, $market, $since, $limit);
+    }
+
+    public function parse_balance($response) {
+        $data = $this->safe_value($response, 'data', array());
+        $wallet = $this->safe_value_2($data, 'wallet', 'accounts', array());
+        $result = array( 'info' => $response );
+        for ($i = 0; $i < count($wallet); $i++) {
+            $balance = $wallet[$i];
+            $currencyId = $this->safe_string_2($balance, 'id', 'currency');
+            $currencyId = $this->safe_string($balance, 'coin_code', $currencyId);
+            $code = $this->safe_currency_code($currencyId);
+            $account = $this->account();
+            $account['free'] = $this->safe_string_2($balance, 'available', 'available_vol');
+            $account['used'] = $this->safe_string_2($balance, 'frozen', 'freeze_vol');
+            $result[$code] = $account;
+        }
+        return $this->safe_balance($result);
     }
 
     public function fetch_balance($params = array ()) {
@@ -1420,10 +1487,10 @@ class bitmart extends Exchange {
         //
         //     {
         //         "message":"OK",
-        //         "$code":1000,
+        //         "code":1000,
         //         "trace":"39069916-72f9-44c7-acde-2ad5afd21cad",
-        //         "$data":{
-        //             "$wallet":array(
+        //         "data":{
+        //             "wallet":array(
         //                 array("id":"BTC","name":"Bitcoin","available":"0.00000062","frozen":"0.00000000"),
         //                 array("id":"ETH","name":"Ethereum","available":"0.00002277","frozen":"0.00000000"),
         //                 array("id":"BMX","name":"BitMart Token","available":"0.00000000","frozen":"0.00000000")
@@ -1431,14 +1498,14 @@ class bitmart extends Exchange {
         //         }
         //     }
         //
-        // $account
+        // account
         //
         //     {
         //         "message":"OK",
-        //         "$code":1000,
+        //         "code":1000,
         //         "trace":"5c3b7fc7-93b2-49ef-bb59-7fdc56915b59",
-        //         "$data":{
-        //             "$wallet":array(
+        //         "data":{
+        //             "wallet":array(
         //                 array("currency":"BTC","name":"Bitcoin","available":"0.00000062","frozen":"0.00000000"),
         //                 array("currency":"ETH","name":"Ethereum","available":"0.00002277","frozen":"0.00000000")
         //             )
@@ -1448,10 +1515,10 @@ class bitmart extends Exchange {
         // contract
         //
         //     {
-        //         "$code" => 1000,
+        //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => {
+        //         "data" => {
         //             "accounts" => array(
         //                 {
         //                     "account_id" => 10,
@@ -1469,20 +1536,7 @@ class bitmart extends Exchange {
         //         }
         //     }
         //
-        $data = $this->safe_value($response, 'data', array());
-        $wallet = $this->safe_value_2($data, 'wallet', 'accounts', array());
-        $result = array( 'info' => $response );
-        for ($i = 0; $i < count($wallet); $i++) {
-            $balance = $wallet[$i];
-            $currencyId = $this->safe_string_2($balance, 'id', 'currency');
-            $currencyId = $this->safe_string($balance, 'coin_code', $currencyId);
-            $code = $this->safe_currency_code($currencyId);
-            $account = $this->account();
-            $account['free'] = $this->safe_string_2($balance, 'available', 'available_vol');
-            $account['used'] = $this->safe_string_2($balance, 'frozen', 'freeze_vol');
-            $result[$code] = $account;
-        }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($response);
     }
 
     public function parse_order($order, $market = null) {
@@ -1501,17 +1555,17 @@ class bitmart extends Exchange {
         //
         //     {
         //         "order_id":1736871726781,
-        //         "$symbol":"BTC_USDT",
+        //         "symbol":"BTC_USDT",
         //         "create_time":1591096004000,
-        //         "$side":"sell",
-        //         "$type":"$market",
-        //         "$price":"0.00",
+        //         "side":"sell",
+        //         "type":"market",
+        //         "price":"0.00",
         //         "price_avg":"0.00",
         //         "size":"0.02000",
         //         "notional":"0.00000000",
         //         "filled_notional":"0.00000000",
         //         "filled_size":"0.00000",
-        //         "$status":"8"
+        //         "status":"8"
         //     }
         //
         // contract fetchOrder, fetchOrdersByStatus, fetchOpenOrders, fetchClosedOrders, fetchOrders
@@ -1521,19 +1575,19 @@ class bitmart extends Exchange {
         //         "contract_id" => 1,
         //         "position_id" => 10539088,
         //         "account_id" => 10,
-        //         "$price" => "16",
+        //         "price" => "16",
         //         "vol" => "1",
         //         "done_avg_price" => "16",
         //         "done_vol" => "1",
         //         "way" => 3,
-        //         "$category" => 1,
+        //         "category" => 1,
         //         "open_type" => 2,
         //         "make_fee" => "0.00025",
         //         "take_fee" => "0.012",
         //         "origin" => "",
         //         "created_at" => "2018-07-23T11:55:56.715305Z",
         //         "finished_at" => "2018-07-23T11:55:56.763941Z",
-        //         "$status" => 4,
+        //         "status" => 4,
         //         "errno" => 0
         //     }
         //
@@ -1551,30 +1605,21 @@ class bitmart extends Exchange {
         if ($market !== null) {
             $status = $this->parse_order_status_by_type($market['type'], $this->safe_string($order, 'status'));
         }
-        $price = $this->safe_number($order, 'price');
-        $average = $this->safe_number_2($order, 'price_avg', 'done_avg_price');
-        $amount = $this->safe_number_2($order, 'size', 'vol');
-        $filled = $this->safe_number_2($order, 'filled_size', 'done_vol');
-        $side = $this->safe_string($order, 'side');
+        $amount = $this->safe_string_2($order, 'size', 'vol');
+        $filled = $this->safe_string_2($order, 'filled_size', 'done_vol');
+        $average = $this->safe_string_2($order, 'price_avg', 'done_avg_price');
+        $price = $this->safe_string($order, 'price');
+        $side = $this->safe_string_2($order, 'way', 'side');
         // 1 = Open long
         // 2 = Close short
         // 3 = Close long
         // 4 = Open short
-        $side = $this->safe_string($order, 'way', $side);
         $category = $this->safe_integer($order, 'category');
         $type = $this->safe_string($order, 'type');
         if ($category === 1) {
             $type = 'limit';
         } else if ($category === 2) {
             $type = 'market';
-        }
-        if ($type === 'market') {
-            if ($price === 0.0) {
-                $price = null;
-            }
-            if ($average === 0.0) {
-                $average = null;
-            }
         }
         return $this->safe_order(array(
             'id' => $id,
@@ -1598,7 +1643,7 @@ class bitmart extends Exchange {
             'status' => $status,
             'fee' => null,
             'trades' => null,
-        ));
+        ), $market);
     }
 
     public function parse_order_status_by_type($type, $status) {
@@ -1681,7 +1726,7 @@ class bitmart extends Exchange {
         //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => {
+        //         "data" => {
         //             "order_id" => 2707217580
         //         }
         //     }
@@ -1715,8 +1760,8 @@ class bitmart extends Exchange {
         //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => {
-        //             "$result" => true
+        //         "data" => {
+        //             "result" => true
         //         }
         //     }
         //
@@ -1726,7 +1771,7 @@ class bitmart extends Exchange {
         //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => true
+        //         "data" => true
         //     }
         //
         // contract
@@ -1735,7 +1780,7 @@ class bitmart extends Exchange {
         //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => {
+        //         "data" => {
         //             "succeed" => array(
         //                 2707219612
         //             ),
@@ -1865,6 +1910,8 @@ class bitmart extends Exchange {
                 $request['status'] = 9;
             } else if ($status === 'closed') {
                 $request['status'] = 6;
+            } else if ($status === 'canceled') {
+                $request['status'] = 8;
             } else {
                 $request['status'] = $status;
             }
@@ -1896,22 +1943,22 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"70e7d427-7436-4fb8-8cdd-97e1f5eadbe9",
-        //         "$data":{
+        //         "data":{
         //             "current_page":1,
-        //             "$orders":array(
+        //             "orders":array(
         //                 {
         //                     "order_id":2147601241,
-        //                     "$symbol":"BTC_USDT",
+        //                     "symbol":"BTC_USDT",
         //                     "create_time":1591099963000,
         //                     "side":"sell",
-        //                     "type":"$limit",
+        //                     "type":"limit",
         //                     "price":"9000.00",
         //                     "price_avg":"0.00",
         //                     "size":"1.00000",
         //                     "notional":"9000.00000000",
         //                     "filled_notional":"0.00000000",
         //                     "filled_size":"0.00000",
-        //                     "$status":"4"
+        //                     "status":"4"
         //                 }
         //             )
         //         }
@@ -1923,8 +1970,8 @@ class bitmart extends Exchange {
         //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => {
-        //             "$orders" => array(
+        //         "data" => {
+        //             "orders" => array(
         //                 {
         //                     "order_id" => 10284160,
         //                     "contract_id" => 1,
@@ -1940,7 +1987,7 @@ class bitmart extends Exchange {
         //                     "origin" => "",
         //                     "created_at" => "2018-07-17T07:24:13.410507Z",
         //                     "finished_at" => null,
-        //                     "$status" => 2,
+        //                     "status" => 2,
         //                     "errno" => 0
         //                 }
         //             )
@@ -1958,6 +2005,10 @@ class bitmart extends Exchange {
 
     public function fetch_closed_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
         return yield $this->fetch_orders_by_status('closed', $symbol, $since, $limit, $params);
+    }
+
+    public function fetch_canceled_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
+        return yield $this->fetch_orders_by_status('canceled', $symbol, $since, $limit, $params);
     }
 
     public function fetch_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -2000,12 +2051,12 @@ class bitmart extends Exchange {
         //         "message":"OK",
         //         "code":1000,
         //         "trace":"a27c2cb5-ead4-471d-8455-1cfeda054ea6",
-        //         "$data" => {
+        //         "data" => {
         //             "order_id":1736871726781,
-        //             "$symbol":"BTC_USDT",
+        //             "symbol":"BTC_USDT",
         //             "create_time":1591096004000,
         //             "side":"sell",
-        //             "type":"$market",
+        //             "type":"market",
         //             "price":"0.00",
         //             "price_avg":"0.00",
         //             "size":"0.02000",
@@ -2022,8 +2073,8 @@ class bitmart extends Exchange {
         //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => {
-        //             "$orders" => array(
+        //         "data" => {
+        //             "orders" => array(
         //                 {
         //                     "order_id" => 10539098,
         //                     "contract_id" => 1,
@@ -2066,16 +2117,27 @@ class bitmart extends Exchange {
         $request = array(
             'currency' => $currency['id'],
         );
+        if ($code === 'USDT') {
+            $defaultNetworks = $this->safe_value($this->options, 'defaultNetworks');
+            $defaultNetwork = $this->safe_string_upper($defaultNetworks, $code);
+            $networks = $this->safe_value($this->options, 'networks', array());
+            $network = $this->safe_string_upper($params, 'network', $defaultNetwork); // this line allows the user to specify either ERC20 or ETH
+            $network = $this->safe_string($networks, $network, $network); // handle ERC20>ETH alias
+            if ($network !== null) {
+                $request['currency'] .= '-' . $network; // when $network the $currency need to be changed to $currency . '-' . $network https://developer-pro.bitmart.com/en/account/withdraw_apply.html on the end of page
+                $params = $this->omit($params, 'network');
+            }
+        }
         $response = yield $this->privateAccountGetDepositAddress (array_merge($request, $params));
         //
         //     {
         //         "message":"OK",
-        //         "$code":1000,
+        //         "code":1000,
         //         "trace":"0e6edd79-f77f-4251-abe5-83ba75d06c1a",
-        //         "$data":{
-        //             "$currency":"USDT-TRC20",
+        //         "data":{
+        //             "currency":"USDT-TRC20",
         //             "chain":"USDT-TRC20",
-        //             "$address":"TGR3ghy2b5VLbyAYrmiE15jasR6aPHTvC5",
+        //             "address":"TGR3ghy2b5VLbyAYrmiE15jasR6aPHTvC5",
         //             "address_memo":""
         //         }
         //     }
@@ -2083,16 +2145,30 @@ class bitmart extends Exchange {
         $data = $this->safe_value($response, 'data', array());
         $address = $this->safe_string($data, 'address');
         $tag = $this->safe_string($data, 'address_memo');
+        $chain = $this->safe_string($data, 'chain');
+        $network = null;
+        if ($chain !== null) {
+            $parts = explode('-', $chain);
+            $networkId = $this->safe_string($parts, 1);
+            $network = $this->safe_network($networkId);
+        }
         $this->check_address($address);
         return array(
             'currency' => $code,
             'address' => $address,
             'tag' => $tag,
+            'network' => $network,
             'info' => $response,
         );
     }
 
+    public function safe_network($networkId) {
+        // TODO => parse
+        return $networkId;
+    }
+
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->check_address($address);
         yield $this->load_markets();
         $currency = $this->currency($code);
@@ -2105,13 +2181,24 @@ class bitmart extends Exchange {
         if ($tag !== null) {
             $request['address_memo'] = $tag;
         }
+        if ($code === 'USDT') {
+            $defaultNetworks = $this->safe_value($this->options, 'defaultNetworks');
+            $defaultNetwork = $this->safe_string_upper($defaultNetworks, $code);
+            $networks = $this->safe_value($this->options, 'networks', array());
+            $network = $this->safe_string_upper($params, 'network', $defaultNetwork); // this line allows the user to specify either ERC20 or ETH
+            $network = $this->safe_string($networks, $network, $network); // handle ERC20>ETH alias
+            if ($network !== null) {
+                $request['currency'] .= '-' . $network; // when $network the $currency need to be changed to $currency . '-' . $network https://developer-pro.bitmart.com/en/account/withdraw_apply.html on the end of page
+                $params = $this->omit($params, 'network');
+            }
+        }
         $response = yield $this->privateAccountPostWithdrawApply (array_merge($request, $params));
         //
         //     {
-        //         "$code" => 1000,
+        //         "code" => 1000,
         //         "trace":"886fb6ae-456b-4654-b4e0-d681ac05cea1",
         //         "message" => "OK",
-        //         "$data" => {
+        //         "data" => {
         //             "withdraw_id" => "121212"
         //         }
         //     }
@@ -2137,22 +2224,22 @@ class bitmart extends Exchange {
         );
         $currency = null;
         if ($code !== null) {
-            $currency = $this->currenc ($code);
+            $currency = $this->currency($code);
             $request['currency'] = $currency['id'];
         }
         $response = yield $this->privateAccountGetDepositWithdrawHistory (array_merge($request, $params));
         //
         //     {
         //         "message":"OK",
-        //         "$code":1000,
+        //         "code":1000,
         //         "trace":"142bf92a-fc50-4689-92b6-590886f90b97",
-        //         "$data":{
-        //             "$records":array(
+        //         "data":{
+        //             "records":array(
         //                 array(
         //                     "withdraw_id":"1679952",
         //                     "deposit_id":"",
         //                     "operation_type":"withdraw",
-        //                     "$currency":"BMX",
+        //                     "currency":"BMX",
         //                     "apply_time":1588867374000,
         //                     "arrival_amount":"59.000000000000",
         //                     "fee":"1.000000000000",
@@ -2204,12 +2291,12 @@ class bitmart extends Exchange {
         //         "withdraw_id":"1679952",
         //         "deposit_id":"",
         //         "operation_type":"withdraw",
-        //         "$currency":"BMX",
+        //         "currency":"BMX",
         //         "apply_time":1588867374000,
         //         "arrival_amount":"59.000000000000",
-        //         "$fee":"1.000000000000",
-        //         "$status":0,
-        //         "$address":"0xe57b69a8776b37860407965B73cdFFBDFe668Bb5",
+        //         "fee":"1.000000000000",
+        //         "status":0,
+        //         "address":"0xe57b69a8776b37860407965B73cdFFBDFe668Bb5",
         //         "address_memo":"",
         //         "tx_id":""
         //     }
@@ -2226,7 +2313,7 @@ class bitmart extends Exchange {
             $id = $depositId;
         }
         $amount = $this->safe_number($transaction, 'arrival_amount');
-        $timestamp = $this->safe_integer($transaction, 'tapply_timeime');
+        $timestamp = $this->safe_integer($transaction, 'apply_time');
         $currencyId = $this->safe_string($transaction, 'currency');
         $code = $this->safe_currency_code($currencyId, $currency);
         $status = $this->parse_transaction_status($this->safe_string($transaction, 'status'));
@@ -2270,15 +2357,12 @@ class bitmart extends Exchange {
     }
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
-        $baseUrl = $this->implode_params($this->urls['api'], array( 'hostname' => $this->hostname ));
         $access = $this->safe_string($api, 0);
         $type = $this->safe_string($api, 1);
+        $baseUrl = $this->implode_hostname($this->urls['api']['rest']);
         $url = $baseUrl . '/' . $type;
         if ($type !== 'system') {
             $url .= '/' . $this->version;
-        }
-        if ($type === 'contract') {
-            $url .= '/' . 'ifcontract';
         }
         $url .= '/' . $this->implode_params($path, $params);
         $query = $this->omit($params, $this->extract_params($path));
@@ -2324,14 +2408,14 @@ class bitmart extends Exchange {
         //
         // spot
         //
-        //     array("$message":"Bad Request [to is empty]","$code":50000,"trace":"f9d46e1b-4edb-4d07-a06e-4895fb2fc8fc","data":array())
-        //     array("$message":"Bad Request [from is empty]","$code":50000,"trace":"579986f7-c93a-4559-926b-06ba9fa79d76","data":array())
-        //     array("$message":"Kline size over 500","$code":50004,"trace":"d625caa8-e8ca-4bd2-b77c-958776965819","data":array())
-        //     array("$message":"Balance not enough","$code":50020,"trace":"7c709d6a-3292-462c-98c5-32362540aeef","data":array())
+        //     array("message":"Bad Request [to is empty]","code":50000,"trace":"f9d46e1b-4edb-4d07-a06e-4895fb2fc8fc","data":array())
+        //     array("message":"Bad Request [from is empty]","code":50000,"trace":"579986f7-c93a-4559-926b-06ba9fa79d76","data":array())
+        //     array("message":"Kline size over 500","code":50004,"trace":"d625caa8-e8ca-4bd2-b77c-958776965819","data":array())
+        //     array("message":"Balance not enough","code":50020,"trace":"7c709d6a-3292-462c-98c5-32362540aeef","data":array())
         //
         // contract
         //
-        //     array("errno":"OK","$message":"INVALID_PARAMETER","$code":49998,"trace":"eb5ebb54-23cd-4de2-9064-e090b6c3b2e3","data":null)
+        //     array("errno":"OK","message":"INVALID_PARAMETER","code":49998,"trace":"eb5ebb54-23cd-4de2-9064-e090b6c3b2e3","data":null)
         //
         $message = $this->safe_string($response, 'message');
         $errorCode = $this->safe_string($response, 'code');

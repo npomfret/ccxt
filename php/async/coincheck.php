@@ -8,7 +8,6 @@ namespace ccxt\async;
 use Exception; // a common import
 use \ccxt\ExchangeError;
 use \ccxt\BadSymbol;
-use \ccxt\Precise;
 
 class coincheck extends Exchange {
 
@@ -20,12 +19,12 @@ class coincheck extends Exchange {
             'rateLimit' => 1500,
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchMyTrades' => true,
-                'fetchOrderBook' => true,
                 'fetchOpenOrders' => true,
+                'fetchOrderBook' => true,
                 'fetchTicker' => true,
                 'fetchTrades' => true,
             ),
@@ -83,13 +82,13 @@ class coincheck extends Exchange {
                 ),
             ),
             'markets' => array(
-                'BTC/JPY' => array( 'id' => 'btc_jpy', 'symbol' => 'BTC/JPY', 'base' => 'BTC', 'quote' => 'JPY', 'baseId' => 'btc', 'quoteId' => 'jpy' ), // the only real pair
+                'BTC/JPY' => array( 'id' => 'btc_jpy', 'symbol' => 'BTC/JPY', 'base' => 'BTC', 'quote' => 'JPY', 'baseId' => 'btc', 'quoteId' => 'jpy', 'type' => 'spot', 'spot' => true ), // the only real pair
                 // 'ETH/JPY' => array( 'id' => 'eth_jpy', 'symbol' => 'ETH/JPY', 'base' => 'ETH', 'quote' => 'JPY', 'baseId' => 'eth', 'quoteId' => 'jpy' ),
-                'ETC/JPY' => array( 'id' => 'etc_jpy', 'symbol' => 'ETC/JPY', 'base' => 'ETC', 'quote' => 'JPY', 'baseId' => 'etc', 'quoteId' => 'jpy' ),
+                'ETC/JPY' => array( 'id' => 'etc_jpy', 'symbol' => 'ETC/JPY', 'base' => 'ETC', 'quote' => 'JPY', 'baseId' => 'etc', 'quoteId' => 'jpy', 'type' => 'spot', 'spot' => true ),
                 // 'DAO/JPY' => array( 'id' => 'dao_jpy', 'symbol' => 'DAO/JPY', 'base' => 'DAO', 'quote' => 'JPY', 'baseId' => 'dao', 'quoteId' => 'jpy' ),
                 // 'LSK/JPY' => array( 'id' => 'lsk_jpy', 'symbol' => 'LSK/JPY', 'base' => 'LSK', 'quote' => 'JPY', 'baseId' => 'lsk', 'quoteId' => 'jpy' ),
-                'FCT/JPY' => array( 'id' => 'fct_jpy', 'symbol' => 'FCT/JPY', 'base' => 'FCT', 'quote' => 'JPY', 'baseId' => 'fct', 'quoteId' => 'jpy' ),
-                'MONA/JPY' => array( 'id' => 'mona_jpy', 'symbol' => 'MONA/JPY', 'base' => 'MONA', 'quote' => 'JPY', 'baseId' => 'mona', 'quoteId' => 'jpy' ),
+                'FCT/JPY' => array( 'id' => 'fct_jpy', 'symbol' => 'FCT/JPY', 'base' => 'FCT', 'quote' => 'JPY', 'baseId' => 'fct', 'quoteId' => 'jpy', 'type' => 'spot', 'spot' => true ),
+                'MONA/JPY' => array( 'id' => 'mona_jpy', 'symbol' => 'MONA/JPY', 'base' => 'MONA', 'quote' => 'JPY', 'baseId' => 'mona', 'quoteId' => 'jpy', 'type' => 'spot', 'spot' => true ),
                 // 'XMR/JPY' => array( 'id' => 'xmr_jpy', 'symbol' => 'XMR/JPY', 'base' => 'XMR', 'quote' => 'JPY', 'baseId' => 'xmr', 'quoteId' => 'jpy' ),
                 // 'REP/JPY' => array( 'id' => 'rep_jpy', 'symbol' => 'REP/JPY', 'base' => 'REP', 'quote' => 'JPY', 'baseId' => 'rep', 'quoteId' => 'jpy' ),
                 // 'XRP/JPY' => array( 'id' => 'xrp_jpy', 'symbol' => 'XRP/JPY', 'base' => 'XRP', 'quote' => 'JPY', 'baseId' => 'xrp', 'quoteId' => 'jpy' ),
@@ -98,7 +97,7 @@ class coincheck extends Exchange {
                 // 'LTC/JPY' => array( 'id' => 'ltc_jpy', 'symbol' => 'LTC/JPY', 'base' => 'LTC', 'quote' => 'JPY', 'baseId' => 'ltc', 'quoteId' => 'jpy' ),
                 // 'DASH/JPY' => array( 'id' => 'dash_jpy', 'symbol' => 'DASH/JPY', 'base' => 'DASH', 'quote' => 'JPY', 'baseId' => 'dash', 'quoteId' => 'jpy' ),
                 // 'ETH/BTC' => array( 'id' => 'eth_btc', 'symbol' => 'ETH/BTC', 'base' => 'ETH', 'quote' => 'BTC', 'baseId' => 'eth', 'quoteId' => 'btc' ),
-                'ETC/BTC' => array( 'id' => 'etc_btc', 'symbol' => 'ETC/BTC', 'base' => 'ETC', 'quote' => 'BTC', 'baseId' => 'etc', 'quoteId' => 'btc' ),
+                'ETC/BTC' => array( 'id' => 'etc_btc', 'symbol' => 'ETC/BTC', 'base' => 'ETC', 'quote' => 'BTC', 'baseId' => 'etc', 'quoteId' => 'btc', 'type' => 'spot', 'spot' => true ),
                 // 'LSK/BTC' => array( 'id' => 'lsk_btc', 'symbol' => 'LSK/BTC', 'base' => 'LSK', 'quote' => 'BTC', 'baseId' => 'lsk', 'quoteId' => 'btc' ),
                 // 'FCT/BTC' => array( 'id' => 'fct_btc', 'symbol' => 'FCT/BTC', 'base' => 'FCT', 'quote' => 'BTC', 'baseId' => 'fct', 'quoteId' => 'btc' ),
                 // 'XMR/BTC' => array( 'id' => 'xmr_btc', 'symbol' => 'XMR/BTC', 'base' => 'XMR', 'quote' => 'BTC', 'baseId' => 'xmr', 'quoteId' => 'btc' ),
@@ -113,30 +112,42 @@ class coincheck extends Exchange {
                 'trading' => array(
                     'tierBased' => false,
                     'percentage' => true,
-                    'maker' => 0,
-                    'taker' => 0,
+                    'maker' => $this->parse_number('0'),
+                    'taker' => $this->parse_number('0'),
                 ),
+            ),
+            'exceptions' => array(
+                'exact' => array(
+                    'disabled API Key' => '\\ccxt\\AuthenticationError', // array("success":false,"error":"disabled API Key")'
+                    'invalid authentication' => '\\ccxt\\AuthenticationError', // array("success":false,"error":"invalid authentication")
+                ),
+                'broad' => array(),
             ),
         ));
     }
 
-    public function fetch_balance($params = array ()) {
-        yield $this->load_markets();
-        $balances = yield $this->privateGetAccountsBalance ($params);
-        $result = array( 'info' => $balances );
+    public function parse_balance($response) {
+        $result = array( 'info' => $response );
         $codes = is_array($this->currencies) ? array_keys($this->currencies) : array();
         for ($i = 0; $i < count($codes); $i++) {
             $code = $codes[$i];
-            $currencyId = $this->currency_id($code);
-            if (is_array($balances) && array_key_exists($currencyId, $balances)) {
+            $currency = $this->currency($code);
+            $currencyId = $currency['id'];
+            if (is_array($response) && array_key_exists($currencyId, $response)) {
                 $account = $this->account();
                 $reserved = $currencyId . '_reserved';
-                $account['free'] = $this->safe_string($balances, $currencyId);
-                $account['used'] = $this->safe_string($balances, $reserved);
+                $account['free'] = $this->safe_string($response, $currencyId);
+                $account['used'] = $this->safe_string($response, $reserved);
                 $result[$code] = $account;
             }
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        yield $this->load_markets();
+        $response = yield $this->privateGetAccountsBalance ($params);
+        return $this->parse_balance($response);
     }
 
     public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -174,9 +185,9 @@ class coincheck extends Exchange {
         $id = $this->safe_string($order, 'id');
         $side = $this->safe_string($order, 'order_type');
         $timestamp = $this->parse8601($this->safe_string($order, 'created_at'));
-        $amount = $this->safe_number($order, 'pending_amount');
-        $remaining = $this->safe_number($order, 'pending_amount');
-        $price = $this->safe_number($order, 'rate');
+        $amount = $this->safe_string($order, 'pending_amount');
+        $remaining = $this->safe_string($order, 'pending_amount');
+        $price = $this->safe_string($order, 'rate');
         $status = null;
         $marketId = $this->safe_string($order, 'pair');
         $symbol = $this->safe_symbol($marketId, $market, '_');
@@ -202,7 +213,7 @@ class coincheck extends Exchange {
             'info' => $order,
             'average' => null,
             'trades' => null,
-        ));
+        ), $market);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -252,6 +263,36 @@ class coincheck extends Exchange {
     }
 
     public function parse_trade($trade, $market = null) {
+        //
+        // fetchTrades (public)
+        //
+        //      {
+        //          "id" => "206849494",
+        //          "amount" => "0.01",
+        //          "rate" => "5598346.0",
+        //          "pair" => "btc_jpy",
+        //          "order_type" => "sell",
+        //          "created_at" => "2021-12-08T14:10:33.000Z"
+        //      }
+        //
+        // fetchMyTrades (private) - example from docs
+        //
+        //      {
+        //          "id" => 38,
+        //          "order_id" => 49,
+        //          "created_at" => "2015-11-18T07:02:21.000Z",
+        //          "funds" => array(
+        //              "btc" => "0.1",
+        //              "jpy" => "-4096.135"
+        //                  ),
+        //           "pair" => "btc_jpy",
+        //           "rate" => "40900.0",
+        //           "fee_currency" => "JPY",
+        //           "fee" => "6.135",
+        //           "liquidity" => "T",
+        //           "side" => "buy"
+        //      }
+        //
         $timestamp = $this->parse8601($this->safe_string($trade, 'created_at'));
         $id = $this->safe_string($trade, 'id');
         $priceString = $this->safe_string($trade, 'rate');
@@ -282,7 +323,7 @@ class coincheck extends Exchange {
         }
         $takerOrMaker = null;
         $amountString = null;
-        $cost = null;
+        $costString = null;
         $side = null;
         $fee = null;
         $orderId = null;
@@ -294,10 +335,10 @@ class coincheck extends Exchange {
             }
             $funds = $this->safe_value($trade, 'funds', array());
             $amountString = $this->safe_string($funds, $baseId);
-            $cost = $this->safe_number($funds, $quoteId);
+            $costString = $this->safe_string($funds, $quoteId);
             $fee = array(
                 'currency' => $this->safe_string($trade, 'fee_currency'),
-                'cost' => $this->safe_number($trade, 'fee'),
+                'cost' => $this->safe_string($trade, 'fee'),
             );
             $side = $this->safe_string($trade, 'side');
             $orderId = $this->safe_string($trade, 'order_id');
@@ -305,12 +346,7 @@ class coincheck extends Exchange {
             $amountString = $this->safe_string($trade, 'amount');
             $side = $this->safe_string($trade, 'order_type');
         }
-        $price = $this->parse_number($priceString);
-        $amount = $this->parse_number($amountString);
-        if ($cost === null) {
-            $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
-        }
-        return array(
+        return $this->safe_trade(array(
             'id' => $id,
             'info' => $trade,
             'datetime' => $this->iso8601($timestamp),
@@ -320,17 +356,39 @@ class coincheck extends Exchange {
             'side' => $side,
             'order' => $orderId,
             'takerOrMaker' => $takerOrMaker,
-            'price' => $price,
-            'amount' => $amount,
-            'cost' => $cost,
+            'price' => $priceString,
+            'amount' => $amountString,
+            'cost' => $costString,
             'fee' => $fee,
-        );
+        ), $market);
     }
 
     public function fetch_my_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
         yield $this->load_markets();
         $market = $this->market($symbol);
         $response = yield $this->privateGetExchangeOrdersTransactions (array_merge(array(), $params));
+        //
+        //      {
+        //          "success" => true,
+        //          "transactions" => array(
+        //                              array(
+        //                                  "id" => 38,
+        //                                  "order_id" => 49,
+        //                                  "created_at" => "2015-11-18T07:02:21.000Z",
+        //                                  "funds" => array(
+        //                                      "btc" => "0.1",
+        //                                      "jpy" => "-4096.135"
+        //                                          ),
+        //                                  "pair" => "btc_jpy",
+        //                                  "rate" => "40900.0",
+        //                                  "fee_currency" => "JPY",
+        //                                  "fee" => "6.135",
+        //                                  "liquidity" => "T",
+        //                                  "side" => "buy"
+        //                               ),
+        //                          )
+        //      }
+        //
         $transactions = $this->safe_value($response, 'transactions', array());
         return $this->parse_trades($transactions, $market, $since, $limit);
     }
@@ -345,6 +403,16 @@ class coincheck extends Exchange {
             $request['limit'] = $limit;
         }
         $response = yield $this->publicGetTrades (array_merge($request, $params));
+        //
+        //      {
+        //          "id" => "206849494",
+        //          "amount" => "0.01",
+        //          "rate" => "5598346.0",
+        //          "pair" => "btc_jpy",
+        //          "order_type" => "sell",
+        //          "created_at" => "2021-12-08T14:10:33.000Z"
+        //      }
+        //
         $data = $this->safe_value($response, 'data', array());
         return $this->parse_trades($data, $market, $since, $limit);
     }
@@ -415,16 +483,21 @@ class coincheck extends Exchange {
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 
-    public function request($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
-        $response = yield $this->fetch2($path, $api, $method, $params, $headers, $body);
-        if ($api === 'public') {
-            return $response;
+    public function handle_errors($httpCode, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
+        if ($response === null) {
+            return;
         }
-        if (is_array($response) && array_key_exists('success', $response)) {
-            if ($response['success']) {
-                return $response;
-            }
+        //
+        //     array("success":false,"error":"disabled API Key")'
+        //     array("success":false,"error":"invalid authentication")
+        //
+        $success = $this->safe_value($response, 'success', true);
+        if (!$success) {
+            $error = $this->safe_string($response, 'error');
+            $feedback = $this->id . ' ' . $this->json($response);
+            $this->throw_exactly_matched_exception($this->exceptions['exact'], $error, $feedback);
+            $this->throw_broadly_matched_exception($this->exceptions['broad'], $body, $feedback);
+            throw new ExchangeError($this->id . ' ' . $this->json($response));
         }
-        throw new ExchangeError($this->id . ' ' . $this->json($response));
     }
 }

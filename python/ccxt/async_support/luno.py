@@ -20,7 +20,7 @@ class luno(Exchange):
             'version': '1',
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
+                'CORS': None,
                 'createOrder': True,
                 'fetchAccounts': True,
                 'fetchBalance': True,
@@ -35,7 +35,6 @@ class luno(Exchange):
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTrades': True,
-                'fetchTradingFee': True,
                 'fetchTradingFees': True,
             },
             'urls': {
@@ -155,6 +154,8 @@ class luno(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': active,
                 'precision': precision,
                 'limits': {
@@ -192,19 +193,7 @@ class luno(Exchange):
             })
         return result
 
-    async def fetch_balance(self, params={}):
-        await self.load_markets()
-        response = await self.privateGetBalance(params)
-        #
-        #     {
-        #         'balance': [
-        #             {'account_id': '119...1336','asset': 'XBT','balance': '0.00','reserved': '0.00','unconfirmed': '0.00'},
-        #             {'account_id': '66...289','asset': 'XBT','balance': '0.00','reserved': '0.00','unconfirmed': '0.00'},
-        #             {'account_id': '718...5300','asset': 'ETH','balance': '0.00','reserved': '0.00','unconfirmed': '0.00'},
-        #             {'account_id': '818...7072','asset': 'ZAR','balance': '0.001417','reserved': '0.00','unconfirmed': '0.00'}]}
-        #         ]
-        #     }
-        #
+    def parse_balance(self, response):
         wallets = self.safe_value(response, 'balance', [])
         result = {
             'info': response,
@@ -228,7 +217,22 @@ class luno(Exchange):
                 account['used'] = reservedUnconfirmed
                 account['total'] = balanceUnconfirmed
                 result[code] = account
-        return self.parse_balance(result, False)
+        return self.safe_balance(result)
+
+    async def fetch_balance(self, params={}):
+        await self.load_markets()
+        response = await self.privateGetBalance(params)
+        #
+        #     {
+        #         'balance': [
+        #             {'account_id': '119...1336','asset': 'XBT','balance': '0.00','reserved': '0.00','unconfirmed': '0.00'},
+        #             {'account_id': '66...289','asset': 'XBT','balance': '0.00','reserved': '0.00','unconfirmed': '0.00'},
+        #             {'account_id': '718...5300','asset': 'ETH','balance': '0.00','reserved': '0.00','unconfirmed': '0.00'},
+        #             {'account_id': '818...7072','asset': 'ZAR','balance': '0.001417','reserved': '0.00','unconfirmed': '0.00'}]}
+        #         ]
+        #     }
+        #
+        return self.parse_balance(response)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -279,12 +283,12 @@ class luno(Exchange):
             side = 'buy'
         marketId = self.safe_string(order, 'pair')
         symbol = self.safe_symbol(marketId, market)
-        price = self.safe_number(order, 'limit_price')
-        amount = self.safe_number(order, 'limit_volume')
+        price = self.safe_string(order, 'limit_price')
+        amount = self.safe_string(order, 'limit_volume')
         quoteFee = self.safe_number(order, 'fee_counter')
         baseFee = self.safe_number(order, 'fee_base')
-        filled = self.safe_number(order, 'base')
-        cost = self.safe_number(order, 'counter')
+        filled = self.safe_string(order, 'base')
+        cost = self.safe_string(order, 'counter')
         fee = {'currency': None}
         if quoteFee:
             fee['cost'] = quoteFee
@@ -317,7 +321,7 @@ class luno(Exchange):
             'fee': fee,
             'info': order,
             'average': None,
-        })
+        }, market)
 
     async def fetch_order(self, id, symbol=None, params={}):
         await self.load_markets()
@@ -662,8 +666,9 @@ class luno(Exchange):
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    async def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        response = await self.fetch2(path, api, method, params, headers, body)
-        if 'error' in response:
+    def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        if response is None:
+            return
+        error = self.safe_value(response, 'error')
+        if error is not None:
             raise ExchangeError(self.id + ' ' + self.json(response))
-        return response

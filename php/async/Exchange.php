@@ -28,11 +28,11 @@ use Exception;
 
 include 'Throttle.php';
 
-$version = '1.51.40';
+$version = '1.65.76';
 
 class Exchange extends \ccxt\Exchange {
 
-    const VERSION = '1.51.40';
+    const VERSION = '1.65.76';
 
     public static $loop;
     public static $kernel;
@@ -43,10 +43,7 @@ class Exchange extends \ccxt\Exchange {
     public $throttle;
 
     public static function get_loop() {
-        if (!static::$loop) {
-            static::$loop = React\EventLoop\Factory::create();
-        }
-        return static::$loop;
+        return React\EventLoop\Loop::get();
     }
 
     public static function get_kernel() {
@@ -64,10 +61,10 @@ class Exchange extends \ccxt\Exchange {
 
     public function __construct($options = array()) {
         if (!class_exists('React\\EventLoop\\Factory')) {
-            throw new ccxt\NotSupported("React is not installed\n\ncomposer require --ignore-platform-reqs react/http\n\n");
+            throw new ccxt\NotSupported("React is not installed\n\ncomposer require --ignore-platform-reqs react/http:\"^1.4.0\"\n\n");
         }
         if (!class_exists('Recoil\\React\\ReactKernel')) {
-            throw new ccxt\NotSupported("Recoil is not installed\n\ncomposer require --ignore-platform-reqs recoil/react\n\n");
+            throw new ccxt\NotSupported("Recoil is not installed\n\ncomposer require --ignore-platform-reqs recoil/react:\"1.0.2\"\n\n");
         }
         $config = $this->omit($options, array('loop', 'kernel'));
         parent::__construct($config);
@@ -76,7 +73,7 @@ class Exchange extends \ccxt\Exchange {
             if (array_key_exists('loop', $options)) {
                 static::$loop = $options['loop'];
             } else {
-                static::$loop = React\EventLoop\Factory::create();
+                static::$loop = static::get_loop();
             }
         } else if (array_key_exists('loop', $options)) {
             throw new Exception($this->id . ' cannot use two different loops');
@@ -98,7 +95,7 @@ class Exchange extends \ccxt\Exchange {
         if ($this->browser === null) {
             $this->browser = (new React\Http\Browser(static::$loop, $connector))->withRejectErrorResponse(false);
         }
-        $this->throttle = throttle($this->tokenBucket, static::$loop);
+        $this->throttle = new Throttle($this->tokenBucket, static::$kernel);
     }
 
     public function fetch($url, $method = 'GET', $headers = null, $body = null) {
@@ -125,7 +122,7 @@ class Exchange extends \ccxt\Exchange {
         $url = $this->proxy . $url;
 
         if ($this->verbose) {
-            print_r(array('Request:', $method, $url, $headers, $body));
+            print_r(array('fetch Request:', $this->id, $method, $url, 'RequestHeaders:', $headers, 'RequestBody:', $body));
         }
 
         $this->lastRestRequestTimestamp = $this->milliseconds();
@@ -164,7 +161,7 @@ class Exchange extends \ccxt\Exchange {
         }
 
         if ($this->verbose) {
-            print_r(array('Response:', $method, $url, $http_status_code, $response_headers, $response_body));
+            print_r(array('fetch Response:', $this->id, $method, $url, $http_status_code, 'ResponseHeaders:', $response_headers, 'ResponseBody:', $response_body));
         }
 
         $json_response = null;
@@ -183,9 +180,10 @@ class Exchange extends \ccxt\Exchange {
         return isset($json_response) ? $json_response : $response_body;
     }
 
-    public function fetch2($path, $api = 'public', $method = 'GET', $params = array(), $headers = null, $body = null) {
+    public function fetch2($path, $api = 'public', $method = 'GET', $params = array(), $headers = null, $body = null, $config = array(), $context = array()) {
         if ($this->enableRateLimit) {
-            yield call_user_func($this->throttle, $this->rateLimit);
+            $cost = $this->calculate_rate_limiter_cost($api, $method, $path, $params, $config, $context);
+            yield call_user_func($this->throttle, $cost);
         }
         $request = $this->sign($path, $api, $method, $params, $headers, $body);
         return yield $this->fetch($request['url'], $request['method'], $request['headers'], $request['body']);
@@ -200,7 +198,7 @@ class Exchange extends \ccxt\Exchange {
             return $this->markets;
         }
         $currencies = null;
-        if ($this->has['fetchCurrencies']) {
+        if (array_key_exists('fetchCurrencies', $this->has) && $this->has['fetchCurrencies'] === true) {
             $currencies = yield $this->fetch_currencies ();
         }
         $markets = yield $this->fetch_markets ($params);

@@ -28,19 +28,17 @@ class bitpanda(Exchange):
             'version': 'v1',
             # new metainfo interface
             'has': {
-                'CORS': False,
-                'publicAPI': True,
-                'privateAPI': True,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
                 'cancelOrders': True,
+                'CORS': None,
                 'createDepositAddress': True,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchClosedOrders': True,
                 'fetchCurrencies': True,
-                'fetchDeposits': True,
                 'fetchDepositAddress': True,
+                'fetchDeposits': True,
                 'fetchMarkets': True,
                 'fetchMyTrades': True,
                 'fetchOHLCV': True,
@@ -48,12 +46,14 @@ class bitpanda(Exchange):
                 'fetchOrder': True,
                 'fetchOrderBook': True,
                 'fetchOrderTrades': True,
+                'fetchTicker': True,
+                'fetchTickers': True,
                 'fetchTime': True,
                 'fetchTrades': True,
                 'fetchTradingFees': True,
-                'fetchTicker': True,
-                'fetchTickers': True,
                 'fetchWithdrawals': True,
+                'privateAPI': True,
+                'publicAPI': True,
                 'withdraw': True,
             },
             'timeframes': {
@@ -128,28 +128,28 @@ class bitpanda(Exchange):
                 'trading': {
                     'tierBased': True,
                     'percentage': True,
-                    'taker': 0.15 / 100,
-                    'maker': 0.10 / 100,
+                    'taker': self.parse_number('0.0015'),
+                    'maker': self.parse_number('0.001'),
                     'tiers': [
                         # volume in BTC
                         {
                             'taker': [
-                                [0, 0.15 / 100],
-                                [100, 0.13 / 100],
-                                [250, 0.13 / 100],
-                                [1000, 0.1 / 100],
-                                [5000, 0.09 / 100],
-                                [10000, 0.075 / 100],
-                                [20000, 0.065 / 100],
+                                [self.parse_number('0'), self.parse_number('0.0015')],
+                                [self.parse_number('100'), self.parse_number('0.0013')],
+                                [self.parse_number('250'), self.parse_number('0.0013')],
+                                [self.parse_number('1000'), self.parse_number('0.001')],
+                                [self.parse_number('5000'), self.parse_number('0.0009')],
+                                [self.parse_number('10000'), self.parse_number('0.00075')],
+                                [self.parse_number('20000'), self.parse_number('0.00065')],
                             ],
                             'maker': [
-                                [0, 0.1 / 100],
-                                [100, 0.1 / 100],
-                                [250, 0.09 / 100],
-                                [1000, 0.075 / 100],
-                                [5000, 0.06 / 100],
-                                [10000, 0.05 / 100],
-                                [20000, 0.05 / 100],
+                                [self.parse_number('0'), self.parse_number('0.001')],
+                                [self.parse_number('100'), self.parse_number('0.001')],
+                                [self.parse_number('250'), self.parse_number('0.0009')],
+                                [self.parse_number('1000'), self.parse_number('0.00075')],
+                                [self.parse_number('5000'), self.parse_number('0.0006')],
+                                [self.parse_number('10000'), self.parse_number('0.0005')],
+                                [self.parse_number('20000'), self.parse_number('0.0005')],
                             ],
                         },
                     ],
@@ -340,6 +340,7 @@ class bitpanda(Exchange):
             state = self.safe_string(market, 'state')
             active = (state == 'ACTIVE')
             result.append({
+                'info': market,
                 'id': id,
                 'symbol': symbol,
                 'base': base,
@@ -348,7 +349,8 @@ class bitpanda(Exchange):
                 'quoteId': quoteId,
                 'precision': precision,
                 'limits': limits,
-                'info': market,
+                'type': 'spot',
+                'spot': True,
                 'active': active,
             })
         return result
@@ -498,15 +500,10 @@ class bitpanda(Exchange):
         last = self.safe_number(ticker, 'last_price')
         percentage = self.safe_number(ticker, 'price_change_percentage')
         change = self.safe_number(ticker, 'price_change')
-        open = None
-        average = None
-        if (last is not None) and (change is not None):
-            open = last - change
-            average = self.sum(last, open) / 2
         baseVolume = self.safe_number(ticker, 'base_volume')
         quoteVolume = self.safe_number(ticker, 'quote_volume')
         vwap = self.vwap(baseVolume, quoteVolume)
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -517,17 +514,17 @@ class bitpanda(Exchange):
             'ask': self.safe_number(ticker, 'best_ask'),
             'askVolume': None,
             'vwap': vwap,
-            'open': open,
+            'open': None,
             'close': last,
             'last': last,
             'previousClose': None,
             'change': change,
             'percentage': percentage,
-            'average': average,
+            'average': None,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }
+        }, market)
 
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
@@ -778,27 +775,25 @@ class bitpanda(Exchange):
         if timestamp is None:
             timestamp = self.parse8601(self.safe_string(trade, 'time'))
         side = self.safe_string_lower_2(trade, 'side', 'taker_side')
-        price = self.safe_number(trade, 'price')
-        amount = self.safe_number(trade, 'amount')
-        cost = self.safe_number(trade, 'volume')
-        if (cost is None) and (amount is not None) and (price is not None):
-            cost = amount * price
+        priceString = self.safe_string(trade, 'price')
+        amountString = self.safe_string(trade, 'amount')
+        costString = self.safe_string(trade, 'volume')
         marketId = self.safe_string(trade, 'instrument_code')
         symbol = self.safe_symbol(marketId, market, '_')
-        feeCost = self.safe_number(feeInfo, 'fee_amount')
+        feeCostString = self.safe_string(feeInfo, 'fee_amount')
         takerOrMaker = None
         fee = None
-        if feeCost is not None:
+        if feeCostString is not None:
             feeCurrencyId = self.safe_string(feeInfo, 'fee_currency')
             feeCurrencyCode = self.safe_currency_code(feeCurrencyId)
-            feeRate = self.safe_number(feeInfo, 'fee_percentage')
+            feeRateString = self.safe_string(feeInfo, 'fee_percentage')
             fee = {
-                'cost': feeCost,
+                'cost': feeCostString,
                 'currency': feeCurrencyCode,
-                'rate': feeRate,
+                'rate': feeRateString,
             }
             takerOrMaker = self.safe_string_lower(feeInfo, 'fee_type')
-        return {
+        return self.safe_trade({
             'id': self.safe_string_2(trade, 'trade_id', 'sequence'),
             'order': self.safe_string(trade, 'order_id'),
             'timestamp': timestamp,
@@ -806,13 +801,13 @@ class bitpanda(Exchange):
             'symbol': symbol,
             'type': None,
             'side': side,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': costString,
             'takerOrMaker': takerOrMaker,
             'fee': fee,
             'info': trade,
-        }
+        }, market)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
         self.load_markets()
@@ -844,6 +839,19 @@ class bitpanda(Exchange):
         #
         return self.parse_trades(response, market, since, limit)
 
+    def parse_balance(self, response):
+        balances = self.safe_value(response, 'balances', [])
+        result = {'info': response}
+        for i in range(0, len(balances)):
+            balance = balances[i]
+            currencyId = self.safe_string(balance, 'currency_code')
+            code = self.safe_currency_code(currencyId)
+            account = self.account()
+            account['free'] = self.safe_string(balance, 'available')
+            account['used'] = self.safe_string(balance, 'locked')
+            result[code] = account
+        return self.safe_balance(result)
+
     def fetch_balance(self, params={}):
         self.load_markets()
         response = self.privateGetAccountBalances(params)
@@ -863,17 +871,7 @@ class bitpanda(Exchange):
         #         ]
         #     }
         #
-        balances = self.safe_value(response, 'balances', [])
-        result = {'info': response}
-        for i in range(0, len(balances)):
-            balance = balances[i]
-            currencyId = self.safe_string(balance, 'currency_code')
-            code = self.safe_currency_code(currencyId)
-            account = self.account()
-            account['free'] = self.safe_string(balance, 'available')
-            account['used'] = self.safe_string(balance, 'locked')
-            result[code] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(response)
 
     def parse_deposit_address(self, depositAddress, currency=None):
         code = None
@@ -886,6 +884,7 @@ class bitpanda(Exchange):
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': None,
             'info': depositAddress,
         }
 
@@ -1026,6 +1025,7 @@ class bitpanda(Exchange):
         return self.parse_transactions(withdrawalHistory, currency, since, limit, {'type': 'withdrawal'})
 
     def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         self.load_markets()
         currency = self.currency(code)
@@ -1233,19 +1233,15 @@ class bitpanda(Exchange):
         status = self.parse_order_status(rawStatus)
         marketId = self.safe_string(rawOrder, 'instrument_code')
         symbol = self.safe_symbol(marketId, market, '_')
-        price = self.safe_number(rawOrder, 'price')
-        amount = self.safe_number(rawOrder, 'amount')
-        filledString = self.safe_string(rawOrder, 'filled_amount')
-        filled = self.parse_number(filledString)
+        price = self.safe_string(rawOrder, 'price')
+        amount = self.safe_string(rawOrder, 'amount')
+        filled = self.safe_string(rawOrder, 'filled_amount')
         side = self.safe_string_lower(rawOrder, 'side')
         type = self.safe_string_lower(rawOrder, 'type')
         timeInForce = self.parse_time_in_force(self.safe_string(rawOrder, 'time_in_force'))
         stopPrice = self.safe_number(rawOrder, 'trigger_price')
         postOnly = self.safe_value(rawOrder, 'is_post_only')
         rawTrades = self.safe_value(order, 'trades', [])
-        trades = self.parse_trades(rawTrades, market, None, None, {
-            'type': type,
-        })
         return self.safe_order({
             'id': id,
             'clientOrderId': clientOrderId,
@@ -1267,8 +1263,8 @@ class bitpanda(Exchange):
             'remaining': None,
             'status': status,
             # 'fee': None,
-            'trades': trades,
-        })
+            'trades': rawTrades,
+        }, market)
 
     def parse_time_in_force(self, timeInForce):
         timeInForces = {

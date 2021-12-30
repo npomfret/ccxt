@@ -4,7 +4,6 @@
 
 const Exchange = require ('./base/Exchange');
 const { AddressPending, AuthenticationError, ExchangeError, NotSupported, PermissionDenied, ArgumentsRequired } = require ('./base/errors');
-const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -18,7 +17,7 @@ module.exports = class buda extends Exchange {
             'version': 'v2',
             'has': {
                 'cancelOrder': true,
-                'CORS': false,
+                'CORS': undefined,
                 'createDepositAddress': true,
                 'createOrder': true,
                 'fetchBalance': true,
@@ -28,14 +27,14 @@ module.exports = class buda extends Exchange {
                 'fetchDeposits': true,
                 'fetchFundingFees': true,
                 'fetchMarkets': true,
-                'fetchMyTrades': false,
+                'fetchMyTrades': undefined,
                 'fetchOHLCV': true,
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
                 'fetchOrderBook': true,
                 'fetchOrders': true,
-                'fetchTrades': true,
                 'fetchTicker': true,
+                'fetchTrades': true,
                 'fetchWithdrawals': true,
                 'withdraw': true,
             },
@@ -204,6 +203,8 @@ module.exports = class buda extends Exchange {
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': true,
                 'active': true,
                 'precision': precision,
                 'limits': limits,
@@ -393,10 +394,7 @@ module.exports = class buda extends Exchange {
             side = this.safeString (trade, 3);
             id = this.safeString (trade, 4);
         }
-        const price = this.parseNumber (priceString);
-        const amount = this.parseNumber (amountString);
-        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
-        return {
+        return this.safeTrade ({
             'id': id,
             'order': order,
             'info': trade,
@@ -406,11 +404,11 @@ module.exports = class buda extends Exchange {
             'type': type,
             'side': side,
             'takerOrMaker': undefined,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': undefined,
             'fee': fee,
-        };
+        }, market);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -440,9 +438,7 @@ module.exports = class buda extends Exchange {
         return this.parseTradingViewOHLCV (response, market, timeframe, since, limit);
     }
 
-    async fetchBalance (params = {}) {
-        await this.loadMarkets ();
-        const response = await this.privateGetBalances (params);
+    parseBalance (response) {
         const result = { 'info': response };
         const balances = this.safeValue (response, 'balances');
         for (let i = 0; i < balances.length; i++) {
@@ -454,7 +450,13 @@ module.exports = class buda extends Exchange {
             account['total'] = this.safeString (balance['amount'], 0);
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.safeBalance (result);
+    }
+
+    async fetchBalance (params = {}) {
+        await this.loadMarkets ();
+        const response = await this.privateGetBalances (params);
+        return this.parseBalance (response);
     }
 
     async fetchOrder (id, symbol = undefined, params = {}) {
@@ -556,28 +558,29 @@ module.exports = class buda extends Exchange {
         //
         const id = this.safeString (order, 'id');
         const timestamp = this.parse8601 (this.safeString (order, 'created_at'));
+        const datetime = this.iso8601 (timestamp);
         const marketId = this.safeString (order, 'market_id');
         const symbol = this.safeSymbol (marketId, market, '-');
         const type = this.safeString (order, 'price_type');
         const side = this.safeStringLower (order, 'type');
         const status = this.parseOrderStatus (this.safeString (order, 'state'));
         const originalAmount = this.safeValue (order, 'original_amount', []);
-        const amount = this.safeNumber (originalAmount, 0);
+        const amount = this.safeString (originalAmount, 0);
         const remainingAmount = this.safeValue (order, 'amount', []);
-        const remaining = this.safeNumber (remainingAmount, 0);
+        const remaining = this.safeString (remainingAmount, 0);
         const tradedAmount = this.safeValue (order, 'traded_amount', []);
-        const filled = this.safeNumber (tradedAmount, 0);
+        const filled = this.safeString (tradedAmount, 0);
         const totalExchanged = this.safeValue (order, 'totalExchanged', []);
-        const cost = this.safeNumber (totalExchanged, 0);
+        const cost = this.safeString (totalExchanged, 0);
         const limitPrice = this.safeValue (order, 'limit', []);
-        let price = this.safeNumber (limitPrice, 0);
+        let price = this.safeString (limitPrice, 0);
         if (price === undefined) {
             if (limitPrice !== undefined) {
                 price = limitPrice;
             }
         }
         const paidFee = this.safeValue (order, 'paid_fee', []);
-        const feeCost = this.safeNumber (paidFee, 0);
+        const feeCost = this.safeString (paidFee, 0);
         let fee = undefined;
         if (feeCost !== undefined) {
             const feeCurrencyId = this.safeString (paidFee, 1);
@@ -591,7 +594,7 @@ module.exports = class buda extends Exchange {
             'info': order,
             'id': id,
             'clientOrderId': undefined,
-            'datetime': this.iso8601 (timestamp),
+            'datetime': datetime,
             'timestamp': timestamp,
             'lastTradeTimestamp': undefined,
             'status': status,
@@ -609,7 +612,7 @@ module.exports = class buda extends Exchange {
             'remaining': remaining,
             'trades': undefined,
             'fee': fee,
-        });
+        }, market);
     }
 
     isFiat (code) {
@@ -651,6 +654,7 @@ module.exports = class buda extends Exchange {
             'currency': code,
             'address': address,
             'tag': undefined,
+            'network': undefined,
             'info': receiveAddresses,
         };
     }
@@ -749,6 +753,7 @@ module.exports = class buda extends Exchange {
     }
 
     async withdraw (code, amount, address, tag = undefined, params = {}) {
+        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
         this.checkAddress (address);
         await this.loadMarkets ();
         const currency = this.currency (code);

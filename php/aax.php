@@ -31,6 +31,7 @@ class aax extends Exchange {
                 'fetchBalance' => true,
                 'fetchCanceledOrders' => true,
                 'fetchClosedOrders' => true,
+                'fetchCurrencies' => true,
                 'fetchDepositAddress' => true,
                 'fetchMarkets' => true,
                 'fetchMyTrades' => true,
@@ -91,6 +92,7 @@ class aax extends Exchange {
                     //     'tickers/{market}', // Get ticker of specific market
                     // ),
                     'get' => array(
+                        'currencies',
                         'announcement/maintenance', // System Maintenance Notice
                         'instruments', // Retrieve all trading pairs information
                         'market/orderbook', // Order Book
@@ -102,7 +104,8 @@ class aax extends Exchange {
                         'market/markPrice', // Get Current Mark Price
                         'futures/funding/predictedFunding/{symbol}', // Get Predicted Funding Rate
                         'futures/funding/prevFundingRate/{symbol}', // Get Last Funding Rate
-                        'market/candles/index', // Get Current Index Candlestick
+                        'market/candles/index', // * Deprecated
+                        'market/index/candles',
                     ),
                 ),
                 'private' => array(
@@ -147,8 +150,8 @@ class aax extends Exchange {
                 'trading' => array(
                     'tierBased' => false,
                     'percentage' => true,
-                    'maker' => 0.06 / 100,
-                    'taker' => 0.10 / 100,
+                    'maker' => $this->parse_number('0.0006'),
+                    'taker' => $this->parse_number('0.001'),
                 ),
                 'funding' => array(
                     'tierBased' => false,
@@ -246,6 +249,11 @@ class aax extends Exchange {
                     'F2CP' => 'otc',
                     'VLTP' => 'saving',
                 ),
+                'networks' => array(
+                    'ETH' => 'ERC20',
+                    'TRX' => 'TRC20',
+                    'SOL' => 'SPL',
+                ),
             ),
         ));
     }
@@ -255,9 +263,9 @@ class aax extends Exchange {
         //
         //     {
         //         "code" => 1,
-        //         "$data" => array(
-        //             "$startTime":"2020-06-25T02:15:00.000Z",
-        //             "$endTime":"2020-06-25T02:45:00.000Z"，
+        //         "data" => array(
+        //             "startTime":"2020-06-25T02:15:00.000Z",
+        //             "endTime":"2020-06-25T02:45:00.000Z"，
         //             "description":"Spot Trading :UTC Jun 25, 2020 02:15 to 02:45 (HKT Jun 25 10:15 to 10:45),Futures Trading => UTC Jun 25, 2020 02:15 to 02:45 (HKT Jun 25 10:15 to 10:45).We apologize for any inconvenience caused. Thank you for your patience and understanding.Should you have any enquiries, please do not hesitate our live chat support or via email at cs@aax.com."
         //         ),
         //         "message":"success",
@@ -288,68 +296,68 @@ class aax extends Exchange {
         //         "code":1,
         //         "message":"success",
         //         "ts":1610159448962,
-        //         "$data":array(
+        //         "data":array(
         //             array(
         //                 "tickSize":"0.01",
         //                 "lotSize":"1",
-        //                 "$base":"BTC",
-        //                 "$quote":"USDT",
+        //                 "base":"BTC",
+        //                 "quote":"USDT",
         //                 "minQuantity":"1.0000000000",
         //                 "maxQuantity":"30000",
         //                 "minPrice":"0.0100000000",
         //                 "maxPrice":"999999.0000000000",
-        //                 "$status":"readOnly",
-        //                 "$symbol":"BTCUSDTFP",
+        //                 "status":"readOnly",
+        //                 "symbol":"BTCUSDTFP",
         //                 "code":"FP",
         //                 "takerFee":"0.00040",
         //                 "makerFee":"0.00020",
         //                 "multiplier":"0.001000000000",
         //                 "mmRate":"0.00500",
         //                 "imRate":"0.01000",
-        //                 "$type":"$futures",
-        //                 "$settleType":"Vanilla",
+        //                 "type":"futures",
+        //                 "settleType":"Vanilla",
         //                 "settleCurrency":"USDT"
         //             ),
         //             array(
         //                 "tickSize":"0.5",
         //                 "lotSize":"10",
-        //                 "$base":"BTC",
-        //                 "$quote":"USD",
+        //                 "base":"BTC",
+        //                 "quote":"USD",
         //                 "minQuantity":"10.0000000000",
         //                 "maxQuantity":"300000",
         //                 "minPrice":"0.5000000000",
         //                 "maxPrice":"999999.0000000000",
-        //                 "$status":"readOnly",
-        //                 "$symbol":"BTCUSDFP",
+        //                 "status":"readOnly",
+        //                 "symbol":"BTCUSDFP",
         //                 "code":"FP",
         //                 "takerFee":"0.00040",
         //                 "makerFee":"0.00020",
         //                 "multiplier":"1.000000000000",
         //                 "mmRate":"0.00500",
         //                 "imRate":"0.01000",
-        //                 "$type":"$futures",
-        //                 "$settleType":"Inverse",
+        //                 "type":"futures",
+        //                 "settleType":"Inverse",
         //                 "settleCurrency":"BTC"
         //             ),
         //             array(
         //                 "tickSize":"0.0001",
         //                 "lotSize":"0.01",
-        //                 "$base":"AAB",
-        //                 "$quote":"USDT",
+        //                 "base":"AAB",
+        //                 "quote":"USDT",
         //                 "minQuantity":"5.0000000000",
         //                 "maxQuantity":"50000.0000000000",
         //                 "minPrice":"0.0001000000",
         //                 "maxPrice":"999999.0000000000",
-        //                 "$status":"readOnly",
-        //                 "$symbol":"AABUSDT",
+        //                 "status":"readOnly",
+        //                 "symbol":"AABUSDT",
         //                 "code":null,
         //                 "takerFee":"0.00100",
         //                 "makerFee":"0.00100",
         //                 "multiplier":"1.000000000000",
         //                 "mmRate":"0.02500",
         //                 "imRate":"0.05000",
-        //                 "$type":"$spot",
-        //                 "$settleType":null,
+        //                 "type":"spot",
+        //                 "settleType":null,
         //                 "settleCurrency":null
         //             ),
         //         )
@@ -362,53 +370,68 @@ class aax extends Exchange {
             $id = $this->safe_string($market, 'symbol');
             $baseId = $this->safe_string($market, 'base');
             $quoteId = $this->safe_string($market, 'quote');
+            $settleId = $this->safe_string($market, 'settleCurrency');
             $base = $this->safe_currency_code($baseId);
             $quote = $this->safe_currency_code($quoteId);
+            $settle = $this->safe_currency_code($settleId);
             $status = $this->safe_string($market, 'status');
-            $active = ($status === 'enable');
-            $taker = $this->safe_number($market, 'takerFee');
-            $maker = $this->safe_number($market, 'makerFee');
-            $type = $this->safe_string($market, 'type');
+            $marketType = $this->safe_string($market, 'type');
             $inverse = null;
             $linear = null;
             $quanto = null;
-            $spot = ($type === 'spot');
-            $futures = ($type === 'futures');
+            $spot = ($marketType === 'spot');
+            $swap = ($marketType === 'futures');
             $settleType = $this->safe_string_lower($market, 'settleType');
             if ($settleType !== null) {
                 $inverse = ($settleType === 'inverse');
                 $linear = ($settleType === 'vanilla');
                 $quanto = ($settleType === 'quanto');
             }
-            $symbol = $id;
-            if ($type === 'spot') {
-                $symbol = $base . '/' . $quote;
+            $symbol = $base . '/' . $quote;
+            $type = 'spot';
+            $contractSize = null;
+            if ($swap) {
+                $symbol = $symbol . ':' . $settle;
+                $type = 'swap';
+                $contractSize = $this->safe_number($market, 'multiplier');
             }
-            $precision = array(
-                'amount' => $this->safe_number($market, 'lotSize'),
-                'price' => $this->safe_number($market, 'tickSize'),
-            );
             $result[] = array(
                 'id' => $id,
                 'symbol' => $symbol,
                 'base' => $base,
                 'quote' => $quote,
+                'settle' => $settle,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
+                'settleId' => $settleId,
                 'type' => $type,
                 'spot' => $spot,
-                'futures' => $futures,
-                'inverse' => $inverse,
+                'margin' => false,
+                'swap' => $swap,
+                'future' => false,
+                'option' => false,
+                'derivative' => $swap,
+                'contract' => $swap,
                 'linear' => $linear,
+                'inverse' => $inverse,
+                'taker' => $this->safe_number($market, 'takerFee'),
+                'maker' => $this->safe_number($market, 'makerFee'),
+                'contractSize' => $contractSize,
+                'active' => ($status === 'enable'),
+                'expiry' => null,
+                'expiryDatetime' => null,
+                'strike' => null,
+                'optionType' => null,
                 'quanto' => $quanto,
-                'precision' => $precision,
-                'info' => $market,
-                'active' => $active,
-                'taker' => $taker,
-                'maker' => $maker,
-                'percentage' => false,
-                'tierBased' => true,
+                'precision' => array(
+                    'amount' => $this->safe_number($market, 'lotSize'),
+                    'price' => $this->safe_number($market, 'tickSize'),
+                ),
                 'limits' => array(
+                    'leverage' => array(
+                        'min' => $this->parse_number('1'),
+                        'max' => null,
+                    ),
                     'amount' => array(
                         'min' => $this->safe_string($market, 'minQuantity'),
                         'max' => $this->safe_string($market, 'maxQuantity'),
@@ -419,6 +442,75 @@ class aax extends Exchange {
                     ),
                     'cost' => array(
                         'min' => null,
+                        'max' => null,
+                    ),
+                ),
+                'info' => $market,
+            );
+        }
+        return $result;
+    }
+
+    public function fetch_currencies($params = array ()) {
+        $response = $this->publicGetCurrencies ($params);
+        //
+        //     {
+        //         "code":1,
+        //         "data":array(
+        //             array(
+        //                 "chain":"BTC",
+        //                 "displayName":"Bitcoin",
+        //                 "withdrawFee":"0.0004",
+        //                 "withdrawMin":"0.001",
+        //                 "otcFee":"0",
+        //                 "enableOTC":true,
+        //                 "visible":true,
+        //                 "enableTransfer":true,
+        //                 "transferMin":"0.00001",
+        //                 "depositMin":"0.0005",
+        //                 "enableWithdraw":true,
+        //                 "enableDeposit":true,
+        //                 "addrWithMemo":false,
+        //                 "withdrawPrecision":"0.00000001",
+        //                 "currency":"BTC",
+        //                 "network":"BTC", // ETH, ERC20, TRX, TRC20, OMNI, LTC, XRP, XLM, ...
+        //                 "minConfirm":"2"
+        //             ),
+        //         ),
+        //         "message":"success",
+        //         "ts":1624330530697
+        //     }
+        //
+        $result = array();
+        $data = $this->safe_value($response, 'data', array());
+        for ($i = 0; $i < count($data); $i++) {
+            $currency = $data[$i];
+            $id = $this->safe_string($currency, 'chain');
+            $name = $this->safe_string($currency, 'displayName');
+            $code = $this->safe_currency_code($id);
+            $precision = $this->safe_number($currency, 'withdrawPrecision');
+            $enableWithdraw = $this->safe_value($currency, 'enableWithdraw');
+            $enableDeposit = $this->safe_value($currency, 'enableDeposit');
+            $fee = $this->safe_number($currency, 'withdrawFee');
+            $visible = $this->safe_value($currency, 'visible');
+            $active = ($enableWithdraw && $enableDeposit && $visible);
+            $network = $this->safe_string($currency, 'network');
+            $result[$code] = array(
+                'id' => $id,
+                'name' => $name,
+                'code' => $code,
+                'precision' => $precision,
+                'info' => $currency,
+                'active' => $active,
+                'fee' => $fee,
+                'network' => $network,
+                'limits' => array(
+                    'deposit' => array(
+                        'min' => $this->safe_number($currency, 'depositMin'),
+                        'max' => null,
+                    ),
+                    'withdraw' => array(
+                        'min' => $this->safe_number($currency, 'withdrawMin'),
                         'max' => null,
                     ),
                 ),
@@ -433,7 +525,7 @@ class aax extends Exchange {
         //         "t":1610162685342, // $timestamp
         //         "a":"0.00000000", // trading volume in USD in the $last 24 hours, futures only
         //         "c":"435.20000000", // close
-        //         "d":"4.22953489", // $change
+        //         "d":"4.22953489", // change
         //         "h":"455.04000000", // high
         //         "l":"412.78000000", // low
         //         "o":"417.54000000", // $open
@@ -446,21 +538,11 @@ class aax extends Exchange {
         $symbol = $this->safe_symbol($marketId, $market);
         $last = $this->safe_number($ticker, 'c');
         $open = $this->safe_number($ticker, 'o');
-        $change = null;
-        $percentage = null;
-        $average = null;
-        if ($last !== null && $open !== null) {
-            $change = $last - $open;
-            if ($open > 0) {
-                $percentage = $change / $open * 100;
-            }
-            $average = $this->sum($last, $open) / 2;
-        }
         $quoteVolume = $this->safe_number($ticker, 'v');
-        return array(
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
+            'datetime' => null,
             'high' => $this->safe_number($ticker, 'h'),
             'low' => $this->safe_number($ticker, 'l'),
             'bid' => null,
@@ -472,13 +554,13 @@ class aax extends Exchange {
             'close' => $last,
             'last' => $last,
             'previousClose' => null,
-            'change' => $change,
-            'percentage' => $percentage,
-            'average' => $average,
+            'change' => null,
+            'percentage' => null,
+            'average' => null,
             'baseVolume' => null,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
-        );
+        ), $market);
     }
 
     public function fetch_tickers($symbols = null, $params = array ()) {
@@ -486,9 +568,9 @@ class aax extends Exchange {
         $response = $this->publicGetMarketTickers ($params);
         //
         //     {
-        //         "e":"$tickers",
+        //         "e":"tickers",
         //         "t":1610162685342,
-        //         "$tickers":array(
+        //         "tickers":array(
         //             array(
         //                 "a":"0.00000000",
         //                 "c":"435.20000000",
@@ -553,9 +635,11 @@ class aax extends Exchange {
         // public fetchTrades
         //
         //     {
-        //         "p":"9395.50000000",
-        //         "q":"50.000000",
-        //         "t":1592563996718
+        //         "i":"T1qzQeZG9g",
+        //         "p":"-61348.81000000",
+        //         "q":"0.045400",
+        //         "s":"sell",
+        //         "t":1635731102731
         //     }
         //
         // private fetchMyTrades
@@ -575,14 +659,14 @@ class aax extends Exchange {
         //         "orderID":"1eUD4EHfdU",
         //         "orderQty":"0.02",
         //         "orderStatus":3,
-        //         "$orderType":1,
-        //         "$price":"1198.25",
+        //         "orderType":1,
+        //         "price":"1198.25",
         //         "quote":"USDT",
         //         "rejectCode":null,
         //         "rejectReason":null,
-        //         "$side":1,
+        //         "side":1,
         //         "stopPrice":"0",
-        //         "$symbol":"ETHUSDT",
+        //         "symbol":"ETHUSDT",
         //         "taker":true,
         //         "tradeID":"E04WTIgfmULU",
         //         "transactTime":"2021-01-11T02:47:51.389Z",
@@ -595,12 +679,10 @@ class aax extends Exchange {
             $timestamp = $this->parse8601($this->safe_string($trade, 'createTime'));
         }
         $id = $this->safe_string_2($trade, 'tid', 'tradeID');
-        $symbol = null;
+        $id = $this->safe_string($trade, 'i', $id);
         $marketId = $this->safe_string($trade, 'symbol');
         $market = $this->safe_market($marketId, $market);
-        if ($market !== null) {
-            $symbol = $market['symbol'];
-        }
+        $symbol = $market['symbol'];
         $priceString = $this->safe_string_2($trade, 'p', 'filledPrice');
         $amountString = $this->safe_string_2($trade, 'q', 'filledQty');
         $orderId = $this->safe_string($trade, 'orderID');
@@ -619,12 +701,9 @@ class aax extends Exchange {
             $side = ($priceString[0] === '-') ? 'sell' : 'buy';
         }
         $priceString = Precise::string_abs($priceString);
-        $price = $this->parse_number($priceString);
-        $amount = $this->parse_number($amountString);
-        $cost = $this->parse_number(Precise::string_mul($priceString, $amountString));
         $orderType = $this->parse_order_type($this->safe_string($trade, 'orderType'));
         $fee = null;
-        $feeCost = $this->safe_number($trade, 'commission');
+        $feeCost = $this->safe_string($trade, 'commission');
         if ($feeCost !== null) {
             $feeCurrency = null;
             if ($market !== null) {
@@ -639,7 +718,7 @@ class aax extends Exchange {
                 'cost' => $feeCost,
             );
         }
-        return array(
+        return $this->safe_trade(array(
             'info' => $trade,
             'id' => $id,
             'timestamp' => $timestamp,
@@ -649,11 +728,11 @@ class aax extends Exchange {
             'side' => $side,
             'order' => $orderId,
             'takerOrMaker' => $takerOrMaker,
-            'price' => $price,
-            'amount' => $amount,
-            'cost' => $cost,
+            'price' => $priceString,
+            'amount' => $amountString,
+            'cost' => null,
             'fee' => $fee,
-        );
+        ), $market);
     }
 
     public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
@@ -668,11 +747,12 @@ class aax extends Exchange {
         $response = $this->publicGetMarketTrades ($request);
         //
         //     {
-        //         "e":"BTCUSDFP@$trades",
-        //         "$trades" => array(
-        //             array("p":"9395.50000000","q":"50.000000","t":1592563996718),
-        //             array("p":"9395.50000000","q":"50.000000","t":1592563993577),
-        //         ),
+        //         "e":"BTCUSDT@$trades",
+        //         "trades":array(
+        //             array("i":"T1qzQeZG9g","p":"-61348.81000000","q":"0.045400","s":"sell","t":1635731102731),
+        //             array("i":"T1qzQeU6UK","p":"61343.10000000","q":"0.179300","s":"buy","t":1635731102133),
+        //             array("i":"T1qzQe5BQm","p":"-61346.02000000","q":"0.021100","s":"sell","t":1635731099231),
+        //         )
         //     }
         //
         $trades = $this->safe_value($response, 'trades', array());
@@ -722,7 +802,7 @@ class aax extends Exchange {
         $response = $this->publicGetMarketHistoryCandles (array_merge($request, $params));
         //
         //     {
-        //         "$data":[
+        //         "data":[
         //             [0.042398,0.042684,0.042366,0.042386,0.93734243,1611514800],
         //             [0.042386,0.042602,0.042234,0.042373,1.01925239,1611518400],
         //             [0.042373,0.042558,0.042362,0.042389,0.93801705,1611522000],
@@ -748,16 +828,16 @@ class aax extends Exchange {
         $response = $this->privateGetAccountBalances (array_merge($request, $params));
         //
         //     {
-        //         "$code":1,
-        //         "$data":array(
+        //         "code":1,
+        //         "data":array(
         //             array(
-        //                 "$purseType":"FUTP",
+        //                 "purseType":"FUTP",
         //                 "currency":"BTC",
         //                 "available":"0.41000000",
         //                 "unavailable":"0.00000000"
         //             ),
         //             {
-        //                 "$purseType":"FUTP",
+        //                 "purseType":"FUTP",
         //                 "currency":"USDT",
         //                 "available":"0.21000000",
         //                 "unvaliable":"0.00000000"
@@ -786,7 +866,7 @@ class aax extends Exchange {
                 $result[$code] = $account;
             }
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -802,18 +882,17 @@ class aax extends Exchange {
             // 'stopPrice' => $this->price_to_precision($symbol, $stopPrice),
             // 'clOrdID' => $clientOrderId, // up to 20 chars, lowercase and uppercase letters only
             // 'timeInForce' => 'GTC', // GTC, IOC, FOK, default is GTC
-            // 'execInst' => 'Post-Only', // the only value supported by the exchange, futures-only
+            // 'execInst' => 'Post-Only', // the only value supported by the exchange, futures and spot
         );
-        $timeInForce = $this->safe_string($params, 'timeInForce');
-        if ($timeInForce !== null) {
-            $request['timeInForce'] = $timeInForce;
-            $params = $this->omit($params, 'timeInForce');
-        }
         $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
         if ($clientOrderId !== null) {
             $request['clOrdID'] = $clientOrderId;
-            $params = $this->omit($params, array( 'clOrdID', 'clientOrderId' ));
         }
+        $postOnly = $this->safe_value($params, 'postOnly', false);
+        if ($postOnly !== null) {
+            $request['execInst'] = 'Post-Only';
+        }
+        $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly' ));
         $stopPrice = $this->safe_number($params, 'stopPrice');
         if ($stopPrice === null) {
             if (($orderType === 'STOP-LIMIT') || ($orderType === 'STOP')) {
@@ -844,9 +923,9 @@ class aax extends Exchange {
         //
         //     {
         //         "code":1,
-        //         "$data":array(
-        //             "$symbol":"ETHUSDT",
-        //             "$orderType":2,
+        //         "data":array(
+        //             "symbol":"ETHUSDT",
+        //             "orderType":2,
         //             "avgPrice":"0",
         //             "execInst":null,
         //             "orderStatus":0,
@@ -854,20 +933,20 @@ class aax extends Exchange {
         //             "quote":"USDT",
         //             "rejectReason":null,
         //             "rejectCode":null,
-        //             "$price":"1500",
+        //             "price":"1500",
         //             "orderQty":"1",
         //             "commission":"0",
         //             "id":"268323430253735936",
-        //             "$timeInForce":1,
+        //             "timeInForce":1,
         //             "isTriggered":false,
-        //             "$side":2,
+        //             "side":2,
         //             "orderID":"1eO51MDSpQ",
         //             "leavesQty":"0",
         //             "cumQty":"0",
         //             "updateTime":null,
         //             "lastQty":"0",
         //             "clOrdID":null,
-        //             "$stopPrice":null,
+        //             "stopPrice":null,
         //             "createTime":null,
         //             "transactTime":null,
         //             "base":"ETH",
@@ -881,10 +960,10 @@ class aax extends Exchange {
         //
         //     {
         //         "code":1,
-        //         "$data":array(
+        //         "data":array(
         //             "liqType":0,
-        //             "$symbol":"ETHUSDTFP",
-        //             "$orderType":2,
+        //             "symbol":"ETHUSDTFP",
+        //             "orderType":2,
         //             "leverage":"1",
         //             "marketPrice":"1318.3150000000",
         //             "code":"FP",
@@ -895,20 +974,20 @@ class aax extends Exchange {
         //             "quote":"USDT",
         //             "rejectReason":null,
         //             "rejectCode":null,
-        //             "$price":"500",
+        //             "price":"500",
         //             "orderQty":"1",
         //             "commission":"0",
         //             "id":"268346885133053953",
-        //             "$timeInForce":1,
+        //             "timeInForce":1,
         //             "isTriggered":false,
-        //             "$side":1,
+        //             "side":1,
         //             "orderID":"1eOuPUAAkq",
         //             "leavesQty":"1",
         //             "cumQty":"0",
         //             "updateTime":null,
         //             "lastQty":null,
         //             "clOrdID":null,
-        //             "$stopPrice":null,
+        //             "stopPrice":null,
         //             "createTime":null,
         //             "transactTime":null,
         //             "settleType":"VANILLA",
@@ -955,8 +1034,8 @@ class aax extends Exchange {
         //
         //     {
         //         "code":1,
-        //         "$data":array(
-        //             "$symbol":"ETHUSDT",
+        //         "data":array(
+        //             "symbol":"ETHUSDT",
         //             "orderType":2,
         //             "avgPrice":"0",
         //             "execInst":null,
@@ -965,20 +1044,20 @@ class aax extends Exchange {
         //             "quote":"USDT",
         //             "rejectReason":null,
         //             "rejectCode":null,
-        //             "$price":"1500",
+        //             "price":"1500",
         //             "orderQty":"1",
         //             "commission":"0",
-        //             "$id":"268323430253735936",
+        //             "id":"268323430253735936",
         //             "timeInForce":1,
         //             "isTriggered":false,
-        //             "$side":2,
+        //             "side":2,
         //             "orderID":"1eO51MDSpQ",
         //             "leavesQty":"0",
         //             "cumQty":"0",
         //             "updateTime":null,
         //             "lastQty":"0",
         //             "clOrdID":null,
-        //             "$stopPrice":null,
+        //             "stopPrice":null,
         //             "createTime":null,
         //             "transactTime":null,
         //             "base":"ETH",
@@ -992,9 +1071,9 @@ class aax extends Exchange {
         //
         //     {
         //         "code":1,
-        //         "$data":array(
+        //         "data":array(
         //             "liqType":0,
-        //             "$symbol":"ETHUSDTFP",
+        //             "symbol":"ETHUSDTFP",
         //             "orderType":2,
         //             "leverage":"1",
         //             "marketPrice":"1318.3150000000",
@@ -1006,20 +1085,20 @@ class aax extends Exchange {
         //             "quote":"USDT",
         //             "rejectReason":null,
         //             "rejectCode":null,
-        //             "$price":"500",
+        //             "price":"500",
         //             "orderQty":"1",
         //             "commission":"0",
-        //             "$id":"268346885133053953",
+        //             "id":"268346885133053953",
         //             "timeInForce":1,
         //             "isTriggered":false,
-        //             "$side":1,
+        //             "side":1,
         //             "orderID":"1eOuPUAAkq",
         //             "leavesQty":"1",
         //             "cumQty":"0",
         //             "updateTime":null,
         //             "lastQty":null,
         //             "clOrdID":null,
-        //             "$stopPrice":null,
+        //             "stopPrice":null,
         //             "createTime":null,
         //             "transactTime":null,
         //             "settleType":"VANILLA",
@@ -1059,14 +1138,14 @@ class aax extends Exchange {
         //
         //     {
         //         "code":1,
-        //         "$data":array(
+        //         "data":array(
         //             "avgPrice":"0",
         //             "base":"BTC",
         //             "clOrdID":"aax",
         //             "commission":"0",
         //             "createTime":"2019-11-12T03:46:41Z",
         //             "cumQty":"0",
-        //             "$id":"114330021504606208",
+        //             "id":"114330021504606208",
         //             "isTriggered":false,
         //             "lastPrice":"0",
         //             "lastQty":"0",
@@ -1081,7 +1160,7 @@ class aax extends Exchange {
         //             "rejectReason":null,
         //             "side":1,
         //             "stopPrice":"0",
-        //             "$symbol":"BTCUSDT",
+        //             "symbol":"BTCUSDT",
         //             "transactTime":null,
         //             "updateTime":"2019-11-12T03:46:41Z",
         //             "timeInForce":1,
@@ -1095,7 +1174,7 @@ class aax extends Exchange {
         //
         //     {
         //         "code":1,
-        //         "$data":array(
+        //         "data":array(
         //             "avgPrice":"0",
         //             "base":"BTC",
         //             "clOrdID":"aax_futures",
@@ -1103,7 +1182,7 @@ class aax extends Exchange {
         //             "commission":"0",
         //             "createTime":"2019-11-12T06:48:58Z",
         //             "cumQty":"0",
-        //             "$id":"114375893764395008",
+        //             "id":"114375893764395008",
         //             "isTriggered":false,
         //             "lastPrice":"0",
         //             "lastQty":null,
@@ -1122,7 +1201,7 @@ class aax extends Exchange {
         //             "settleType":"INVERSE",
         //             "side":1,
         //             "stopPrice":"0",
-        //             "$symbol":"BTCUSDFP",
+        //             "symbol":"BTCUSDFP",
         //             "transactTime":"2019-11-12T06:48:58Z",
         //             "updateTime":"2019-11-12T06:48:58Z",
         //             "timeInForce":1,
@@ -1230,13 +1309,13 @@ class aax extends Exchange {
         //
         //     {
         //         "code":1,
-        //         "$data":{
+        //         "data":{
         //             "total":19,
         //             "pageSize":10,
         //             "list":array(
         //                 array(
         //                     "orderType":2,
-        //                     "$symbol":"BTCUSDT",
+        //                     "symbol":"BTCUSDT",
         //                     "avgPrice":"0",
         //                     "orderStatus":0,
         //                     "userID":"7225",
@@ -1273,7 +1352,7 @@ class aax extends Exchange {
         //
         //     {
         //         "code":1,
-        //         "$data":array(
+        //         "data":array(
         //             "list":array(
         //                 array(
         //                     "avgPrice":"8768.99999999484997",
@@ -1302,7 +1381,7 @@ class aax extends Exchange {
         //                     "settleType":"INVERSE",
         //                     "side":2,
         //                     "stopPrice":"0",
-        //                     "$symbol":"BTCUSDFP",
+        //                     "symbol":"BTCUSDFP",
         //                     "transactTime":"2019-11-12T07:05:52.000Z,
         //                     "updateTime":"2019-11-12T07:05:52.000Z,
         //                     "timeInForce":1,
@@ -1347,8 +1426,8 @@ class aax extends Exchange {
             // 'base' => $market['baseId'],
             // 'quote' => $market['quoteId'],
             // 'orderStatus' => null, // 1 new, 2 filled, 3 canceled
-            // 'startDate' => $this->ymd($since),
-            // 'endDate' => $this->ymd($this->milliseconds()),
+            // 'startDate' => $this->yyyymmdd($since),
+            // 'endDate' => $this->yyyymmdd($this->milliseconds()),
             // 'orderType' => null, // MARKET, LIMIT, STOP, STOP-LIMIT
             // 'side' => 'null', // BUY, SELL
             // 'clOrdID' => $clientOrderId,
@@ -1377,7 +1456,7 @@ class aax extends Exchange {
             $request['pageSize'] = $limit; // default 10
         }
         if ($since !== null) {
-            $request['startDate'] = $this->ymd($since);
+            $request['startDate'] = $this->yyyymmdd($since);
         }
         $response = $this->$method (array_merge($request, $params));
         //
@@ -1385,13 +1464,13 @@ class aax extends Exchange {
         //
         //     {
         //         "code":1,
-        //         "$data":{
+        //         "data":{
         //             "total":19,
         //             "pageSize":10,
         //             "list":array(
         //                 array(
         //                     "orderType":2,
-        //                     "$symbol":"BTCUSDT",
+        //                     "symbol":"BTCUSDT",
         //                     "avgPrice":"0",
         //                     "orderStatus":0,
         //                     "userID":"7225",
@@ -1428,7 +1507,7 @@ class aax extends Exchange {
         //
         //     {
         //         "code":1,
-        //         "$data":array(
+        //         "data":array(
         //             "list":array(
         //                 array(
         //                     "avgPrice":"8768.99999999484997",
@@ -1457,7 +1536,7 @@ class aax extends Exchange {
         //                     "settleType":"INVERSE",
         //                     "side":2,
         //                     "stopPrice":"0",
-        //                     "$symbol":"BTCUSDFP",
+        //                     "symbol":"BTCUSDFP",
         //                     "transactTime":"2019-11-12T07:05:52.000Z,
         //                     "updateTime":"2019-11-12T07:05:52.000Z,
         //                     "timeInForce":1,
@@ -1524,7 +1603,7 @@ class aax extends Exchange {
         //         "commission":"0.00000913",
         //         "createTime":"2019-11-12T07:05:52.000Z,
         //         "cumQty":"100",
-        //         "$id":"114380149603028993", // futures only
+        //         "id":"114380149603028993", // futures only
         //         "isTriggered":false,
         //         "lastPrice":"8769",
         //         "lastQty":"100",
@@ -1536,18 +1615,18 @@ class aax extends Exchange {
         //         "orderQty":"100",
         //         "orderStatus":3,
         //         "orderType":1,
-        //         "$price":"8769.75",
+        //         "price":"8769.75",
         //         "quote":"USD",
         //         "rejectCode":0,
         //         "rejectReason":null,
         //         "settleType":"INVERSE", // futures only
-        //         "$side":2,
-        //         "$stopPrice":"0",
-        //         "$symbol":"BTCUSDFP",
+        //         "side":2,
+        //         "stopPrice":"0",
+        //         "symbol":"BTCUSDFP",
         //         "transactTime":"2019-11-12T07:05:52.000Z,
         //         "updateTime":"2019-11-12T07:05:52.000Z,
-        //         "$timeInForce":1,
-        //         "$execInst" => "",
+        //         "timeInForce":1,
+        //         "execInst" => "",
         //         "userID":"216214"
         //     }
         //
@@ -1569,16 +1648,16 @@ class aax extends Exchange {
         $marketId = $this->safe_string($order, 'symbol');
         $market = $this->safe_market($marketId, $market);
         $symbol = $market['symbol'];
-        $price = $this->safe_number($order, 'price');
+        $price = $this->safe_string($order, 'price');
         $stopPrice = $this->safe_number($order, 'stopPrice');
         $timeInForce = $this->parse_time_in_force($this->safe_string($order, 'timeInForce'));
         $execInst = $this->safe_string($order, 'execInst');
         $postOnly = ($execInst === 'Post-Only');
-        $average = $this->safe_number($order, 'avgPrice');
-        $amount = $this->safe_number($order, 'orderQty');
-        $filled = $this->safe_number($order, 'cumQty');
-        $remaining = $this->safe_number($order, 'leavesQty');
-        if (($filled === 0) && ($remaining === 0)) {
+        $average = $this->safe_string($order, 'avgPrice');
+        $amount = $this->safe_string($order, 'orderQty');
+        $filled = $this->safe_string($order, 'cumQty');
+        $remaining = $this->safe_string($order, 'leavesQty');
+        if ((Precise::string_equals($filled, '0')) && (Precise::string_equals($remaining, '0'))) {
             $remaining = null;
         }
         $lastTradeTimestamp = $this->safe_value($order, 'transactTime');
@@ -1623,7 +1702,7 @@ class aax extends Exchange {
             'cost' => null,
             'trades' => null,
             'fee' => $fee,
-        ));
+        ), $market);
     }
 
     public function fetch_my_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -1635,8 +1714,8 @@ class aax extends Exchange {
             // 'orderID' => id,
             // 'base' => $market['baseId'],
             // 'quote' => $market['quoteId'],
-            // 'startDate' => $this->ymd($since),
-            // 'endDate' => $this->ymd($this->milliseconds()),
+            // 'startDate' => $this->yyyymmdd($since),
+            // 'endDate' => $this->yyyymmdd($this->milliseconds()),
             // 'orderType' => null, // MARKET, LIMIT, STOP, STOP-LIMIT
             // 'side' => 'null', // BUY, SELL
         );
@@ -1659,13 +1738,13 @@ class aax extends Exchange {
             $request['pageSize'] = $limit; // default 10
         }
         if ($since !== null) {
-            $request['startDate'] = $this->ymd($since);
+            $request['startDate'] = $this->yyyymmdd($since);
         }
         $response = $this->$method (array_merge($request, $params));
         //
         //     {
         //         "code":1,
-        //         "$data":{
+        //         "data":{
         //             "list":array(
         //                 array(
         //                     "avgPrice":"1199.8",
@@ -1689,7 +1768,7 @@ class aax extends Exchange {
         //                     "rejectReason":null,
         //                     "side":1,
         //                     "stopPrice":"0",
-        //                     "$symbol":"ETHUSDT",
+        //                     "symbol":"ETHUSDT",
         //                     "taker":true,
         //                     "tradeID":"E04WTIgfmULU",
         //                     "transactTime":"2021-01-11T02:47:51.389Z",
@@ -1717,14 +1796,20 @@ class aax extends Exchange {
             'currency' => $currency['id'],
             // 'network' => null, // 'ERC20
         );
+        if (is_array($params) && array_key_exists('network', $params)) {
+            $networks = $this->safe_value($this->options, 'networks', array());
+            $network = $this->safe_string_upper($params, 'network');
+            $params = $this->omit($params, 'network');
+            $request['network'] = $this->safe_string_upper($networks, $network, $network);
+        }
         $response = $this->privateGetAccountDepositAddress (array_merge($request, $params));
         //
         //     {
-        //         "$code":1,
-        //         "$data":array(
+        //         "code":1,
+        //         "data":array(
         //             "address":"0x080c5c667381404cca9be0be9a04b2e47691ff86",
         //             "tag":null,
-        //             "$currency":"USDT",
+        //             "currency":"USDT",
         //             "network":"ERC20"
         //         ),
         //         "message":"success",
@@ -1738,21 +1823,26 @@ class aax extends Exchange {
     public function parse_deposit_address($depositAddress, $currency = null) {
         //
         //     {
-        //         "$address":"0x080c5c667381404cca9be0be9a04b2e47691ff86",
-        //         "$tag":null,
-        //         "$currency":"USDT",
+        //         "address":"0x080c5c667381404cca9be0be9a04b2e47691ff86",
+        //         "tag":null,
+        //         "currency":"USDT",
         //         "network":"ERC20"
         //     }
         //
         $address = $this->safe_string($depositAddress, 'address');
         $tag = $this->safe_string($depositAddress, 'tag');
         $currencyId = $this->safe_string($depositAddress, 'currency');
+        $network = $this->safe_string($depositAddress, 'network');
+        if ($network !== null) {
+            $currencyId = str_replace($network, '', $currencyId);
+        }
         $code = $this->safe_currency_code($currencyId);
         return array(
             'info' => $depositAddress,
-            'code' => $code,
+            'currency' => $code,
             'address' => $address,
             'tag' => $tag,
+            'network' => $network,
         );
     }
 
@@ -1795,7 +1885,7 @@ class aax extends Exchange {
                 $headers['X-ACCESS-SIGN'] = $signature;
             }
         }
-        $url = $this->implode_params($this->urls['api'][$api], array( 'hostname' => $this->hostname )) . $url;
+        $url = $this->implode_hostname($this->urls['api'][$api]) . $url;
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 
@@ -1804,7 +1894,7 @@ class aax extends Exchange {
             return; // fallback to default error handler
         }
         //
-        //     array("$code":40102,"message":"Unauthorized(invalid key)")
+        //     array("code":40102,"message":"Unauthorized(invalid key)")
         //
         $errorCode = $this->safe_string($response, 'code');
         if (($errorCode !== null) && ($errorCode !== '1')) {

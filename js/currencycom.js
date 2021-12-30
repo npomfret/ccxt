@@ -22,7 +22,7 @@ module.exports = class currencycom extends Exchange {
             // new metainfo interface
             'has': {
                 'cancelOrder': true,
-                'CORS': false,
+                'CORS': undefined,
                 'createOrder': true,
                 'fetchAccounts': true,
                 'fetchBalance': true,
@@ -34,8 +34,8 @@ module.exports = class currencycom extends Exchange {
                 'fetchTicker': true,
                 'fetchTickers': true,
                 'fetchTime': true,
-                'fetchTradingFees': true,
                 'fetchTrades': true,
+                'fetchTradingFees': true,
             },
             'timeframes': {
                 '1m': '1m',
@@ -53,6 +53,10 @@ module.exports = class currencycom extends Exchange {
                 'api': {
                     'public': 'https://api-adapter.backend.currency.com/api',
                     'private': 'https://api-adapter.backend.currency.com/api',
+                },
+                'test': {
+                    'public': 'https://demo-api-adapter.backend.currency.com/api',
+                    'private': 'https://demo-api-adapter.backend.currency.com/api',
                 },
                 'www': 'https://www.currency.com',
                 'referral': 'https://currency.com/trading/signup?c=362jaimv&pid=referral',
@@ -96,8 +100,8 @@ module.exports = class currencycom extends Exchange {
                     'feeSide': 'get',
                     'tierBased': false,
                     'percentage': true,
-                    'taker': 0.002,
-                    'maker': 0.002,
+                    'taker': this.parseNumber ('0.002'),
+                    'maker': this.parseNumber ('0.002'),
                 },
             },
             'precisionMode': TICK_SIZE,
@@ -140,7 +144,12 @@ module.exports = class currencycom extends Exchange {
                 },
             },
             'commonCurrencies': {
+                'ACN': 'Accenture',
+                'BNS': 'Bank of Nova Scotia',
+                'CAR': 'Avis Budget Group Inc',
+                'EDU': 'New Oriental Education & Technology Group Inc',
                 'ETN': 'Eaton',
+                'FOX': 'Fox Corporation',
                 'IQ': 'iQIYI',
                 'PLAY': "Dave & Buster's Entertainment",
             },
@@ -252,10 +261,6 @@ module.exports = class currencycom extends Exchange {
             }
             const filters = this.safeValue (market, 'filters', []);
             const filtersByType = this.indexBy (filters, 'filterType');
-            const precision = {
-                'amount': 1 / Math.pow (1, this.safeInteger (market, 'baseAssetPrecision')),
-                'price': this.safeNumber (market, 'tickSize'),
-            };
             const status = this.safeString (market, 'status');
             const active = (status === 'TRADING');
             let type = this.safeStringLower (market, 'marketType');
@@ -264,79 +269,111 @@ module.exports = class currencycom extends Exchange {
             }
             const spot = (type === 'spot');
             const margin = (type === 'margin');
-            const entry = {
-                'id': id,
-                'symbol': symbol,
-                'base': base,
-                'quote': quote,
-                'baseId': baseId,
-                'quoteId': quoteId,
-                'type': type,
-                'spot': spot,
-                'margin': margin,
-                'info': market,
-                'active': active,
-                'precision': precision,
-                'limits': {
-                    'amount': {
-                        'min': Math.pow (10, -precision['amount']),
-                        'max': undefined,
-                    },
-                    'price': {
-                        'min': undefined,
-                        'max': undefined,
-                    },
-                    'cost': {
-                        'min': -Math.log10 (precision['amount']),
-                        'max': undefined,
-                    },
-                },
-            };
             const exchangeFee = this.safeNumber2 (market, 'exchangeFee', 'tradingFee');
             const makerFee = this.safeNumber (market, 'makerFee', exchangeFee);
             const takerFee = this.safeNumber (market, 'takerFee', exchangeFee);
+            let maker = undefined;
+            let taker = undefined;
             if (makerFee !== undefined) {
-                entry['maker'] = makerFee / 100;
+                maker = makerFee / 100;
             }
             if (takerFee !== undefined) {
-                entry['taker'] = takerFee / 100;
+                taker = takerFee / 100;
             }
+            let limitPriceMin = undefined;
+            let limitPriceMax = undefined;
+            let precisionPrice = this.safeNumber (market, 'tickSize');
             if ('PRICE_FILTER' in filtersByType) {
                 const filter = this.safeValue (filtersByType, 'PRICE_FILTER', {});
-                entry['precision']['price'] = this.safeNumber (filter, 'tickSize');
+                precisionPrice = this.safeNumber (filter, 'tickSize');
                 // PRICE_FILTER reports zero values for maxPrice
                 // since they updated filter types in November 2018
                 // https://github.com/ccxt/ccxt/issues/4286
                 // therefore limits['price']['max'] doesn't have any meaningful value except undefined
-                entry['limits']['price'] = {
-                    'min': this.safeNumber (filter, 'minPrice'),
-                    'max': undefined,
-                };
+                limitPriceMin = this.safeNumber (filter, 'minPrice');
                 const maxPrice = this.safeNumber (filter, 'maxPrice');
                 if ((maxPrice !== undefined) && (maxPrice > 0)) {
-                    entry['limits']['price']['max'] = maxPrice;
+                    limitPriceMax = maxPrice;
                 }
             }
+            let precisionAmount = this.parsePrecision (this.safeString (market, 'baseAssetPrecision'));
+            let limitAmount = {
+                'min': undefined,
+                'max': undefined,
+            };
             if ('LOT_SIZE' in filtersByType) {
                 const filter = this.safeValue (filtersByType, 'LOT_SIZE', {});
-                entry['precision']['amount'] = this.safeNumber (filter, 'stepSize');
-                entry['limits']['amount'] = {
+                precisionAmount = this.safeNumber (filter, 'stepSize');
+                limitAmount = {
                     'min': this.safeNumber (filter, 'minQty'),
                     'max': this.safeNumber (filter, 'maxQty'),
                 };
             }
+            let limitMarket = {
+                'min': undefined,
+                'max': undefined,
+            };
             if ('MARKET_LOT_SIZE' in filtersByType) {
                 const filter = this.safeValue (filtersByType, 'MARKET_LOT_SIZE', {});
-                entry['limits']['market'] = {
+                limitMarket = {
                     'min': this.safeNumber (filter, 'minQty'),
                     'max': this.safeNumber (filter, 'maxQty'),
                 };
             }
+            let costMin = undefined;
             if ('MIN_NOTIONAL' in filtersByType) {
                 const filter = this.safeValue (filtersByType, 'MIN_NOTIONAL', {});
-                entry['limits']['cost']['min'] = this.safeNumber (filter, 'minNotional');
+                costMin = this.safeNumber (filter, 'minNotional');
             }
-            result.push (entry);
+            result.push ({
+                'id': id,
+                'symbol': symbol,
+                'base': base,
+                'quote': quote,
+                'settle': undefined,
+                'baseId': baseId,
+                'quoteId': quoteId,
+                'settleId': undefined,
+                'type': type,
+                'spot': spot,
+                'margin': margin,
+                'swap': false,
+                'future': false,
+                'option': false,
+                'derivative': false,
+                'contract': false,
+                'linear': undefined,
+                'inverse': undefined,
+                'taker': taker,
+                'maker': maker,
+                'contractSize': undefined,
+                'active': active,
+                'expiry': undefined,
+                'expiryDatetime': undefined,
+                'strike': undefined,
+                'optionType': undefined,
+                'precision': {
+                    'amount': precisionAmount,
+                    'price': precisionPrice,
+                },
+                'limits': {
+                    'leverage': {
+                        'min': undefined,
+                        'max': undefined,
+                    },
+                    'amount': limitAmount,
+                    'market': limitMarket,
+                    'price': {
+                        'min': limitPriceMin,
+                        'max': limitPriceMax,
+                    },
+                    'cost': {
+                        'min': costMin,
+                        'max': undefined,
+                    },
+                },
+                'info': market,
+            });
         }
         return result;
     }
@@ -392,7 +429,7 @@ module.exports = class currencycom extends Exchange {
         };
     }
 
-    parseBalanceResponse (response) {
+    parseBalance (response, type = undefined) {
         //
         //     {
         //         "makerCommission":0.20,
@@ -426,7 +463,7 @@ module.exports = class currencycom extends Exchange {
             account['used'] = this.safeString (balance, 'locked');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.safeBalance (result);
     }
 
     async fetchBalance (params = {}) {
@@ -454,7 +491,7 @@ module.exports = class currencycom extends Exchange {
         //         ]
         //     }
         //
-        return this.parseBalanceResponse (response);
+        return this.parseBalance (response);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -689,9 +726,6 @@ module.exports = class currencycom extends Exchange {
         const timestamp = this.safeInteger2 (trade, 'T', 'time');
         const priceString = this.safeString2 (trade, 'p', 'price');
         const amountString = this.safeString2 (trade, 'q', 'qty');
-        const price = this.parseNumber (priceString);
-        const amount = this.parseNumber (amountString);
-        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
         const id = this.safeString2 (trade, 'a', 'id');
         let side = undefined;
         const orderId = this.safeString (trade, 'orderId');
@@ -707,7 +741,7 @@ module.exports = class currencycom extends Exchange {
         let fee = undefined;
         if ('commission' in trade) {
             fee = {
-                'cost': this.safeNumber (trade, 'commission'),
+                'cost': this.safeString (trade, 'commission'),
                 'currency': this.safeCurrencyCode (this.safeString (trade, 'commissionAsset')),
             };
         }
@@ -717,7 +751,7 @@ module.exports = class currencycom extends Exchange {
         }
         const marketId = this.safeString (trade, 'symbol');
         const symbol = this.safeSymbol (marketId, market);
-        return {
+        return this.safeTrade ({
             'info': trade,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -727,11 +761,11 @@ module.exports = class currencycom extends Exchange {
             'type': undefined,
             'takerOrMaker': takerOrMaker,
             'side': side,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': undefined,
             'fee': fee,
-        };
+        }, market);
     }
 
     async fetchTrades (symbol, since = undefined, limit = undefined, params = {}) {
@@ -805,19 +839,14 @@ module.exports = class currencycom extends Exchange {
         } else if ('transactTime' in order) {
             timestamp = this.safeInteger (order, 'transactTime');
         }
-        const price = this.safeNumber (order, 'price');
-        const amount = this.safeNumber (order, 'origQty');
-        const filled = this.safeNumber (order, 'executedQty');
-        const remaining = undefined;
-        const cost = this.safeNumber (order, 'cummulativeQuoteQty');
+        const price = this.safeString (order, 'price');
+        const amount = this.safeString (order, 'origQty');
+        const filled = Precise.stringAbs (this.safeString (order, 'executedQty'));
+        const cost = this.safeString (order, 'cummulativeQuoteQty');
         const id = this.safeString (order, 'orderId');
         const type = this.safeStringLower (order, 'type');
         const side = this.safeStringLower (order, 'side');
-        let trades = undefined;
         const fills = this.safeValue (order, 'fills');
-        if (fills !== undefined) {
-            trades = this.parseTrades (fills, market);
-        }
         const timeInForce = this.safeString (order, 'timeInForce');
         return this.safeOrder ({
             'info': order,
@@ -835,11 +864,11 @@ module.exports = class currencycom extends Exchange {
             'cost': cost,
             'average': undefined,
             'filled': filled,
-            'remaining': remaining,
+            'remaining': undefined,
             'status': status,
             'fee': undefined,
-            'trades': trades,
-        });
+            'trades': fills,
+        }, market);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {

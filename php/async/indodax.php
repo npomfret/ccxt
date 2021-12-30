@@ -19,20 +19,19 @@ class indodax extends Exchange {
             'countries' => array( 'ID' ), // Indonesia
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
-                'createMarketOrder' => false,
+                'CORS' => null,
+                'createMarketOrder' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchClosedOrders' => true,
-                'fetchCurrencies' => false,
                 'fetchMarkets' => true,
-                'fetchMyTrades' => false,
+                'fetchMyTrades' => null,
                 'fetchOpenOrders' => true,
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
-                'fetchOrders' => false,
+                'fetchOrders' => null,
                 'fetchTicker' => true,
-                'fetchTickers' => false,
+                'fetchTickers' => null,
                 'fetchTime' => true,
                 'fetchTrades' => true,
                 'withdraw' => true,
@@ -136,8 +135,8 @@ class indodax extends Exchange {
         //
         //     array(
         //         {
-        //             "$id" => "btcidr",
-        //             "$symbol" => "BTCIDR",
+        //             "id" => "btcidr",
+        //             "symbol" => "BTCIDR",
         //             "base_currency" => "idr",
         //             "traded_currency" => "btc",
         //             "traded_currency_unit" => "BTC",
@@ -197,15 +196,39 @@ class indodax extends Exchange {
                 'quote' => $quote,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
+                'type' => 'spot',
+                'spot' => true,
+                'active' => $active,
                 'taker' => $taker,
                 'percentage' => true,
                 'precision' => $precision,
                 'limits' => $limits,
                 'info' => $market,
-                'active' => $active,
             );
         }
         return $result;
+    }
+
+    public function parse_balance($response) {
+        $balances = $this->safe_value($response, 'return', array());
+        $free = $this->safe_value($balances, 'balance', array());
+        $used = $this->safe_value($balances, 'balance_hold', array());
+        $timestamp = $this->safe_timestamp($balances, 'server_time');
+        $result = array(
+            'info' => $response,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+        );
+        $currencyIds = is_array($free) ? array_keys($free) : array();
+        for ($i = 0; $i < count($currencyIds); $i++) {
+            $currencyId = $currencyIds[$i];
+            $code = $this->safe_currency_code($currencyId);
+            $account = $this->account();
+            $account['free'] = $this->safe_string($free, $currencyId);
+            $account['used'] = $this->safe_string($used, $currencyId);
+            $result[$code] = $account;
+        }
+        return $this->safe_balance($result);
     }
 
     public function fetch_balance($params = array ()) {
@@ -241,25 +264,7 @@ class indodax extends Exchange {
         //         }
         //     }
         //
-        $balances = $this->safe_value($response, 'return', array());
-        $free = $this->safe_value($balances, 'balance', array());
-        $used = $this->safe_value($balances, 'balance_hold', array());
-        $timestamp = $this->safe_timestamp($balances, 'server_time');
-        $result = array(
-            'info' => $response,
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-        );
-        $currencyIds = is_array($free) ? array_keys($free) : array();
-        for ($i = 0; $i < count($currencyIds); $i++) {
-            $currencyId = $currencyIds[$i];
-            $code = $this->safe_currency_code($currencyId);
-            $account = $this->account();
-            $account['free'] = $this->safe_string($free, $currencyId);
-            $account['used'] = $this->safe_string($used, $currencyId);
-            $result[$code] = $account;
-        }
-        return $this->parse_balance($result, false);
+        return $this->parse_balance($response);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -280,12 +285,12 @@ class indodax extends Exchange {
         $response = yield $this->publicGetPairTicker (array_merge($request, $params));
         //
         //     {
-        //         "$ticker" => {
+        //         "ticker" => {
         //             "high":"0.01951",
         //             "low":"0.01877",
         //             "vol_eth":"39.38839319",
         //             "vol_btc":"0.75320886",
-        //             "$last":"0.01896",
+        //             "last":"0.01896",
         //             "buy":"0.01896",
         //             "sell":"0.019",
         //             "server_time":1565248908
@@ -376,7 +381,7 @@ class indodax extends Exchange {
         //     {
         //         "order_id" => "12345",
         //         "submit_time" => "1392228122",
-        //         "$price" => "8000000",
+        //         "price" => "8000000",
         //         "type" => "sell",
         //         "order_ltc" => "100000000",
         //         "remain_ltc" => "100000000"
@@ -388,10 +393,10 @@ class indodax extends Exchange {
         //     {
         //       "order_id" => "49326856",
         //       "type" => "sell",
-        //       "$price" => "1000000000",
+        //       "price" => "1000000000",
         //       "submit_time" => "1618314671",
         //       "finish_time" => "1618314671",
-        //       "$status" => "filled",
+        //       "status" => "filled",
         //       "order_xrp" => "30.45000000",
         //       "remain_xrp" => "0.00000000"
         //     }
@@ -402,7 +407,7 @@ class indodax extends Exchange {
         $status = $this->parse_order_status($this->safe_string($order, 'status', 'open'));
         $symbol = null;
         $cost = null;
-        $price = $this->safe_number($order, 'price');
+        $price = $this->safe_string($order, 'price');
         $amount = null;
         $remaining = null;
         if ($market !== null) {
@@ -415,10 +420,10 @@ class indodax extends Exchange {
             if (($market['baseId'] === 'idr') && (is_array($order) && array_key_exists('remain_rp', $order))) {
                 $baseId = 'rp';
             }
-            $cost = $this->safe_number($order, 'order_' . $quoteId);
+            $cost = $this->safe_string($order, 'order_' . $quoteId);
             if (!$cost) {
-                $amount = $this->safe_number($order, 'order_' . $baseId);
-                $remaining = $this->safe_number($order, 'remain_' . $baseId);
+                $amount = $this->safe_string($order, 'order_' . $baseId);
+                $remaining = $this->safe_string($order, 'remain_' . $baseId);
             }
         }
         $timestamp = $this->safe_integer($order, 'submit_time');
@@ -546,7 +551,7 @@ class indodax extends Exchange {
         }
         $side = $this->safe_value($params, 'side');
         if ($side === null) {
-            throw new ArgumentsRequired($this->id . ' cancelOrder() requires an extra "$side" param');
+            throw new ArgumentsRequired($this->id . ' cancelOrder() requires an extra "side" param');
         }
         yield $this->load_markets();
         $market = $this->market($symbol);
@@ -559,6 +564,7 @@ class indodax extends Exchange {
     }
 
     public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
+        list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
         $this->check_address($address);
         yield $this->load_markets();
         $currency = $this->currency($code);

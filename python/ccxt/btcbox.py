@@ -34,7 +34,7 @@ class btcbox(Exchange):
             'version': 'v1',
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
+                'CORS': None,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchOpenOrders': True,
@@ -42,7 +42,7 @@ class btcbox(Exchange):
                 'fetchOrderBook': True,
                 'fetchOrders': True,
                 'fetchTicker': True,
-                'fetchTickers': False,
+                'fetchTickers': None,
                 'fetchTrades': True,
             },
             'urls': {
@@ -72,10 +72,10 @@ class btcbox(Exchange):
                 },
             },
             'markets': {
-                'BTC/JPY': {'id': 'btc', 'symbol': 'BTC/JPY', 'base': 'BTC', 'quote': 'JPY', 'baseId': 'btc', 'quoteId': 'jpy', 'taker': 0.05 / 100, 'maker': 0.05 / 100},
-                'ETH/JPY': {'id': 'eth', 'symbol': 'ETH/JPY', 'base': 'ETH', 'quote': 'JPY', 'baseId': 'eth', 'quoteId': 'jpy', 'taker': 0.10 / 100, 'maker': 0.10 / 100},
-                'LTC/JPY': {'id': 'ltc', 'symbol': 'LTC/JPY', 'base': 'LTC', 'quote': 'JPY', 'baseId': 'ltc', 'quoteId': 'jpy', 'taker': 0.10 / 100, 'maker': 0.10 / 100},
-                'BCH/JPY': {'id': 'bch', 'symbol': 'BCH/JPY', 'base': 'BCH', 'quote': 'JPY', 'baseId': 'bch', 'quoteId': 'jpy', 'taker': 0.10 / 100, 'maker': 0.10 / 100},
+                'BTC/JPY': {'id': 'btc', 'symbol': 'BTC/JPY', 'base': 'BTC', 'quote': 'JPY', 'baseId': 'btc', 'quoteId': 'jpy', 'taker': 0.05 / 100, 'maker': 0.05 / 100, 'type': 'spot', 'spot': True},
+                'ETH/JPY': {'id': 'eth', 'symbol': 'ETH/JPY', 'base': 'ETH', 'quote': 'JPY', 'baseId': 'eth', 'quoteId': 'jpy', 'taker': 0.10 / 100, 'maker': 0.10 / 100, 'type': 'spot', 'spot': True},
+                'LTC/JPY': {'id': 'ltc', 'symbol': 'LTC/JPY', 'base': 'LTC', 'quote': 'JPY', 'baseId': 'ltc', 'quoteId': 'jpy', 'taker': 0.10 / 100, 'maker': 0.10 / 100, 'type': 'spot', 'spot': True},
+                'BCH/JPY': {'id': 'bch', 'symbol': 'BCH/JPY', 'base': 'BCH', 'quote': 'JPY', 'baseId': 'bch', 'quoteId': 'jpy', 'taker': 0.10 / 100, 'maker': 0.10 / 100, 'type': 'spot', 'spot': True},
             },
             'exceptions': {
                 '104': AuthenticationError,
@@ -91,9 +91,7 @@ class btcbox(Exchange):
             },
         })
 
-    def fetch_balance(self, params={}):
-        self.load_markets()
-        response = self.privatePostBalance(params)
+    def parse_balance(self, response):
         result = {'info': response}
         codes = list(self.currencies.keys())
         for i in range(0, len(codes)):
@@ -107,7 +105,12 @@ class btcbox(Exchange):
                 account['free'] = self.safe_string(response, free)
                 account['used'] = self.safe_string(response, used)
                 result[code] = account
-        return self.parse_balance(result, False)
+        return self.safe_balance(result)
+
+    def fetch_balance(self, params={}):
+        self.load_markets()
+        response = self.privatePostBalance(params)
+        return self.parse_balance(response)
 
     def fetch_order_book(self, symbol, limit=None, params={}):
         self.load_markets()
@@ -159,6 +162,17 @@ class btcbox(Exchange):
         return self.parse_ticker(response, market)
 
     def parse_trade(self, trade, market=None):
+        #
+        # fetchTrades(public)
+        #
+        #      {
+        #          "date":"0",
+        #          "price":3,
+        #          "amount":0.1,
+        #          "tid":"1",
+        #          "type":"buy"
+        #      }
+        #
         timestamp = self.safe_timestamp(trade, 'date')
         symbol = None
         if market is not None:
@@ -166,12 +180,9 @@ class btcbox(Exchange):
         id = self.safe_string(trade, 'tid')
         priceString = self.safe_string(trade, 'price')
         amountString = self.safe_string(trade, 'amount')
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         type = None
         side = self.safe_string(trade, 'type')
-        return {
+        return self.safe_trade({
             'info': trade,
             'id': id,
             'order': None,
@@ -181,11 +192,11 @@ class btcbox(Exchange):
             'type': type,
             'side': side,
             'takerOrMaker': None,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'fee': None,
-        }
+        }, market)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
         self.load_markets()
@@ -195,6 +206,17 @@ class btcbox(Exchange):
         if numSymbols > 1:
             request['coin'] = market['baseId']
         response = self.publicGetOrders(self.extend(request, params))
+        #
+        #     [
+        #          {
+        #              "date":"0",
+        #              "price":3,
+        #              "amount":0.1,
+        #              "tid":"1",
+        #              "type":"buy"
+        #          },
+        #     ]
+        #
         return self.parse_trades(response, market, since, limit)
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
@@ -252,7 +274,7 @@ class btcbox(Exchange):
         #         "amount_original":1.2,
         #         "amount_outstanding":1.2,
         #         "status":"closed",
-        #         "trades":[]
+        #         "trades":[]  # no clarification of trade value structure of order endpoint
         #     }
         #
         id = self.safe_string(order, 'id')
@@ -260,14 +282,14 @@ class btcbox(Exchange):
         timestamp = None
         if datetimeString is not None:
             timestamp = self.parse8601(order['datetime'] + '+09:00')  # Tokyo time
-        amount = self.safe_number(order, 'amount_original')
-        remaining = self.safe_number(order, 'amount_outstanding')
-        price = self.safe_number(order, 'price')
+        amount = self.safe_string(order, 'amount_original')
+        remaining = self.safe_string(order, 'amount_outstanding')
+        price = self.safe_string(order, 'price')
         # status is set by fetchOrder method only
         status = self.parse_order_status(self.safe_string(order, 'status'))
         # fetchOrders do not return status, use heuristic
         if status is None:
-            if remaining is not None and remaining == 0:
+            if Precise.string_equals(remaining, '0'):
                 status = 'closed'
         trades = None  # todo: self.parse_trades(order['trades'])
         symbol = None
@@ -296,7 +318,7 @@ class btcbox(Exchange):
             'fee': None,
             'info': order,
             'average': None,
-        })
+        }, market)
 
     def fetch_order(self, id, symbol=None, params={}):
         self.load_markets()
@@ -309,6 +331,18 @@ class btcbox(Exchange):
             'coin': market['baseId'],
         }, params)
         response = self.privatePostTradeView(self.extend(request, params))
+        #
+        #      {
+        #          "id":11,
+        #          "datetime":"2014-10-21 10:47:20",
+        #          "type":"sell",
+        #          "price":42000,
+        #          "amount_original":1.2,
+        #          "amount_outstanding":1.2,
+        #          "status":"closed",
+        #          "trades":[]
+        #      }
+        #
         return self.parse_order(response, market)
 
     def fetch_orders_by_type(self, type, symbol=None, since=None, limit=None, params={}):
@@ -322,6 +356,18 @@ class btcbox(Exchange):
             'coin': market['baseId'],
         }
         response = self.privatePostTradeList(self.extend(request, params))
+        #
+        # [
+        #      {
+        #          "id":"7",
+        #          "datetime":"2014-10-20 13:27:38",
+        #          "type":"buy",
+        #          "price":42750,
+        #          "amount_original":0.235,
+        #          "amount_outstanding":0.235
+        #      },
+        # ]
+        #
         orders = self.parse_orders(response, market, since, limit)
         # status(open/closed/canceled) is None
         # btcbox does not return status, but we know it's 'open' as we queried for open orders
@@ -374,8 +420,8 @@ class btcbox(Exchange):
         self.throw_exactly_matched_exception(self.exceptions, code, feedback)
         raise ExchangeError(feedback)  # unknown message
 
-    def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        response = self.fetch2(path, api, method, params, headers, body)
+    def request(self, path, api='public', method='GET', params={}, headers=None, body=None, config={}, context={}):
+        response = self.fetch2(path, api, method, params, headers, body, config, context)
         if isinstance(response, basestring):
             # sometimes the exchange returns whitespace prepended to json
             response = self.strip(response)

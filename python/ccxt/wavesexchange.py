@@ -31,7 +31,7 @@ class wavesexchange(Exchange):
             'pro': False,
             'has': {
                 'cancelOrder': True,
-                'createMarketOrder': False,
+                'createMarketOrder': None,
                 'createOrder': True,
                 'fetchBalance': True,
                 'fetchClosedOrders': True,
@@ -41,9 +41,11 @@ class wavesexchange(Exchange):
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
                 'fetchOrderBook': True,
+                'fetchOrder': True,
                 'fetchOrders': True,
                 'fetchTicker': True,
                 'fetchTrades': True,
+                'signIn': True,
                 'withdraw': True,
             },
             'timeframes': {
@@ -63,13 +65,21 @@ class wavesexchange(Exchange):
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/84547058-5fb27d80-ad0b-11ea-8711-78ac8b3c7f31.jpg',
+                'test': {
+                    'matcher': 'http://matcher-testnet.waves.exchange',
+                    'node': 'https://nodes-testnet.wavesnodes.com',
+                    'public': 'https://api-testnet.wavesplatform.com/v0',
+                    'private': 'https://api-testnet.waves.exchange/v1',
+                    'forward': 'https://testnet.waves.exchange/api/v1/forward/matcher',
+                    'market': 'https://testnet.waves.exchange/api/v1/forward/marketdata/api/v1',
+                },
                 'api': {
                     'matcher': 'http://matcher.waves.exchange',
                     'node': 'https://nodes.waves.exchange',
                     'public': 'https://api.wavesplatform.com/v0',
                     'private': 'https://api.waves.exchange/v1',
                     'forward': 'https://waves.exchange/api/v1/forward/matcher',
-                    'market': 'https://marketdata.wavesplatform.com/api/v1',
+                    'market': 'https://waves.exchange/api/v1/forward/marketdata/api/v1',
                 },
                 'doc': 'https://docs.waves.exchange',
                 'www': 'https://waves.exchange',
@@ -221,6 +231,7 @@ class wavesexchange(Exchange):
                 },
                 'public': {
                     'get': [
+                        'assets',
                         'pairs',
                         'candles/{baseId}/{quoteId}',
                         'transactions/exchange',
@@ -228,7 +239,9 @@ class wavesexchange(Exchange):
                 },
                 'private': {
                     'get': [
-                        'deposit/addresses/{code}',
+                        'deposit/addresses/{currency}',
+                        'deposit/addresses/{currency}/{platform}',
+                        'platforms',
                         'deposit/currencies',
                         'withdraw/currencies',
                         'withdraw/addresses/{currency}/{address}',
@@ -262,6 +275,18 @@ class wavesexchange(Exchange):
                 'withdrawFeeUSDN': 7420,
                 'withdrawFeeWAVES': 100000,
                 'wavesPrecision': 8,
+                'messagePrefix': 'W',  # W for production, T for testnet
+                'networks': {
+                    'ERC20': 'ETH',
+                    'BEP20': 'BSC',
+                },
+                'reverseNetworks': {
+                    'ETH': 'ERC20',
+                    'BSC': 'BEP20',
+                },
+            },
+            'commonCurrencies': {
+                'EGG': 'Waves Ducks',
             },
             'requiresEddsa': True,
             'exceptions': {
@@ -291,6 +316,10 @@ class wavesexchange(Exchange):
                 '1051904': AuthenticationError,
             },
         })
+
+    def set_sandbox_mode(self, enabled):
+        self.options['messagePrefix'] = 'T' if enabled else 'W'
+        return super(wavesexchange, self).set_sandbox_mode(enabled)
 
     def get_quotes(self):
         quotes = self.safe_value(self.options, 'quotes')
@@ -359,6 +388,34 @@ class wavesexchange(Exchange):
 
     def fetch_markets(self, params={}):
         response = self.marketGetTickers()
+        #
+        #   [
+        #       {
+        #           "symbol": "WAVES/BTC",
+        #           "amountAssetID": "WAVES",
+        #           "amountAssetName": "Waves",
+        #           "amountAssetDecimals": 8,
+        #           "amountAssetTotalSupply": "106908766.00000000",
+        #           "amountAssetMaxSupply": "106908766.00000000",
+        #           "amountAssetCirculatingSupply": "106908766.00000000",
+        #           "priceAssetID": "8LQW8f7P5d5PZM7GtZEBgaqRPGSzS3DfPuiXrURJ4AJS",
+        #           "priceAssetName": "WBTC",
+        #           "priceAssetDecimals": 8,
+        #           "priceAssetTotalSupply": "20999999.96007507",
+        #           "priceAssetMaxSupply": "20999999.96007507",
+        #           "priceAssetCirculatingSupply": "20999999.66019601",
+        #           "24h_open": "0.00032688",
+        #           "24h_high": "0.00033508",
+        #           "24h_low": "0.00032443",
+        #           "24h_close": "0.00032806",
+        #           "24h_vwap": "0.00032988",
+        #           "24h_volume": "42349.69440104",
+        #           "24h_priceVolume": "13.97037207",
+        #           "timestamp":1640232379124
+        #       }
+        #       ...
+        #   ]
+        #
         result = []
         for i in range(0, len(response)):
             entry = response[i]
@@ -368,19 +425,56 @@ class wavesexchange(Exchange):
             marketId = self.safe_string(entry, 'symbol')
             base, quote = marketId.split('/')
             symbol = self.safe_currency_code(base) + '/' + self.safe_currency_code(quote)
-            precision = {
-                'amount': self.safe_integer(entry, 'amountAssetDecimals'),
-                'price': self.safe_integer(entry, 'priceAssetDecimals'),
-            }
             result.append({
-                'symbol': symbol,
                 'id': id,
+                'symbol': symbol,
                 'base': base,
                 'quote': quote,
+                'settle': None,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'settleId': None,
+                'type': 'spot',
+                'spot': True,
+                'margin': False,
+                'swap': False,
+                'futures': False,
+                'option': False,
+                'derivative': False,
+                'contract': False,
+                'linear': None,
+                'inverse': None,
+                'taker': None,
+                'maker': None,
+                'contractSize': None,
+                'active': None,
+                'expiry': None,
+                'expiryDatetime': None,
+                'strike': None,
+                'optionType': None,
+                'precision': {
+                    'amount': self.safe_integer(entry, 'amountAssetDecimals'),
+                    'price': self.safe_integer(entry, 'priceAssetDecimals'),
+                },
+                'limits': {
+                    'leverage': {
+                        'min': None,
+                        'max': None,
+                    },
+                    'amount': {
+                        'min': None,
+                        'max': None,
+                    },
+                    'price': {
+                        'min': None,
+                        'max': None,
+                    },
+                    'cost': {
+                        'min': None,
+                        'max': None,
+                    },
+                },
                 'info': entry,
-                'precision': precision,
             })
         return result
 
@@ -447,7 +541,7 @@ class wavesexchange(Exchange):
         isCancelOrder = path == 'matcher/orders/{wavesAddress}/cancel'
         path = self.implode_params(path, params)
         url = self.urls['api'][api] + '/' + path
-        queryString = self.urlencode(query)
+        queryString = self.urlencode_with_array_repeat(query)
         if (api == 'private') or (api == 'forward'):
             headers = {
                 'Accept': 'application/json',
@@ -486,14 +580,16 @@ class wavesexchange(Exchange):
                     url += '?' + queryString
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    def get_access_token(self):
+    def sign_in(self, params={}):
         if not self.safe_string(self.options, 'accessToken'):
             prefix = 'ffffff01'
             expiresDelta = 60 * 60 * 24 * 7
             seconds = self.sum(self.seconds(), expiresDelta)
             seconds = str(seconds)
             clientId = 'waves.exchange'
-            message = 'W:' + clientId + ':' + seconds
+            # W for production, T for testnet
+            defaultMessagePrefix = self.safe_string(self.options, 'messagePrefix', 'W')
+            message = defaultMessagePrefix + ':' + clientId + ':' + seconds
             messageHex = self.binary_to_base16(self.encode(message))
             payload = prefix + messageHex
             hexKey = self.binary_to_base16(self.base58_to_binary(self.secret))
@@ -555,15 +651,7 @@ class wavesexchange(Exchange):
         baseVolume = self.safe_number(data, 'volume')
         quoteVolume = self.safe_number(data, 'quoteVolume')
         open = self.safe_number(data, 'firstPrice')
-        change = None
-        average = None
-        percentage = None
-        if last is not None and open is not None:
-            change = last - open
-            average = self.sum(last, open) / 2
-            if open > 0:
-                percentage = change / open * 100
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -578,13 +666,13 @@ class wavesexchange(Exchange):
             'close': last,
             'last': last,
             'previousClose': None,
-            'change': change,
-            'percentage': percentage,
-            'average': average,
+            'change': None,
+            'percentage': None,
+            'average': None,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }
+        }, market)
 
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
@@ -708,27 +796,98 @@ class wavesexchange(Exchange):
         ]
 
     def fetch_deposit_address(self, code, params={}):
-        self.get_access_token()
-        supportedCurrencies = self.privateGetDepositCurrencies()
+        self.sign_in()
+        networks = self.safe_value(self.options, 'networks', {})
+        rawNetwork = self.safe_string_upper(params, 'network')
+        network = self.safe_string(networks, rawNetwork, rawNetwork)
+        params = self.omit(params, ['network'])
+        supportedCurrencies = self.privateGetPlatforms()
+        #
+        #     {
+        #       "type": "list",
+        #       "page_info": {
+        #         "has_next_page": False,
+        #         "last_cursor": null
+        #       },
+        #       "items": [
+        #         {
+        #           "type": "platform",
+        #           "id": "ETH",
+        #           "name": "Ethereum",
+        #           "currencies": [
+        #             "BAG",
+        #             "BNT",
+        #             "CRV",
+        #             "EGG",
+        #             "ETH",
+        #             "EURN",
+        #             "FL",
+        #             "NSBT",
+        #             "USDAP",
+        #             "USDC",
+        #             "USDFL",
+        #             "USDN",
+        #             "USDT",
+        #             "WAVES"
+        #           ]
+        #         }
+        #       ]
+        #     }
+        #
         currencies = {}
+        networksByCurrency = {}
         items = self.safe_value(supportedCurrencies, 'items', [])
         for i in range(0, len(items)):
             entry = items[i]
-            currencyCode = self.safe_string(entry, 'id')
-            currencies[currencyCode] = True
+            currencyId = self.safe_string(entry, 'id')
+            innerCurrencies = self.safe_value(entry, 'currencies', [])
+            for j in range(0, len(innerCurrencies)):
+                currencyCode = self.safe_string(innerCurrencies, j)
+                currencies[currencyCode] = True
+                if not (currencyCode in networksByCurrency):
+                    networksByCurrency[currencyCode] = {}
+                networksByCurrency[currencyCode][currencyId] = True
         if not (code in currencies):
             codes = list(currencies.keys())
-            raise ExchangeError(self.id + ' fetch ' + code + ' deposit address not supported. Currency code must be one of ' + str(codes))
-        request = self.extend({
-            'code': code,
-        }, params)
-        response = self.privateGetDepositAddressesCode(request)
+            raise ExchangeError(self.id + ' fetch ' + code + ' deposit address not supported. Currency code must be one of ' + ', '.join(codes))
+        response = None
+        if network is None:
+            request = {
+                'currency': code,
+            }
+            response = self.privateGetDepositAddressesCurrency(self.extend(request, params))
+        else:
+            supportedNetworks = networksByCurrency[code]
+            if not (network in supportedNetworks):
+                supportedNetworkKeys = list(supportedNetworks.keys())
+                raise ExchangeError(self.id + ' ' + network + ' network ' + code + ' deposit address not supported. Network must be one of ' + ', '.join(supportedNetworkKeys))
+            if network == 'WAVES':
+                request = {
+                    'publicKey': self.apiKey,
+                }
+                response = self.nodeGetAddressesPublicKeyPublicKey(self.extend(request, request))
+                address = self.safe_string(response, 'address')
+                return {
+                    'address': address,
+                    'code': code,
+                    'network': network,
+                    'tag': None,
+                    'info': response,
+                }
+            else:
+                request = {
+                    'currency': code,
+                    'platform': network,
+                }
+                response = self.privateGetDepositAddressesCurrencyPlatform(self.extend(request, params))
+        #
         # {
         #   "type": "deposit_addresses",
         #   "currency": {
         #     "type": "deposit_currency",
         #     "id": "ERGO",
         #     "waves_asset_id": "5dJj4Hn9t2Ve3tRpNGirUHy4yBK6qdJRAJYV21yPPuGz",
+        #     "platform_id": "BSC",
         #     "decimals": 9,
         #     "status": "active",
         #     "allowed_amount": {
@@ -744,12 +903,17 @@ class wavesexchange(Exchange):
         #     "9fRAAQjF8Yqg7qicQCL884zjimsRnuwsSavsM1rUdDaoG8mThku"
         #   ]
         # }
+        currency = self.safe_value(response, 'currency')
+        networkId = self.safe_string(currency, 'platform_id')
+        reverseNetworks = self.safe_value(self.options, 'reverseNetworks', {})
+        unifiedNetwork = self.safe_string(reverseNetworks, networkId, networkId)
         addresses = self.safe_value(response, 'deposit_addresses')
         address = self.safe_string(addresses, 0)
         return {
             'address': address,
             'code': code,
             'tag': None,
+            'network': unifiedNetwork,
             'info': response,
         }
 
@@ -779,30 +943,38 @@ class wavesexchange(Exchange):
         market = self.markets[symbol]
         wavesPrecision = self.safe_integer(self.options, 'wavesPrecision', 8)
         difference = market['precision']['amount'] - market['precision']['price']
-        return int(float(self.to_wei(price, wavesPrecision - difference)))
+        return int(float(self.to_precision(price, wavesPrecision - difference)))
 
     def amount_to_precision(self, symbol, amount):
-        return int(float(self.to_wei(amount, self.markets[symbol]['precision']['amount'])))
+        return int(float(self.to_precision(amount, self.markets[symbol]['precision']['amount'])))
 
     def currency_to_precision(self, currency, amount):
-        return int(float(self.to_wei(amount, self.currencies[currency]['precision'])))
+        return int(float(self.to_precision(amount, self.currencies[currency]['precision'])))
+
+    def from_precision(self, amount, scale):
+        if amount is None:
+            return None
+        precise = Precise(amount)
+        precise.decimals = precise.decimals + scale
+        precise.reduce()
+        return str(precise)
+
+    def to_precision(self, amount, scale):
+        amountString = str(amount)
+        precise = Precise(amountString)
+        precise.decimals = precise.decimals - scale
+        precise.reduce()
+        return str(precise)
 
     def currency_from_precision(self, currency, amount):
-        return self.from_wei(amount, self.currencies[currency]['precision'])
+        scale = self.currencies[currency]['precision']
+        return self.from_precision(amount, scale)
 
     def price_from_precision(self, symbol, price):
         market = self.markets[symbol]
         wavesPrecision = self.safe_integer(self.options, 'wavesPrecision', 8)
-        difference = market['precision']['amount'] - market['precision']['price']
-        return self.from_wei(price, wavesPrecision - difference)
-
-    def get_default_expiry(self):
-        expiry = self.safe_integer(self.options, 'createOrderDefaultExpiry')
-        if expiry:
-            return expiry
-        else:
-            self.options['createOrderDefaultExpiry'] = 60 * 60 * 24 * 28 * 1000
-            return self.options['createOrderDefaultExpiry']
+        scale = wavesPrecision - market['precision']['amount'] + market['precision']['price']
+        return self.from_precision(price, scale)
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         self.check_required_dependencies()
@@ -816,7 +988,8 @@ class wavesexchange(Exchange):
         price = self.price_to_precision(symbol, price)
         orderType = 0 if (side == 'buy') else 1
         timestamp = self.milliseconds()
-        expiration = self.sum(timestamp, self.get_default_expiry())
+        defaultExpiryDelta = self.safe_integer(self.options, 'createOrderDefaultExpiry', 2419200000)
+        expiration = self.sum(timestamp, defaultExpiryDelta)
         settings = self.matcherGetMatcherSettings()
         # {
         #   "orderVersions": [
@@ -868,7 +1041,7 @@ class wavesexchange(Exchange):
         # }
         orderFee = self.safe_value(settings, 'orderFee')
         dynamic = self.safe_value(orderFee, 'dynamic')
-        baseMatcherFee = self.safe_integer(dynamic, 'baseFee')
+        baseMatcherFee = self.safe_string(dynamic, 'baseFee')
         wavesMatcherFee = self.currency_from_precision('WAVES', baseMatcherFee)
         rates = self.safe_value(dynamic, 'rates')
         # choose sponsored assets from the list of priceAssets above
@@ -881,27 +1054,30 @@ class wavesexchange(Exchange):
             matcherFeeAssetId = self.options['feeAssetId']
         else:
             balances = self.fetch_balance()
-            if balances['WAVES']['free'] > wavesMatcherFee:
+            floatWavesMatcherFee = float(wavesMatcherFee)
+            if balances['WAVES']['free'] > floatWavesMatcherFee:
                 matcherFeeAssetId = 'WAVES'
                 matcherFee = baseMatcherFee
             else:
                 for i in range(0, len(priceAssets)):
                     assetId = priceAssets[i]
                     code = self.safe_currency_code(assetId)
-                    balance = self.safe_value(self.safe_value(balances, code, {}), 'free')
-                    assetFee = rates[assetId] * wavesMatcherFee
-                    if (balance is not None) and (balance > assetFee):
+                    balance = self.safe_string(self.safe_value(balances, code, {}), 'free')
+                    assetFee = Precise.string_mul(rates[assetId], wavesMatcherFee)
+                    if (balance is not None) and Precise.string_gt(balance, assetFee):
                         matcherFeeAssetId = assetId
                         break
         if matcherFeeAssetId is None:
             raise InsufficientFunds(self.id + ' not enough funds to cover the fee, specify feeAssetId in params or options, or buy some WAVES')
         if matcherFee is None:
             wavesPrecision = self.safe_integer(self.options, 'wavesPrecision', 8)
-            rate = self.safe_number(rates, matcherFeeAssetId)
+            rate = self.safe_string(rates, matcherFeeAssetId)
             code = self.safe_currency_code(matcherFeeAssetId)
             currency = self.currency(code)
-            newPrecison = math.pow(10, wavesPrecision - currency['precision'])
-            matcherFee = int(math.ceil(rate * baseMatcherFee / newPrecison))
+            newPrecison = wavesPrecision - currency['precision']
+            matcherFee = self.from_precision(Precise.string_mul(rate, baseMatcherFee), newPrecison)
+            # ceil the fee
+            matcherFee = Precise.string_div(Precise.string_add(matcherFee, '1'), '1', 0)
         byteArray = [
             self.number_to_be(3, 1),
             self.base58_to_binary(self.apiKey),
@@ -931,7 +1107,7 @@ class wavesexchange(Exchange):
             'amount': amount,
             'timestamp': timestamp,
             'expiration': expiration,
-            'matcherFee': matcherFee,
+            'matcherFee': int(matcherFee),
             'signature': signature,
             'version': 3,
         }
@@ -965,7 +1141,7 @@ class wavesexchange(Exchange):
     def cancel_order(self, id, symbol=None, params={}):
         self.check_required_dependencies()
         self.check_required_keys()
-        self.get_access_token()
+        self.sign_in()
         wavesAddress = self.get_waves_address()
         response = self.forwardPostMatcherOrdersWavesAddressCancel({
             'wavesAddress': wavesAddress,
@@ -1000,6 +1176,30 @@ class wavesexchange(Exchange):
             'fee': None,
             'trades': None,
         }
+
+    def fetch_order(self, id, symbol=None, params={}):
+        self.check_required_dependencies()
+        self.check_required_keys()
+        self.load_markets()
+        market = None
+        if symbol is not None:
+            market = self.market(symbol)
+        timestamp = self.milliseconds()
+        byteArray = [
+            self.base58_to_binary(self.apiKey),
+            self.number_to_be(timestamp, 8),
+        ]
+        binary = self.binary_concat_array(byteArray)
+        hexSecret = self.binary_to_base16(self.base58_to_binary(self.secret))
+        signature = self.eddsa(self.binary_to_base16(binary), hexSecret, 'ed25519')
+        request = {
+            'Timestamp': str(timestamp),
+            'Signature': signature,
+            'publicKey': self.apiKey,
+            'orderId': id,
+        }
+        response = self.matcherGetMatcherOrderbookPublicKeyOrderId(self.extend(request, params))
+        return self.parse_order(response, market)
 
     def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
         self.check_required_dependencies()
@@ -1044,7 +1244,7 @@ class wavesexchange(Exchange):
 
     def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         self.load_markets()
-        self.get_access_token()
+        self.sign_in()
         market = None
         if symbol is not None:
             market = self.market(symbol)
@@ -1058,7 +1258,7 @@ class wavesexchange(Exchange):
 
     def fetch_closed_orders(self, symbol=None, since=None, limit=None, params={}):
         self.load_markets()
-        self.get_access_token()
+        self.sign_in()
         market = None
         if symbol is not None:
             market = self.market(symbol)
@@ -1132,7 +1332,7 @@ class wavesexchange(Exchange):
         #         ]
         #     }
         #
-        #     fetchClosedOrders
+        #     fetchOrder, fetchOrders, fetchOpenOrders, fetchClosedOrders
         #
         #     {
         #         id: '81D9uKk2NfmZzfG7uaJsDtxqWFbJXZmjYvrL88h15fk8',
@@ -1151,7 +1351,8 @@ class wavesexchange(Exchange):
         #             priceAsset: 'WAVES'
         #         },
         #         avgWeighedPrice: 0,
-        #         version: 3
+        #         version: 3,
+        #         totalExecutedPriceAssets: 0,  # in fetchOpenOrder/s
         #     }
         #
         timestamp = self.safe_integer(order, 'timestamp')
@@ -1161,9 +1362,9 @@ class wavesexchange(Exchange):
             # fetchOrders
             type = self.safe_string(order, 'orderType', type)
         id = self.safe_string(order, 'id')
-        filled = self.safe_string(order, 'filled')
-        price = self.safe_string(order, 'price')
-        amount = self.safe_string(order, 'amount')
+        filledString = self.safe_string(order, 'filled')
+        priceString = self.safe_string(order, 'price')
+        amountString = self.safe_string(order, 'amount')
         assetPair = self.safe_value(order, 'assetPair')
         symbol = None
         if assetPair is not None:
@@ -1171,15 +1372,9 @@ class wavesexchange(Exchange):
         elif market is not None:
             symbol = market['symbol']
         amountCurrency = self.safe_currency_code(self.safe_string(assetPair, 'amountAsset', 'WAVES'))
-        price = self.price_from_precision(symbol, price)
-        amount = self.currency_from_precision(amountCurrency, amount)
-        cost = None
-        if (price is not None) and (amount is not None):
-            cost = price * amount
-        filled = self.currency_from_precision(amountCurrency, filled)
-        remaining = None
-        if (filled is not None) and (amount is not None):
-            remaining = amount - filled
+        price = self.price_from_precision(symbol, priceString)
+        amount = self.currency_from_precision(amountCurrency, amountString)
+        filled = self.currency_from_precision(amountCurrency, filledString)
         average = self.price_from_precision(symbol, self.safe_string(order, 'avgWeighedPrice'))
         status = self.parse_order_status(self.safe_string(order, 'status'))
         fee = None
@@ -1187,15 +1382,15 @@ class wavesexchange(Exchange):
             currency = self.safe_currency_code(self.safe_string(order, 'feeAsset'))
             fee = {
                 'currency': currency,
-                'fee': self.currency_from_precision(currency, self.safe_integer(order, 'filledFee')),
+                'fee': self.parse_number(self.currency_from_precision(currency, self.safe_string(order, 'filledFee'))),
             }
         else:
             currency = self.safe_currency_code(self.safe_string(order, 'matcherFeeAssetId', 'WAVES'))
             fee = {
                 'currency': currency,
-                'fee': self.currency_from_precision(currency, self.safe_integer(order, 'matcherFee')),
+                'fee': self.parse_number(self.currency_from_precision(currency, self.safe_string(order, 'matcherFee'))),
             }
-        return {
+        return self.safe_order({
             'info': order,
             'id': id,
             'clientOrderId': None,
@@ -1210,14 +1405,14 @@ class wavesexchange(Exchange):
             'price': price,
             'stopPrice': None,
             'amount': amount,
-            'cost': cost,
+            'cost': None,
             'average': average,
             'filled': filled,
-            'remaining': remaining,
+            'remaining': None,
             'status': status,
             'fee': fee,
             'trades': None,
-        }
+        }, market)
 
     def get_waves_address(self):
         cachedAddreess = self.safe_string(self.options, 'wavesAddress')
@@ -1283,19 +1478,41 @@ class wavesexchange(Exchange):
         balances = self.safe_value(totalBalance, 'balances')
         result = {}
         timestamp = None
+        assetIds = []
+        nonStandardBalances = []
         for i in range(0, len(balances)):
             entry = balances[i]
             entryTimestamp = self.safe_integer(entry, 'timestamp')
             timestamp = entryTimestamp if (timestamp is None) else max(timestamp, entryTimestamp)
             issueTransaction = self.safe_value(entry, 'issueTransaction')
-            decimals = self.safe_integer(issueTransaction, 'decimals')
             currencyId = self.safe_string(entry, 'assetId')
-            balance = self.safe_number(entry, 'balance')
+            balance = self.safe_string(entry, 'balance')
+            if issueTransaction is None:
+                assetIds.append(currencyId)
+                nonStandardBalances.append(balance)
+                continue
+            decimals = self.safe_integer(issueTransaction, 'decimals')
             code = None
             if currencyId in self.currencies_by_id:
                 code = self.safe_currency_code(currencyId)
                 result[code] = self.account()
-                result[code]['total'] = self.from_wei(balance, decimals)
+                result[code]['total'] = self.from_precision(balance, decimals)
+        nonStandardAssets = len(assetIds)
+        if nonStandardAssets:
+            request = {
+                'ids': assetIds,
+            }
+            response = self.publicGetAssets(request)
+            data = self.safe_value(response, 'data')
+            for i in range(0, len(data)):
+                entry = data[i]
+                balance = nonStandardBalances[i]
+                inner = self.safe_value(entry, 'data')
+                decimals = self.safe_integer(inner, 'precision')
+                ticker = self.safe_string(inner, 'ticker')
+                code = self.safe_currency_code(ticker)
+                result[code] = self.account()
+                result[code]['total'] = self.from_precision(balance, decimals)
         currentTimestamp = self.milliseconds()
         byteArray = [
             self.base58_to_binary(self.apiKey),
@@ -1317,8 +1534,11 @@ class wavesexchange(Exchange):
             code = self.safe_currency_code(currencyId)
             if not (code in result):
                 result[code] = self.account()
-            amount = self.safe_number(reservedBalance, currencyId)
-            result[code]['used'] = self.currency_from_precision(code, amount)
+            amount = self.safe_string(reservedBalance, currencyId)
+            if code in self.currencies:
+                result[code]['used'] = self.currency_from_precision(code, amount)
+            else:
+                result[code]['used'] = amount
         wavesRequest = {
             'address': wavesAddress,
         }
@@ -1329,15 +1549,15 @@ class wavesexchange(Exchange):
         #   "balance": 909085978
         # }
         result['WAVES'] = self.safe_value(result, 'WAVES', {})
-        result['WAVES']['total'] = self.currency_from_precision('WAVES', self.safe_number(wavesTotal, 'balance'))
+        result['WAVES']['total'] = self.currency_from_precision('WAVES', self.safe_string(wavesTotal, 'balance'))
         codes = list(result.keys())
         for i in range(0, len(codes)):
             code = codes[i]
             if self.safe_value(result[code], 'used') is None:
-                result[code]['used'] = 0.0
+                result[code]['used'] = '0'
         result['timestamp'] = timestamp
         result['datetime'] = self.iso8601(timestamp)
-        return self.parse_balance(result)
+        return self.safe_balance(result)
 
     def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         self.load_markets()
@@ -1438,7 +1658,7 @@ class wavesexchange(Exchange):
         side = self.safe_string(order, 'orderType')
         orderId = self.safe_string(order, 'id')
         fee = {
-            'cost': self.safe_number(data, 'fee'),
+            'cost': self.safe_number(order, 'matcherFee'),
             'currency': self.safe_currency_code(self.safe_string(order, 'matcherFeeAssetId', 'WAVES')),
         }
         return {
@@ -1471,6 +1691,7 @@ class wavesexchange(Exchange):
             raise ExchangeError(self.id + ' ' + body)
 
     def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         # currently only works for BTC and WAVES
         if code != 'WAVES':
             supportedCurrencies = self.privateGetWithdrawCurrencies()
@@ -1497,7 +1718,7 @@ class wavesexchange(Exchange):
             if not (character in set):
                 isErc20 = False
                 break
-        self.get_access_token()
+        self.sign_in()
         proxyAddress = None
         if code == 'WAVES' and not isErc20:
             proxyAddress = address

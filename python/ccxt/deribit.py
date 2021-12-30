@@ -31,7 +31,9 @@ class deribit(Exchange):
             'countries': ['NL'],  # Netherlands
             'version': 'v2',
             'userAgent': None,
-            'rateLimit': 500,
+            # 20 requests per second for non-matching-engine endpoints, 1000ms / 20 = 50ms between requests
+            # 5 requests per second for matching-engine endpoints, cost = (1000ms / rateLimit) / 5 = 4
+            'rateLimit': 50,
             'has': {
                 'cancelAllOrders': True,
                 'cancelOrder': True,
@@ -43,20 +45,24 @@ class deribit(Exchange):
                 'fetchClosedOrders': True,
                 'fetchDepositAddress': True,
                 'fetchDeposits': True,
+                'fetchIndexOHLCV': False,
                 'fetchMarkets': True,
+                'fetchMarkOHLCV': False,
                 'fetchMyTrades': True,
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
-                'fetchOrders': False,
+                'fetchOrders': None,
                 'fetchOrderTrades': True,
+                'fetchPositions': True,
+                'fetchPremiumIndexOHLCV': False,
                 'fetchStatus': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTime': True,
                 'fetchTrades': True,
-                'fetchTransactions': False,
+                'fetchTransactions': None,
                 'fetchWithdrawals': True,
                 'withdraw': True,
             },
@@ -84,131 +90,152 @@ class deribit(Exchange):
                     'https://github.com/deribit',
                 ],
                 'fees': 'https://www.deribit.com/pages/information/fees',
-                'referral': 'https://www.deribit.com/reg-1189.4038',
+                'referral': {
+                    'url': 'https://www.deribit.com/reg-1189.4038',
+                    'discount': 0.1,
+                },
             },
             'api': {
                 'public': {
-                    'get': [
+                    'get': {
                         # Authentication
-                        'auth',
-                        'exchange_token',
-                        'fork_token',
+                        'auth': 1,
+                        'exchange_token': 1,
+                        'fork_token': 1,
                         # Session management
-                        'set_heartbeat',
-                        'disable_heartbeat',
+                        'set_heartbeat': 1,
+                        'disable_heartbeat': 1,
                         # Supporting
-                        'get_time',
-                        'hello',
-                        'test',
+                        'get_time': 1,
+                        'hello': 1,
+                        'test': 1,
                         # Subscription management
-                        'subscribe',
-                        'unsubscribe',
+                        'subscribe': 1,
+                        'unsubscribe': 1,
+                        'unsubscribe_all': 1,
                         # Account management
-                        'get_announcements',
+                        'get_announcements': 1,
                         # Market data
-                        'get_book_summary_by_currency',
-                        'get_book_summary_by_instrument',
-                        'get_contract_size',
-                        'get_currencies',
-                        'get_funding_chart_data',
-                        'get_funding_rate_history',
-                        'get_funding_rate_value',
-                        'get_historical_volatility',
-                        'get_index',
-                        'get_index_price',
-                        'get_index_price_names',
-                        'get_instruments',
-                        'get_last_settlements_by_currency',
-                        'get_last_settlements_by_instrument',
-                        'get_last_trades_by_currency',
-                        'get_last_trades_by_currency_and_time',
-                        'get_last_trades_by_instrument',
-                        'get_last_trades_by_instrument_and_time',
-                        'get_order_book',
-                        'get_trade_volumes',
-                        'get_tradingview_chart_data',
-                        'ticker',
-                    ],
+                        'get_book_summary_by_currency': 1,
+                        'get_book_summary_by_instrument': 1,
+                        'get_contract_size': 1,
+                        'get_currencies': 1,
+                        'get_delivery_prices': 1,
+                        'get_funding_chart_data': 1,
+                        'get_funding_rate_history': 1,
+                        'get_funding_rate_value': 1,
+                        'get_historical_volatility': 1,
+                        'get_index': 1,
+                        'get_index_price': 1,
+                        'get_index_price_names': 1,
+                        'get_instrument': 1,
+                        'get_instruments': 1,
+                        'get_last_settlements_by_currency': 1,
+                        'get_last_settlements_by_instrument': 1,
+                        'get_last_trades_by_currency': 1,
+                        'get_last_trades_by_currency_and_time': 1,
+                        'get_last_trades_by_instrument': 1,
+                        'get_last_trades_by_instrument_and_time': 1,
+                        'get_mark_price_history': 1,
+                        'get_order_book': 1,
+                        'get_trade_volumes': 1,
+                        'get_tradingview_chart_data': 1,
+                        'get_volatility_index_data': 1,
+                        'ticker': 1,
+                    },
                 },
                 'private': {
-                    'get': [
+                    'get': {
                         # Authentication
-                        'logout',
+                        'logout': 1,
                         # Session management
-                        'enable_cancel_on_disconnect',
-                        'disable_cancel_on_disconnect',
-                        'get_cancel_on_disconnect',
+                        'enable_cancel_on_disconnect': 1,
+                        'disable_cancel_on_disconnect': 1,
+                        'get_cancel_on_disconnect': 1,
                         # Subscription management
-                        'subscribe',
-                        'unsubscribe',
+                        'subscribe': 1,
+                        'unsubscribe': 1,
+                        'unsubscribe_all': 1,
                         # Account management
-                        'change_api_key_name',
-                        'change_scope_in_api_key',
-                        'change_subaccount_name',
-                        'create_api_key',
-                        'create_subaccount',
-                        'disable_api_key',
-                        'disable_tfa_for_subaccount',
-                        'enable_api_key',
-                        'get_account_summary',
-                        'get_email_language',
-                        'get_new_announcements',
-                        'get_position',
-                        'get_positions',
-                        'get_subaccounts',
-                        'list_api_keys',
-                        'remove_api_key',
-                        'reset_api_key',
-                        'set_announcement_as_read',
-                        'set_api_key_as_default',
-                        'set_email_for_subaccount',
-                        'set_email_language',
-                        'set_password_for_subaccount',
-                        'toggle_notifications_from_subaccount',
-                        'toggle_subaccount_login',
+                        'change_api_key_name': 1,
+                        'change_scope_in_api_key': 1,
+                        'change_subaccount_name': 1,
+                        'create_api_key': 1,
+                        'create_subaccount': 1,
+                        'disable_api_key': 1,
+                        'disable_tfa_for_subaccount': 1,
+                        'enable_affiliate_program': 1,
+                        'enable_api_key': 1,
+                        'get_access_log': 1,
+                        'get_account_summary': 1,
+                        'get_affiliate_program_info': 1,
+                        'get_email_language': 1,
+                        'get_new_announcements': 1,
+                        'get_portfolio_margins': 1,
+                        'get_position': 1,
+                        'get_positions': 1,
+                        'get_subaccounts': 1,
+                        'get_subaccounts_details': 1,
+                        'get_transaction_log': 1,
+                        'list_api_keys': 1,
+                        'remove_api_key': 1,
+                        'remove_subaccount': 1,
+                        'reset_api_key': 1,
+                        'set_announcement_as_read': 1,
+                        'set_api_key_as_default': 1,
+                        'set_email_for_subaccount': 1,
+                        'set_email_language': 1,
+                        'set_password_for_subaccount': 1,
+                        'toggle_notifications_from_subaccount': 1,
+                        'toggle_subaccount_login': 1,
                         # Block Trade
-                        'execute_block_trade',
-                        'get_block_trade',
-                        'get_last_block_trades_by_currency',
-                        'invalidate_block_trade_signature',
-                        'verify_block_trade',
+                        'execute_block_trade': 4,
+                        'get_block_trade': 1,
+                        'get_last_block_trades_by_currency': 1,
+                        'invalidate_block_trade_signature': 1,
+                        'verify_block_trade': 4,
                         # Trading
-                        'buy',
-                        'sell',
-                        'edit',
-                        'cancel',
-                        'cancel_all',
-                        'cancel_all_by_currency',
-                        'cancel_all_by_instrument',
-                        'cancel_by_label',
-                        'close_position',
-                        'get_margins',
-                        'get_open_orders_by_currency',
-                        'get_open_orders_by_instrument',
-                        'get_order_history_by_currency',
-                        'get_order_history_by_instrument',
-                        'get_order_margin_by_ids',
-                        'get_order_state',
-                        'get_stop_order_history',
-                        'get_user_trades_by_currency',
-                        'get_user_trades_by_currency_and_time',
-                        'get_user_trades_by_instrument',
-                        'get_user_trades_by_instrument_and_time',
-                        'get_user_trades_by_order',
-                        'get_settlement_history_by_instrument',
-                        'get_settlement_history_by_currency',
+                        'buy': 4,
+                        'sell': 4,
+                        'edit': 4,
+                        'edit_by_label': 4,
+                        'cancel': 4,
+                        'cancel_all': 4,
+                        'cancel_all_by_currency': 4,
+                        'cancel_all_by_instrument': 4,
+                        'cancel_by_label': 4,
+                        'close_position': 4,
+                        'get_margins': 1,
+                        'get_mmp_config': 1,
+                        'get_open_orders_by_currency': 1,
+                        'get_open_orders_by_instrument': 1,
+                        'get_order_history_by_currency': 1,
+                        'get_order_history_by_instrument': 1,
+                        'get_order_margin_by_ids': 1,
+                        'get_order_state': 1,
+                        'get_stop_order_history': 1,  # deprecated
+                        'get_trigger_order_history': 1,
+                        'get_user_trades_by_currency': 1,
+                        'get_user_trades_by_currency_and_time': 1,
+                        'get_user_trades_by_instrument': 1,
+                        'get_user_trades_by_instrument_and_time': 1,
+                        'get_user_trades_by_order': 1,
+                        'reset_mmp': 1,
+                        'set_mmp_config': 1,
+                        'get_settlement_history_by_instrument': 1,
+                        'get_settlement_history_by_currency': 1,
                         # Wallet
-                        'cancel_transfer_by_id',
-                        'cancel_withdrawal',
-                        'create_deposit_address',
-                        'get_current_deposit_address',
-                        'get_deposits',
-                        'get_transfers',
-                        'get_withdrawals',
-                        'submit_transfer_to_subaccount',
-                        'submit_transfer_to_user',
-                        'withdraw',
-                    ],
+                        'cancel_transfer_by_id': 1,
+                        'cancel_withdrawal': 1,
+                        'create_deposit_address': 1,
+                        'get_current_deposit_address': 1,
+                        'get_deposits': 1,
+                        'get_transfers': 1,
+                        'get_withdrawals': 1,
+                        'submit_transfer_to_subaccount': 1,
+                        'submit_transfer_to_user': 1,
+                        'withdraw': 1,
+                    },
                 },
             },
             'exceptions': {
@@ -348,10 +375,11 @@ class deribit(Exchange):
         #
         return self.safe_integer(response, 'result')
 
-    def code_from_options(self, methodName):
+    def code_from_options(self, methodName, params={}):
         defaultCode = self.safe_value(self.options, 'code', 'BTC')
         options = self.safe_value(self.options, methodName, {})
-        return self.safe_value(options, 'code', defaultCode)
+        code = self.safe_value(options, 'code', defaultCode)
+        return self.safe_value(params, 'code', code)
 
     def fetch_status(self, params={}):
         request = {
@@ -442,28 +470,67 @@ class deribit(Exchange):
                 id = self.safe_string(market, 'instrument_name')
                 baseId = self.safe_string(market, 'base_currency')
                 quoteId = self.safe_string(market, 'quote_currency')
+                settleId = quoteId
                 base = self.safe_currency_code(baseId)
                 quote = self.safe_currency_code(quoteId)
-                type = self.safe_string(market, 'kind')
-                future = (type == 'future')
-                option = (type == 'option')
-                active = self.safe_value(market, 'is_active')
+                settle = self.safe_currency_code(settleId)
+                kind = self.safe_string(market, 'kind')
+                settlementPeriod = self.safe_value(market, 'settlement_period')
+                swap = (settlementPeriod == 'perpetual')
+                future = not swap and (kind == 'future')
+                option = (kind == 'option')
+                symbol = quote + '/' + base + ':' + settle
+                expiry = self.safe_integer(market, 'expiration_timestamp')
+                strike = None
+                optionType = None
+                type = 'swap'
+                if option or future:
+                    symbol = symbol + '-' + self.yymmdd(expiry, '')
+                    if option:
+                        type = 'option'
+                        strike = self.safe_number(market, 'strike')
+                        optionType = self.safe_string(market, 'option_type')
+                        symbol = symbol + ':' + self.number_to_string(strike) + ':' + optionType
+                    else:
+                        type = 'future'
                 minTradeAmount = self.safe_number(market, 'min_trade_amount')
                 tickSize = self.safe_number(market, 'tick_size')
-                precision = {
-                    'amount': minTradeAmount,
-                    'price': tickSize,
-                }
                 result.append({
                     'id': id,
-                    'symbol': id,
+                    'symbol': symbol,
                     'base': base,
                     'quote': quote,
-                    'active': active,
-                    'precision': precision,
+                    'settle': settle,
+                    'baseId': baseId,
+                    'quoteId': quoteId,
+                    'settleId': settleId,
+                    'type': type,
+                    'spot': False,
+                    'margin': False,
+                    'swap': swap,
+                    'future': future,
+                    'option': option,
+                    'derivative': True,
+                    'contract': True,
+                    'linear': False,
+                    'inverse': True,
                     'taker': self.safe_number(market, 'taker_commission'),
                     'maker': self.safe_number(market, 'maker_commission'),
+                    'contractSize': self.safe_string(market, 'contract_size'),
+                    'active': self.safe_value(market, 'is_active'),
+                    'expiry': expiry,
+                    'expiryDatetime': self.iso8601(expiry),
+                    'strike': strike,
+                    'optionType': optionType,
+                    'precision': {
+                        'amount': minTradeAmount,
+                        'price': tickSize,
+                    },
                     'limits': {
+                        'leverage': {
+                            'min': None,
+                            'max': None,
+                        },
                         'amount': {
                             'min': minTradeAmount,
                             'max': None,
@@ -477,17 +544,27 @@ class deribit(Exchange):
                             'max': None,
                         },
                     },
-                    'type': type,
-                    'spot': False,
-                    'future': future,
-                    'option': option,
                     'info': market,
                 })
         return result
 
+    def parse_balance(self, response):
+        result = {
+            'info': response,
+        }
+        balance = self.safe_value(response, 'result', {})
+        currencyId = self.safe_string(balance, 'currency')
+        currencyCode = self.safe_currency_code(currencyId)
+        account = self.account()
+        account['free'] = self.safe_string(balance, 'available_funds')
+        account['used'] = self.safe_string(balance, 'maintenance_margin')
+        account['total'] = self.safe_string(balance, 'equity')
+        result[currencyCode] = account
+        return self.safe_balance(result)
+
     def fetch_balance(self, params={}):
         self.load_markets()
-        code = self.code_from_options('fetchBalance')
+        code = self.code_from_options('fetchBalance', params)
         currency = self.currency(code)
         request = {
             'currency': currency['id'],
@@ -535,18 +612,7 @@ class deribit(Exchange):
         #         testnet: False
         #     }
         #
-        result = {
-            'info': response,
-        }
-        balance = self.safe_value(response, 'result', {})
-        currencyId = self.safe_string(balance, 'currency')
-        currencyCode = self.safe_currency_code(currencyId)
-        account = self.account()
-        account['free'] = self.safe_string(balance, 'availableFunds')
-        account['used'] = self.safe_string(balance, 'maintenanceMargin')
-        account['total'] = self.safe_string(balance, 'equity')
-        result[currencyCode] = account
-        return self.parse_balance(result, False)
+        return self.parse_balance(response)
 
     def create_deposit_address(self, code, params={}):
         self.load_markets()
@@ -608,6 +674,7 @@ class deribit(Exchange):
             'currency': code,
             'address': address,
             'tag': None,
+            'network': None,
             'info': response,
         }
 
@@ -726,7 +793,7 @@ class deribit(Exchange):
 
     def fetch_tickers(self, symbols=None, params={}):
         self.load_markets()
-        code = self.code_from_options('fetchTickers')
+        code = self.code_from_options('fetchTickers', params)
         currency = self.currency(code)
         request = {
             'currency': currency['id'],
@@ -819,17 +886,19 @@ class deribit(Exchange):
         #
         # fetchTrades(public)
         #
-        #     {
-        #         'trade_seq': 39201926,
-        #         'trade_id':' 64135724',
-        #         'timestamp': 1583174775400,
-        #         'tick_direction': 1,
-        #         'price': 8865.0,
-        #         'instrument_name': 'BTC-PERPETUAL',
-        #         'index_price': 8863.31,
-        #         'direction': 'buy',
-        #         'amount': 10.0
-        #     }
+        #      {
+        #          "trade_seq":132564271,
+        #          "trade_id":"195402220",
+        #          "timestamp":1639684927932,
+        #          "tick_direction":0,
+        #          "price":47946.5,
+        #          "mark_price":47944.13,
+        #          "instrument_name":"BTC-PERPETUAL",
+        #          "index_price":47925.45,
+        #          "direction":"buy",
+        #          "amount":580.0
+        #      }
+        #
         #
         # fetchMyTrades, fetchOrderTrades(private)
         #
@@ -863,24 +932,21 @@ class deribit(Exchange):
         side = self.safe_string(trade, 'direction')
         priceString = self.safe_string(trade, 'price')
         amountString = self.safe_string(trade, 'amount')
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         liquidity = self.safe_string(trade, 'liquidity')
         takerOrMaker = None
         if liquidity is not None:
             # M = maker, T = taker, MT = both
             takerOrMaker = 'maker' if (liquidity == 'M') else 'taker'
-        feeCost = self.safe_number(trade, 'fee')
+        feeCostString = self.safe_string(trade, 'fee')
         fee = None
-        if feeCost is not None:
+        if feeCostString is not None:
             feeCurrencyId = self.safe_string(trade, 'fee_currency')
             feeCurrencyCode = self.safe_currency_code(feeCurrencyId)
             fee = {
-                'cost': feeCost,
+                'cost': feeCostString,
                 'currency': feeCurrencyCode,
             }
-        return {
+        return self.safe_trade({
             'id': id,
             'info': trade,
             'timestamp': timestamp,
@@ -890,11 +956,11 @@ class deribit(Exchange):
             'type': self.safe_string(trade, 'order_type'),
             'side': side,
             'takerOrMaker': takerOrMaker,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'fee': fee,
-        }
+        }, market)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
         self.load_markets()
@@ -910,29 +976,29 @@ class deribit(Exchange):
             request['count'] = limit  # default 10
         response = getattr(self, method)(self.extend(request, params))
         #
-        #     {
-        #         'jsonrpc': '2.0',
-        #         'result': {
-        #             'trades': [
-        #                 {
-        #                     'trade_seq': 39201926,
-        #                     'trade_id':' 64135724',
-        #                     'timestamp': 1583174775400,
-        #                     'tick_direction': 1,
-        #                     'price': 8865.0,
-        #                     'instrument_name': 'BTC-PERPETUAL',
-        #                     'index_price': 8863.31,
-        #                     'direction': 'buy',
-        #                     'amount': 10.0
-        #                 },
-        #             ],
-        #             'has_more': True,
-        #         },
-        #         'usIn': 1583779594843931,
-        #         'usOut': 1583779594844446,
-        #         'usDiff': 515,
-        #         'testnet': False
-        #     }
+        #      {
+        #          "jsonrpc":"2.0",
+        #          "result": {
+        #              "trades": [
+        #                  {
+        #                      "trade_seq":132564271,
+        #                      "trade_id":"195402220",
+        #                      "timestamp":1639684927932,
+        #                      "tick_direction":0,
+        #                      "price":47946.5,
+        #                      "mark_price":47944.13,
+        #                      "instrument_name":"BTC-PERPETUAL",
+        #                      "index_price":47925.45,
+        #                      "direction":"buy","amount":580.0
+        #                  }
+        #              ],
+        #              "has_more":true
+        #          },
+        #          "usIn":1639684931934671,
+        #          "usOut":1639684931935337,
+        #          "usDiff":666,
+        #          "testnet":false
+        #      }
         #
         result = self.safe_value(response, 'result', {})
         trades = self.safe_value(result, 'trades', [])
@@ -1042,24 +1108,25 @@ class deribit(Exchange):
         timestamp = self.safe_integer(order, 'creation_timestamp')
         lastUpdate = self.safe_integer(order, 'last_update_timestamp')
         id = self.safe_string(order, 'order_id')
-        price = self.safe_number(order, 'price')
-        average = self.safe_number(order, 'average_price')
-        amount = self.safe_number(order, 'amount')
-        filled = self.safe_number(order, 'filled_amount')
+        priceString = self.safe_string(order, 'price')
+        averageString = self.safe_string(order, 'average_price')
+        amountString = self.safe_string(order, 'amount')
+        filledString = self.safe_string(order, 'filled_amount')
         lastTradeTimestamp = None
-        if filled is not None:
-            if filled > 0:
+        if filledString is not None:
+            isFilledPositive = Precise.string_gt(filledString, '0')
+            if isFilledPositive:
                 lastTradeTimestamp = lastUpdate
         status = self.parse_order_status(self.safe_string(order, 'order_state'))
         marketId = self.safe_string(order, 'instrument_name')
         market = self.safe_market(marketId, market)
         side = self.safe_string_lower(order, 'direction')
-        feeCost = self.safe_number(order, 'commission')
+        feeCostString = self.safe_string(order, 'commission')
         fee = None
-        if feeCost is not None:
-            feeCost = abs(feeCost)
+        if feeCostString is not None:
+            feeCostString = Precise.string_abs(feeCostString)
             fee = {
-                'cost': feeCost,
+                'cost': feeCostString,
                 'currency': market['base'],
             }
         type = self.safe_string(order, 'order_type')
@@ -1082,17 +1149,17 @@ class deribit(Exchange):
             'timeInForce': timeInForce,
             'postOnly': postOnly,
             'side': side,
-            'price': price,
+            'price': priceString,
             'stopPrice': stopPrice,
-            'amount': amount,
+            'amount': amountString,
             'cost': None,
-            'average': average,
-            'filled': filled,
+            'average': averageString,
+            'filled': filledString,
             'remaining': None,
             'status': status,
             'fee': fee,
             'trades': trades,
-        })
+        }, market)
 
     def fetch_order(self, id, symbol=None, params={}):
         self.load_markets()
@@ -1283,7 +1350,7 @@ class deribit(Exchange):
         market = None
         method = None
         if symbol is None:
-            code = self.code_from_options('fetchOpenOrders')
+            code = self.code_from_options('fetchOpenOrders', params)
             currency = self.currency(code)
             request['currency'] = currency['id']
             method = 'privateGetGetOpenOrdersByCurrency'
@@ -1301,7 +1368,7 @@ class deribit(Exchange):
         market = None
         method = None
         if symbol is None:
-            code = self.code_from_options('fetchClosedOrders')
+            code = self.code_from_options('fetchClosedOrders', params)
             currency = self.currency(code)
             request['currency'] = currency['id']
             method = 'privateGetGetOrderHistoryByCurrency'
@@ -1353,8 +1420,7 @@ class deribit(Exchange):
         #     }
         #
         result = self.safe_value(response, 'result', {})
-        trades = self.safe_value(result, 'trades', [])
-        return self.parse_trades(trades, None, since, limit)
+        return self.parse_trades(result, None, since, limit)
 
     def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         self.load_markets()
@@ -1364,7 +1430,7 @@ class deribit(Exchange):
         market = None
         method = None
         if symbol is None:
-            code = self.code_from_options('fetchMyTrades')
+            code = self.code_from_options('fetchMyTrades', params)
             currency = self.currency(code)
             request['currency'] = currency['id']
             if since is None:
@@ -1605,7 +1671,7 @@ class deribit(Exchange):
 
     def fetch_positions(self, symbols=None, params={}):
         self.load_markets()
-        code = self.code_from_options('fetchPositions')
+        code = self.code_from_options('fetchPositions', params)
         currency = self.currency(code)
         request = {
             'currency': currency['id'],
@@ -1645,6 +1711,7 @@ class deribit(Exchange):
         return result
 
     def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
         self.check_address(address)
         self.load_markets()
         currency = self.currency(code)

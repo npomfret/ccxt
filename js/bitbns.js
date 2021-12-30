@@ -17,6 +17,7 @@ module.exports = class bitbns extends Exchange {
             'rateLimit': 1000,
             'certified': false,
             'pro': false,
+            'version': 'v2',
             // new metainfo interface
             'has': {
                 'cancelOrder': true,
@@ -26,14 +27,14 @@ module.exports = class bitbns extends Exchange {
                 'fetchDeposits': true,
                 'fetchMarkets': true,
                 'fetchMyTrades': true,
-                'fetchOHLCV': false,
+                'fetchOHLCV': undefined,
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
                 'fetchOrderBook': true,
                 'fetchStatus': true,
                 'fetchTicker': 'emulated',
                 'fetchTickers': true,
-                'fetchTrades': false,
+                'fetchTrades': true,
                 'fetchWithdrawals': true,
             },
             'timeframes': {
@@ -41,7 +42,7 @@ module.exports = class bitbns extends Exchange {
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/117201933-e7a6e780-adf5-11eb-9d80-98fc2a21c3d6.jpg',
                 'api': {
-                    'ccxt': 'https://bitbns.com/order',
+                    'www': 'https://bitbns.com',
                     'v1': 'https://api.bitbns.com/api/trade/v1',
                     'v2': 'https://api.bitbns.com/api/trade/v2',
                 },
@@ -53,11 +54,15 @@ module.exports = class bitbns extends Exchange {
                 'fees': 'https://bitbns.com/fees',
             },
             'api': {
-                'ccxt': {
+                'www': {
                     'get': [
-                        'fetchMarkets',
-                        'fetchTickers',
-                        'fetchOrderbook',
+                        'order/fetchMarkets',
+                        'order/fetchTickers',
+                        'order/fetchOrderbook',
+                        'order/getTickerWithVolume',
+                        'exchangeData/ohlc', // ?coin=${coin_name}&page=${page}
+                        'exchangeData/orderBook',
+                        'exchangeData/tradedetails',
                     ],
                 },
                 'v1': {
@@ -75,16 +80,21 @@ module.exports = class bitbns extends Exchange {
                         'orderStatus/{symbol}',
                         'depositHistory/{symbol}',
                         'withdrawHistory/{symbol}',
+                        'withdrawHistoryAll/{symbol}',
+                        'depositHistoryAll/{symbol}',
                         'listOpenOrders/{symbol}',
                         'listOpenStopOrders/{symbol}',
                         'getCoinAddress/{symbol}',
                         'placeSellOrder/{symbol}',
                         'placeBuyOrder/{symbol}',
                         'buyStopLoss/{symbol}',
+                        'sellStopLoss/{symbol}',
                         'placeSellOrder/{symbol}',
                         'cancelOrder/{symbol}',
                         'cancelStopLossOrder/{symbol}',
                         'listExecutedOrders/{symbol}',
+                        'placeMarketOrder/{symbol}',
+                        'placeMarketOrderQnty/{symbol}',
                     ],
                 },
                 'v2': {
@@ -101,8 +111,8 @@ module.exports = class bitbns extends Exchange {
                     'feeSide': 'quote',
                     'tierBased': false,
                     'percentage': true,
-                    'taker': 0.0025,
-                    'maker': 0.0025,
+                    'taker': this.parseNumber ('0.0025'),
+                    'maker': this.parseNumber ('0.0025'),
                 },
             },
             'exceptions': {
@@ -143,7 +153,7 @@ module.exports = class bitbns extends Exchange {
     }
 
     async fetchMarkets (params = {}) {
-        const response = await this.ccxtGetFetchMarkets (params);
+        const response = await this.wwwGetOrderFetchMarkets (params);
         //
         //     [
         //         {
@@ -186,6 +196,7 @@ module.exports = class bitbns extends Exchange {
             const priceLimits = this.safeValue (marketLimits, 'price', {});
             const costLimits = this.safeValue (marketLimits, 'cost', {});
             const usdt = (quoteId === 'USDT');
+            // INR markets don't need a _INR prefix
             const uppercaseId = usdt ? (baseId + '_' + quoteId) : baseId;
             result.push ({
                 'id': id,
@@ -196,6 +207,8 @@ module.exports = class bitbns extends Exchange {
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'info': market,
+                'type': 'spot',
+                'spot': true,
                 'active': undefined,
                 'precision': precision,
                 'limits': {
@@ -226,7 +239,7 @@ module.exports = class bitbns extends Exchange {
         if (limit !== undefined) {
             request['limit'] = limit; // default 100, max 5000, see https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#order-book
         }
-        const response = await this.ccxtGetFetchOrderbook (this.extend (request, params));
+        const response = await this.wwwGetOrderFetchOrderbook (this.extend (request, params));
         //
         //     {
         //         "bids":[
@@ -283,7 +296,7 @@ module.exports = class bitbns extends Exchange {
         const marketId = this.safeString (ticker, 'symbol');
         const symbol = this.safeSymbol (marketId, market);
         const last = this.safeNumber (ticker, 'last');
-        return {
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -304,12 +317,12 @@ module.exports = class bitbns extends Exchange {
             'baseVolume': this.safeNumber (ticker, 'baseVolume'),
             'quoteVolume': this.safeNumber (ticker, 'quoteVolume'),
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchTickers (symbols = undefined, params = {}) {
         await this.loadMarkets ();
-        const response = await this.ccxtGetFetchTickers (params);
+        const response = await this.wwwGetOrderFetchTickers (params);
         //
         //     {
         //         "BTC/INR":{
@@ -345,25 +358,7 @@ module.exports = class bitbns extends Exchange {
         return this.parseTickers (response, symbols);
     }
 
-    async fetchBalance (params = {}) {
-        await this.loadMarkets ();
-        const response = await this.v1PostCurrentCoinBalanceEVERYTHING (params);
-        //
-        //     {
-        //         "data":{
-        //             "availableorderMoney":0,
-        //             "availableorderBTC":0,
-        //             "availableorderXRP":0,
-        //             "inorderMoney":0,
-        //             "inorderBTC":0,
-        //             "inorderXRP":0,
-        //             "inorderNEO":0,
-        //         },
-        //         "status":1,
-        //         "error":null,
-        //         "code":200
-        //     }
-        //
+    parseBalance (response) {
         const timestamp = undefined;
         const result = {
             'info': response,
@@ -387,7 +382,29 @@ module.exports = class bitbns extends Exchange {
                 }
             }
         }
-        return this.parseBalance (result, false);
+        return this.safeBalance (result);
+    }
+
+    async fetchBalance (params = {}) {
+        await this.loadMarkets ();
+        const response = await this.v1PostCurrentCoinBalanceEVERYTHING (params);
+        //
+        //     {
+        //         "data":{
+        //             "availableorderMoney":0,
+        //             "availableorderBTC":0,
+        //             "availableorderXRP":0,
+        //             "inorderMoney":0,
+        //             "inorderBTC":0,
+        //             "inorderXRP":0,
+        //             "inorderNEO":0,
+        //         },
+        //         "status":1,
+        //         "error":null,
+        //         "code":200
+        //     }
+        //
+        return this.parseBalance (response);
     }
 
     parseOrderStatus (status) {
@@ -449,12 +466,12 @@ module.exports = class bitbns extends Exchange {
         const marketId = this.safeString (order, 'symbol');
         const symbol = this.safeSymbol (marketId, market);
         const timestamp = this.parse8601 (this.safeString (order, 'time'));
-        const price = this.safeNumber (order, 'rate');
-        const amount = this.safeNumber2 (order, 'amount', 'btc');
-        const filled = this.safeNumber (order, 'filled');
-        const remaining = this.safeNumber (order, 'remaining');
-        const average = this.safeNumber (order, 'avg_cost');
-        const cost = this.safeNumber (order, 'cost');
+        const price = this.safeString (order, 'rate');
+        const amount = this.safeString2 (order, 'amount', 'btc');
+        const filled = this.safeString (order, 'filled');
+        const remaining = this.safeString (order, 'remaining');
+        const average = this.safeString (order, 'avg_cost');
+        const cost = this.safeString (order, 'cost');
         let type = this.safeStringLower (order, 'type');
         if (type === '0') {
             type = 'limit';
@@ -492,20 +509,19 @@ module.exports = class bitbns extends Exchange {
             'status': status,
             'fee': fee,
             'trades': undefined,
-        });
+        }, market);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
-        if (type !== 'limit') {
-            throw new ExchangeError (this.id + ' allows limit orders only');
+        if (type !== 'limit' && type !== 'market') {
+            throw new ExchangeError (this.id + ' allows limit and market orders only');
         }
         await this.loadMarkets ();
         const market = this.market (symbol);
         const request = {
             'side': side.toUpperCase (),
-            'symbol': market['baseId'] + '_' + market['quoteId'],
+            'symbol': market['uppercaseId'],
             'quantity': this.amountToPrecision (symbol, amount),
-            'rate': this.priceToPrecision (symbol, price),
             // 'target_rate': this.priceToPrecision (symbol, targetRate),
             // 't_rate': this.priceToPrecision (symbol, stopPrice),
             // 'trail_rate': this.priceToPrecision (symbol, trailRate),
@@ -513,7 +529,16 @@ module.exports = class bitbns extends Exchange {
             // To Place Stoploss Buy or Sell Order use rate & t_rate
             // To Place Bracket Buy or Sell Order use rate , t_rate, target_rate & trail_rate
         };
-        const response = await this.v2PostOrders (this.extend (request, params));
+        let method = 'v2PostOrders';
+        if (type === 'limit') {
+            request['rate'] = this.priceToPrecision (symbol, price);
+        } else if (type === 'market') {
+            method = 'v1PostPlaceMarketOrderQntySymbol';
+            request['market'] = market['quoteId'];
+        } else {
+            throw new ExchangeError (this.id + ' allows limit and market orders only');
+        }
+        const response = await this[method] (this.extend (request, params));
         //
         //     {
         //         "data":"Successfully placed bid to purchase currency",
@@ -638,47 +663,64 @@ module.exports = class bitbns extends Exchange {
         //         "id": "2938823"
         //     }
         //
+        // fetchTrades
+        //
+        //     {
+        //         "tradeId":"1909151",
+        //         "price":"61904.6300",
+        //         "quote_volume":1618.05,
+        //         "base_volume":0.02607254,
+        //         "timestamp":1634548602000,
+        //         "type":"buy"
+        //     }
+        //
         market = this.safeMarket (undefined, market);
-        const orderId = this.safeString (trade, 'id');
-        const timestamp = this.parse8601 (this.safeString (trade, 'date'));
-        const amountString = this.safeString (trade, 'amount');
-        const priceString = this.safeString (trade, 'rate');
-        const price = this.parseNumber (priceString);
-        const factor = this.safeString (trade, 'factor');
-        const amountScaled = Precise.stringDiv (amountString, factor);
-        const amount = this.parseNumber (amountScaled);
-        const cost = this.parseNumber (Precise.stringMul (priceString, amountScaled));
-        const symbol = market['symbol'];
+        const orderId = this.safeString2 (trade, 'id', 'tradeId');
+        let timestamp = this.parse8601 (this.safeString (trade, 'date'));
+        timestamp = this.safeInteger (trade, 'timestamp', timestamp);
+        const priceString = this.safeString2 (trade, 'rate', 'price');
+        let amountString = this.safeString (trade, 'amount');
         let side = this.safeStringLower (trade, 'type');
-        if (side.indexOf ('sell') >= 0) {
-            side = 'sell';
-        } else if (side.indexOf ('buy') >= 0) {
-            side = 'buy';
+        if (side !== undefined) {
+            if (side.indexOf ('buy') >= 0) {
+                side = 'buy';
+            } else if (side.indexOf ('sell') >= 0) {
+                side = 'sell';
+            }
         }
+        const factor = this.safeString (trade, 'factor');
+        let costString = undefined;
+        if (factor !== undefined) {
+            amountString = Precise.stringDiv (amountString, factor);
+        } else {
+            amountString = this.safeString (trade, 'base_volume');
+            costString = this.safeString (trade, 'quote_volume');
+        }
+        const symbol = market['symbol'];
         let fee = undefined;
-        const feeCost = this.safeNumber (trade, 'fee');
-        if (feeCost !== undefined) {
+        const feeCostString = this.safeString (trade, 'fee');
+        if (feeCostString !== undefined) {
             const feeCurrencyCode = market['quote'];
             fee = {
-                'cost': feeCost,
+                'cost': feeCostString,
                 'currency': feeCurrencyCode,
             };
         }
-        return {
+        return this.safeTrade ({
             'info': trade,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'symbol': symbol,
-            'id': undefined,
+            'id': orderId,
             'order': orderId,
             'type': undefined,
             'side': side,
             'takerOrMaker': undefined,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': costString,
             'fee': fee,
-        };
+        }, market);
     }
 
     async fetchMyTrades (symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -738,6 +780,27 @@ module.exports = class bitbns extends Exchange {
         //
         const data = this.safeValue (response, 'data', []);
         return this.parseTrades (data, market, since, limit);
+    }
+
+    async fetchTrades (symbol, since = undefined, limit = undefined, params = {}) {
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' fetchTrades() requires a symbol argument');
+        }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'coin': market['baseId'],
+            'market': market['quoteId'],
+        };
+        const response = await this.wwwGetExchangeDataTradedetails (this.extend (request, params));
+        //
+        //     [
+        //         {"tradeId":"1909151","price":"61904.6300","quote_volume":1618.05,"base_volume":0.02607254,"timestamp":1634548602000,"type":"buy"},
+        //         {"tradeId":"1909153","price":"61893.9000","quote_volume":16384.42,"base_volume":0.26405767,"timestamp":1634548999000,"type":"sell"},
+        //         {"tradeId":"1909155","price":"61853.1100","quote_volume":2304.37,"base_volume":0.03716263,"timestamp":1634549670000,"type":"sell"}
+        //     }
+        //
+        return this.parseTrades (response, market, since, limit);
     }
 
     async fetchDeposits (code = undefined, since = undefined, limit = undefined, params = {}) {
@@ -906,30 +969,8 @@ module.exports = class bitbns extends Exchange {
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': undefined,
             'info': response,
-        };
-    }
-
-    async withdraw (code, amount, address, tag = undefined, params = {}) {
-        this.checkAddress (address);
-        await this.loadMarkets ();
-        const currency = this.currency (code);
-        const request = {
-            'coin': currency['id'],
-            'address': address,
-            'amount': amount,
-            // https://binance-docs.github.io/apidocs/spot/en/#withdraw-sapi
-            // issue sapiGetCapitalConfigGetall () to get networks for withdrawing USDT ERC20 vs USDT Omni
-            // 'network': 'ETH', // 'BTC', 'TRX', etc, optional
-        };
-        if (tag !== undefined) {
-            request['addressTag'] = tag;
-        }
-        const response = await this.sapiPostCapitalWithdrawApply (this.extend (request, params));
-        //     { id: '9a67628b16ba4988ae20d329333f16bc' }
-        return {
-            'info': response,
-            'id': this.safeString (response, 'id'),
         };
     }
 
@@ -937,15 +978,20 @@ module.exports = class bitbns extends Exchange {
         return this.milliseconds ();
     }
 
-    sign (path, api = 'v1', method = 'GET', params = {}, headers = undefined, body = undefined) {
-        this.checkRequiredCredentials ();
-        const baseUrl = this.implodeParams (this.urls['api'][api], { 'hostname': this.hostname });
+    sign (path, api = 'www', method = 'GET', params = {}, headers = undefined, body = undefined) {
+        if (!(api in this.urls['api'])) {
+            throw new ExchangeError (this.id + ' does not have a testnet/sandbox URL for ' + api + ' endpoints');
+        }
+        if (api !== 'www') {
+            this.checkRequiredCredentials ();
+            headers = {
+                'X-BITBNS-APIKEY': this.apiKey,
+            };
+        }
+        const baseUrl = this.implodeHostname (this.urls['api'][api]);
         let url = baseUrl + '/' + this.implodeParams (path, params);
         const query = this.omit (params, this.extractParams (path));
         const nonce = this.nonce ().toString ();
-        headers = {
-            'X-BITBNS-APIKEY': this.apiKey,
-        };
         if (method === 'GET') {
             if (Object.keys (query).length) {
                 url += '?' + this.urlencode (query);

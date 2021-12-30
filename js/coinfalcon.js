@@ -4,7 +4,6 @@
 
 const Exchange = require ('./base/Exchange');
 const { ExchangeError, AuthenticationError, RateLimitExceeded, ArgumentsRequired } = require ('./base/errors');
-const Precise = require ('./base/Precise');
 
 //  ---------------------------------------------------------------------------
 
@@ -20,6 +19,7 @@ module.exports = class coinfalcon extends Exchange {
                 'cancelOrder': true,
                 'createOrder': true,
                 'fetchBalance': true,
+                'fetchDeposits': true,
                 'fetchMarkets': true,
                 'fetchMyTrades': true,
                 'fetchOpenOrders': true,
@@ -28,6 +28,8 @@ module.exports = class coinfalcon extends Exchange {
                 'fetchTicker': true,
                 'fetchTickers': true,
                 'fetchTrades': true,
+                'fetchWithdrawals': true,
+                'withdraw': true,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/41822275-ed982188-77f5-11e8-92bb-496bcd14ca52.jpg',
@@ -105,6 +107,8 @@ module.exports = class coinfalcon extends Exchange {
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': true,
                 'active': true,
                 'precision': precision,
                 'limits': {
@@ -131,7 +135,7 @@ module.exports = class coinfalcon extends Exchange {
         const marketId = this.safeString (ticker, 'name');
         const symbol = this.safeSymbol (marketId, market, '-');
         const timestamp = this.milliseconds ();
-        const last = parseFloat (ticker['last_price']);
+        const last = this.safeNumber (ticker, 'last_price');
         return {
             'symbol': symbol,
             'timestamp': timestamp,
@@ -187,26 +191,49 @@ module.exports = class coinfalcon extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
+        //
+        // fetchTrades (public)
+        //
+        //      {
+        //          "id":"5ec36295-5c8d-4874-8d66-2609d4938557",
+        //          "price":"4050.06","size":"0.0044",
+        //          "market_name":"ETH-USDT",
+        //          "side":"sell",
+        //          "created_at":"2021-12-07T17:47:36.811000Z"
+        //      }
+        //
+        // fetchMyTrades (private)
+        //
+        //      {
+        //              "id": "0718d520-c796-4061-a16b-915cd13f20c6",
+        //              "price": "0.00000358",
+        //              "size": "50.0",
+        //              "market_name": "DOGE-BTC",
+        //              "order_id": "ff2616d8-58d4-40fd-87ae-937c73eb6f1c",
+        //              "side": "buy",
+        //              "fee': "0.00000036",
+        //              "fee_currency_code": "btc",
+        //              "liquidity": "T",
+        //              "created_at": "2021-12-08T18:26:33.840000Z"
+        //      }
+        //
         const timestamp = this.parse8601 (this.safeString (trade, 'created_at'));
         const priceString = this.safeString (trade, 'price');
         const amountString = this.safeString (trade, 'size');
-        const price = this.parseNumber (priceString);
-        const amount = this.parseNumber (amountString);
-        const cost = this.parseNumber (Precise.stringMul (priceString, amountString));
         const symbol = market['symbol'];
         const tradeId = this.safeString (trade, 'id');
         const side = this.safeString (trade, 'side');
         const orderId = this.safeString (trade, 'order_id');
         let fee = undefined;
-        const feeCost = this.safeNumber (trade, 'fee');
-        if (feeCost !== undefined) {
+        const feeCostString = this.safeString (trade, 'fee');
+        if (feeCostString !== undefined) {
             const feeCurrencyCode = this.safeString (trade, 'fee_currency_code');
             fee = {
-                'cost': feeCost,
+                'cost': feeCostString,
                 'currency': this.safeCurrencyCode (feeCurrencyCode),
             };
         }
-        return {
+        return this.safeTrade ({
             'info': trade,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -216,11 +243,11 @@ module.exports = class coinfalcon extends Exchange {
             'type': undefined,
             'side': side,
             'takerOrMaker': undefined,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': undefined,
             'fee': fee,
-        };
+        }, market);
     }
 
     async fetchMyTrades (symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -239,6 +266,24 @@ module.exports = class coinfalcon extends Exchange {
             request['limit'] = limit;
         }
         const response = await this.privateGetUserTrades (this.extend (request, params));
+        //
+        //      {
+        //          "data": [
+        //              {
+        //                  "id": "0718d520-c796-4061-a16b-915cd13f20c6",
+        //                  "price": "0.00000358",
+        //                  "size": "50.0",
+        //                  "market_name": "DOGE-BTC",
+        //                  "order_id": "ff2616d8-58d4-40fd-87ae-937c73eb6f1c",
+        //                  "side": "buy",
+        //                  "fee': "0.00000036",
+        //                  "fee_currency_code": "btc",
+        //                  "liquidity": "T",
+        //                  "created_at": "2021-12-08T18:26:33.840000Z"
+        //              },
+        //          ]
+        //      }
+        //
         const data = this.safeValue (response, 'data', []);
         return this.parseTrades (data, market, since, limit);
     }
@@ -253,13 +298,24 @@ module.exports = class coinfalcon extends Exchange {
             request['since'] = this.iso8601 (since);
         }
         const response = await this.publicGetMarketsMarketTrades (this.extend (request, params));
+        //
+        //      {
+        //          "data":[
+        //              {
+        //                  "id":"5ec36295-5c8d-4874-8d66-2609d4938557",
+        //                  "price":"4050.06","size":"0.0044",
+        //                  "market_name":"ETH-USDT",
+        //                  "side":"sell",
+        //                  "created_at":"2021-12-07T17:47:36.811000Z"
+        //              },
+        //          ]
+        //      }
+        //
         const data = this.safeValue (response, 'data', []);
         return this.parseTrades (data, market, since, limit);
     }
 
-    async fetchBalance (params = {}) {
-        await this.loadMarkets ();
-        const response = await this.privateGetUserAccounts (params);
+    parseBalance (response) {
         const result = { 'info': response };
         const balances = this.safeValue (response, 'data');
         for (let i = 0; i < balances.length; i++) {
@@ -272,7 +328,13 @@ module.exports = class coinfalcon extends Exchange {
             account['total'] = this.safeString (balance, 'balance');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.safeBalance (result);
+    }
+
+    async fetchBalance (params = {}) {
+        await this.loadMarkets ();
+        const response = await this.privateGetUserAccounts (params);
+        return this.parseBalance (response);
     }
 
     parseOrderStatus (status) {
@@ -307,9 +369,9 @@ module.exports = class coinfalcon extends Exchange {
         const marketId = this.safeString (order, 'market');
         const symbol = this.safeSymbol (marketId, market, '-');
         const timestamp = this.parse8601 (this.safeString (order, 'created_at'));
-        const price = this.safeNumber (order, 'price');
-        const amount = this.safeNumber (order, 'size');
-        const filled = this.safeNumber (order, 'size_filled');
+        const priceString = this.safeString (order, 'price');
+        const amountString = this.safeString (order, 'size');
+        const filledString = this.safeString (order, 'size_filled');
         const status = this.parseOrderStatus (this.safeString (order, 'status'));
         let type = this.safeString (order, 'operation_type');
         if (type !== undefined) {
@@ -329,18 +391,18 @@ module.exports = class coinfalcon extends Exchange {
             'timeInForce': undefined,
             'postOnly': postOnly,
             'side': side,
-            'price': price,
+            'price': priceString,
             'stopPrice': undefined,
             'cost': undefined,
-            'amount': amount,
-            'filled': filled,
+            'amount': amountString,
+            'filled': filledString,
             'remaining': undefined,
             'trades': undefined,
             'fee': undefined,
             'info': order,
             'lastTradeTimestamp': undefined,
             'average': undefined,
-        });
+        }, market);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -399,6 +461,191 @@ module.exports = class coinfalcon extends Exchange {
         const data = this.safeValue (response, 'data', []);
         const orders = this.filterByArray (data, 'status', [ 'pending', 'open', 'partially_filled' ], false);
         return this.parseOrders (orders, market, since, limit);
+    }
+
+    async fetchDeposits (code = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const request = {
+            // currency: 'xrp', // optional: currency code in lowercase
+            // status: 'completed', // optional: withdrawal status
+            // since_time // datetime in ISO8601 format (2017-11-06T09:53:08.383210Z)
+            // end_time // datetime in ISO8601 format (2017-11-06T09:53:08.383210Z)
+            // start_time // datetime in ISO8601 format (2017-11-06T09:53:08.383210Z)
+        };
+        let currency = undefined;
+        if (code !== undefined) {
+            currency = this.currency (code);
+            request['currency'] = currency['id'].toLowerCase ();
+        }
+        if (since !== undefined) {
+            request['since_time'] = this.iso8601 (since);
+        }
+        const response = await this.privateGetAccountDeposits (this.extend (request, params));
+        //
+        //     data: [
+        //         {
+        //             id: '6e2f18b5-f80e-xxx-xxx-xxx',
+        //             amount: '0.1',
+        //             status: 'completed',
+        //             currency_code: 'eth',
+        //             txid: '0xxxx',
+        //             address: '0xxxx',
+        //             tag: null,
+        //             type: 'deposit'
+        //         },
+        //     ]
+        //
+        const transactions = this.safeValue (response, 'data', []);
+        transactions.reverse (); // no timestamp but in reversed order
+        return this.parseTransactions (transactions, currency, undefined, limit);
+    }
+
+    async fetchWithdrawals (code = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const request = {
+            // currency: 'xrp', // optional: currency code in lowercase
+            // status: 'completed', // optional: withdrawal status
+            // since_time // datetime in ISO8601 format (2017-11-06T09:53:08.383210Z)
+            // end_time // datetime in ISO8601 format (2017-11-06T09:53:08.383210Z)
+            // start_time // datetime in ISO8601 format (2017-11-06T09:53:08.383210Z)
+        };
+        let currency = undefined;
+        if (code !== undefined) {
+            currency = this.currency (code);
+            request['currency'] = currency['id'].toLowerCase ();
+        }
+        if (since !== undefined) {
+            request['since_time'] = this.iso8601 (since);
+        }
+        const response = await this.privateGetAccountWithdrawals (this.extend (request, params));
+        //
+        //     data: [
+        //         {
+        //             id: '25f6f144-3666-xxx-xxx-xxx',
+        //             amount: '0.01',
+        //             status: 'completed',
+        //             fee: '0.0005',
+        //             currency_code: 'btc',
+        //             txid: '4xxx',
+        //             address: 'bc1xxx',
+        //             tag: null,
+        //             type: 'withdraw'
+        //         },
+        //     ]
+        //
+        const transactions = this.safeValue (response, 'data', []);
+        transactions.reverse (); // no timestamp but in reversed order
+        return this.parseTransactions (transactions, currency, undefined, limit);
+    }
+
+    async withdraw (code, amount, address, tag = undefined, params = {}) {
+        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
+        this.checkAddress (address);
+        await this.loadMarkets ();
+        const currency = this.currency (code);
+        const request = {
+            'currency': currency['id'].toLowerCase (),
+            'address': address,
+            'amount': amount,
+            // 'tag': 'string', // withdraw tag/memo
+        };
+        if (tag !== undefined) {
+            request['tag'] = tag;
+        }
+        const response = await this.privatePostAccountWithdraw (this.extend (request, params));
+        //
+        //     data: [
+        //         {
+        //             id: '25f6f144-3666-xxx-xxx-xxx',
+        //             amount: '0.01',
+        //             status: 'approval_pending',
+        //             fee: '0.0005',
+        //             currency_code: 'btc',
+        //             txid: null,
+        //             address: 'bc1xxx',
+        //             tag: null,
+        //             type: 'withdraw'
+        //         },
+        //     ]
+        //
+        const transaction = this.safeValue (response, 'data', []);
+        return this.parseTransaction (transaction, currency);
+    }
+
+    parseTransactionStatus (status) {
+        const statuses = {
+            'completed': 'ok',
+            'denied': 'failed',
+            'approval_pending': 'pending',
+        };
+        return this.safeString (statuses, status, status);
+    }
+
+    parseTransaction (transaction, currency = undefined) {
+        //
+        // fetchWithdrawals, withdraw
+        //
+        //     {
+        //         id: '25f6f144-3666-xxx-xxx-xxx',
+        //         amount: '0.01',
+        //         status: 'completed',
+        //         fee: '0.0005',
+        //         currency_code: 'btc',
+        //         txid: '4xxx',
+        //         address: 'bc1xxx',
+        //         tag: null,
+        //         type: 'withdraw'
+        //     },
+        //
+        // fetchDeposits
+        //
+        //     {
+        //         id: '6e2f18b5-f80e-xxx-xxx-xxx',
+        //         amount: '0.1',
+        //         status: 'completed',
+        //         currency_code: 'eth',
+        //         txid: '0xxxx',
+        //         address: '0xxxx',
+        //         tag: null,
+        //         type: 'deposit'
+        //     },
+        //
+        const id = this.safeString (transaction, 'id');
+        const address = this.safeString (transaction, 'address');
+        const tag = this.safeString (transaction, 'tag');
+        const txid = this.safeString (transaction, 'txid');
+        const currencyId = this.safeString (transaction, 'currency_code');
+        const code = this.safeCurrencyCode (currencyId, currency);
+        let type = this.safeString (transaction, 'type');
+        if (type === 'withdraw') {
+            type = 'withdrawal';
+        }
+        const status = this.parseTransactionStatus (this.safeString (transaction, 'status'));
+        const amountString = this.safeString (transaction, 'amount');
+        const amount = this.parseNumber (amountString);
+        const feeCostString = this.safeString (transaction, 'fee');
+        let feeCost = 0;
+        if (feeCostString !== undefined) {
+            feeCost = this.parseNumber (feeCostString);
+        }
+        return {
+            'info': transaction,
+            'id': id,
+            'txid': txid,
+            'timestamp': undefined,
+            'datetime': undefined,
+            'address': address,
+            'tag': tag,
+            'type': type,
+            'amount': amount,
+            'currency': code,
+            'status': status,
+            'updated': undefined,
+            'fee': {
+                'currency': code,
+                'cost': feeCost,
+            },
+        };
     }
 
     nonce () {

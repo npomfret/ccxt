@@ -18,7 +18,7 @@ module.exports = class flowbtc extends Exchange {
             'rateLimit': 1000,
             'has': {
                 'cancelOrder': true,
-                'CORS': false,
+                'CORS': undefined,
                 'createOrder': true,
                 'fetchBalance': true,
                 'fetchMarkets': true,
@@ -100,6 +100,9 @@ module.exports = class flowbtc extends Exchange {
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': true,
+                'active': undefined,
                 'precision': precision,
                 'limits': {
                     'amount': {
@@ -116,15 +119,12 @@ module.exports = class flowbtc extends Exchange {
                     },
                 },
                 'info': market,
-                'active': undefined,
             };
         }
         return result;
     }
 
-    async fetchBalance (params = {}) {
-        await this.loadMarkets ();
-        const response = await this.privatePostGetAccountInfo (params);
+    parseBalance (response) {
         const balances = this.safeValue (response, 'currencies');
         const result = { 'info': response };
         for (let i = 0; i < balances.length; i++) {
@@ -136,7 +136,13 @@ module.exports = class flowbtc extends Exchange {
             account['total'] = this.safeString (balance, 'hold');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.safeBalance (result);
+    }
+
+    async fetchBalance (params = {}) {
+        await this.loadMarkets ();
+        const response = await this.privatePostGetAccountInfo (params);
+        return this.parseBalance (response);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {
@@ -244,7 +250,7 @@ module.exports = class flowbtc extends Exchange {
             };
             return await this.privatePostCancelOrder (this.extend (request, params));
         }
-        throw new ExchangeError (this.id + ' cancelOrder() requires an `ins` symbol parameter for cancelling an order');
+        throw new ExchangeError (this.id + ' cancelOrder() requires an `ins` parameter for cancelling an order');
     }
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
@@ -270,13 +276,13 @@ module.exports = class flowbtc extends Exchange {
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
-    async request (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
-        const response = await this.fetch2 (path, api, method, params, headers, body);
-        if ('isAccepted' in response) {
-            if (response['isAccepted']) {
-                return response;
-            }
+    handleErrors (httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {
+        if (response === undefined) {
+            return;
         }
-        throw new ExchangeError (this.id + ' ' + this.json (response));
+        const isAccepted = this.safeValue (response, 'isAccepted', true);
+        if (!isAccepted) {
+            throw new ExchangeError (this.id + ' ' + this.json (response));
+        }
     }
 };

@@ -20,7 +20,7 @@ class therock extends Exchange {
             'version' => 'v1',
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchClosedOrders' => true,
@@ -88,21 +88,13 @@ class therock extends Exchange {
             ),
             'fees' => array(
                 'trading' => array(
-                    'maker' => 0.2 / 100,
-                    'taker' => 0.2 / 100,
+                    'maker' => $this->parse_number('0.002'),
+                    'taker' => $this->parse_number('0.002'),
                 ),
                 'funding' => array(
                     'tierBased' => false,
                     'percentage' => false,
-                    'withdraw' => array(
-                        'BTC' => 0.0005,
-                        'BCH' => 0.0005,
-                        'PPC' => 0.02,
-                        'ETH' => 0.001,
-                        'ZEC' => 0.001,
-                        'LTC' => 0.002,
-                        'EUR' => 2.5,  // worst-case scenario => https://therocktrading.com/en/pages/fees
-                    ),
+                    'withdraw' => array(),
                     'deposit' => array(
                         'BTC' => 0,
                         'BCH' => 0,
@@ -187,6 +179,8 @@ class therock extends Exchange {
                     'baseId' => $baseId,
                     'quoteId' => $quoteId,
                     'info' => $market,
+                    'type' => 'spot',
+                    'spot' => true,
                     'active' => true,
                     'maker' => $maker,
                     'taker' => $taker,
@@ -214,9 +208,7 @@ class therock extends Exchange {
         return $result;
     }
 
-    public function fetch_balance($params = array ()) {
-        $this->load_markets();
-        $response = $this->privateGetBalances ($params);
+    public function parse_balance($response) {
         $balances = $this->safe_value($response, 'balances', array());
         $result = array( 'info' => $response );
         for ($i = 0; $i < count($balances); $i++) {
@@ -228,7 +220,13 @@ class therock extends Exchange {
             $account['total'] = $this->safe_string($balance, 'balance');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        $this->load_markets();
+        $response = $this->privateGetBalances ($params);
+        return $this->parse_balance($response);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -452,17 +450,17 @@ class therock extends Exchange {
         // withdrawal
         //
         //     {
-        //         "$id" => 21311223,
+        //         "id" => 21311223,
         //         "date" => "2015-06-30T13:55:11.000Z",
-        //         "$type" => "withdraw",
+        //         "type" => "withdraw",
         //         "price" => 103.00,
-        //         "$currency" => "EUR",
+        //         "currency" => "EUR",
         //         "fund_id" => null,
         //         "order_id" => null,
         //         "trade_id" => null,
         //         "transfer_detail" => {
         //             "method" => "wire_transfer",
-        //             "$id" => "F112DD3",
+        //             "id" => "F112DD3",
         //             "recipient" => "IT123456789012",
         //             "confirmations" => 0
         //         }
@@ -471,17 +469,17 @@ class therock extends Exchange {
         // deposit
         //
         //     {
-        //         "$id" => 21311222,
+        //         "id" => 21311222,
         //         "date" => "2015-06-30T13:55:11.000Z",
-        //         "$type" => "atm_payment",
+        //         "type" => "atm_payment",
         //         "price" => 2.01291,
-        //         "$currency" => "BTC",
+        //         "currency" => "BTC",
         //         "fund_id" => "null",
         //         "order_id" => null,
         //         "trade_id" => null,
         //         "transfer_detail" => {
         //             "method" => "bitcoin",
-        //             "$id" => "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
+        //             "id" => "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
         //             "recipient" => "mzb3NgX9Dr6jgGAu31L6jsPGB2zkaFxxyf",
         //             "confirmations" => 3
         //         }
@@ -490,14 +488,14 @@ class therock extends Exchange {
         // trade fee
         //
         //     {
-        //         "$id" => 21311221,
+        //         "id" => 21311221,
         //         "date" => "2015-06-30T13:55:11.000Z",
-        //         "$type" => "paid_commission",
+        //         "type" => "paid_commission",
         //         "price" => 0.0001,
         //         "fund_id" => "BTCEUR",
         //         "order_id" => 12832371,
         //         "trade_id" => 12923212,
-        //         "$currency" => "BTC",
+        //         "currency" => "BTC",
         //         "transfer_detail" => null
         //     }
         //
@@ -559,13 +557,13 @@ class therock extends Exchange {
         $response = $this->privateGetTransactions (array_merge($request, $params));
         //
         //     {
-        //         "$transactions" => array(
+        //         "transactions" => array(
         //             {
         //                 "id" => 21311223,
         //                 "date" => "2015-06-30T13:55:11.000Z",
         //                 "type" => "withdraw",
         //                 "price" => 103.00,
-        //                 "$currency" => "EUR",
+        //                 "currency" => "EUR",
         //                 "fund_id" => null,
         //                 "order_id" => null,
         //                 "trade_id" => null,
@@ -581,7 +579,7 @@ class therock extends Exchange {
         //                 "date" => "2015-06-30T13:55:11.000Z",
         //                 "type" => "atm_payment",
         //                 "price" => 2.01291,
-        //                 "$currency" => "BTC",
+        //                 "currency" => "BTC",
         //                 "fund_id" => "null",
         //                 "order_id" => null,
         //                 "trade_id" => null,
@@ -600,7 +598,7 @@ class therock extends Exchange {
         //                 "fund_id" => "BTCEUR",
         //                 "order_id" => 12832371,
         //                 "trade_id" => 12923212,
-        //                 "$currency" => "BTC",
+        //                 "currency" => "BTC",
         //                 "transfer_detail" => null
         //             }
         //         ),
@@ -633,35 +631,35 @@ class therock extends Exchange {
         //     // fiat
         //
         //     {
-        //         "$id" => 21311223,
+        //         "id" => 21311223,
         //         "date" => "2015-06-30T13:55:11.000Z",
-        //         "$type" => "withdraw",
+        //         "type" => "withdraw",
         //         "price" => 103.00,
-        //         "$currency" => "EUR",
+        //         "currency" => "EUR",
         //         "fund_id" => null,
         //         "order_id" => null,
         //         "trade_id" => null,
         //         "transfer_detail" => {
-        //             "$method" => "wire_transfer",
-        //             "$id" => "F112DD3",
+        //             "method" => "wire_transfer",
+        //             "id" => "F112DD3",
         //             "recipient" => "IT123456789012",
         //             "confirmations" => 0
         //         }
         //     }
         //
         //     {
-        //         "$id" => 12564223,
+        //         "id" => 12564223,
         //         "date" => "2017-08-07T08:13:50.023Z",
         //         "note" => "GB7IDL401573388",
-        //         "$type" => "withdraw",
+        //         "type" => "withdraw",
         //         "price" => 4345.93,
         //         "fund_id" => null,
-        //         "$currency" => "EUR",
+        //         "currency" => "EUR",
         //         "order_id" => null,
         //         "trade_id" => null,
         //         "transfer_detail" => {
-        //             "$id" => "EXECUTEDBUTUNCHECKED",
-        //             "$method" => "wire_transfer",
+        //             "id" => "EXECUTEDBUTUNCHECKED",
+        //             "method" => "wire_transfer",
         //             "recipient" => "GB7IDL401573388",
         //             "confirmations" => 0
         //         }
@@ -713,17 +711,17 @@ class therock extends Exchange {
         //     // crypto
         //
         //     {
-        //         "$id" => 21311222,
+        //         "id" => 21311222,
         //         "date" => "2015-06-30T13:55:11.000Z",
-        //         "$type" => "atm_payment",
+        //         "type" => "atm_payment",
         //         "price" => 2.01291,
-        //         "$currency" => "BTC",
+        //         "currency" => "BTC",
         //         "fund_id" => "null",
         //         "order_id" => null,
         //         "trade_id" => null,
         //         "transfer_detail" => {
-        //             "$method" => "bitcoin",
-        //             "$id" => "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
+        //             "method" => "bitcoin",
+        //             "id" => "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
         //             "recipient" => "mzb3NgX9Dr6jgGAu31L6jsPGB2zkaFxxyf",
         //             "confirmations" => 3
         //         }
@@ -809,13 +807,13 @@ class therock extends Exchange {
         $response = $this->privateGetTransactions ($params);
         //
         //     {
-        //         "$transactions" => array(
+        //         "transactions" => array(
         //             {
         //                 "id" => 21311223,
         //                 "date" => "2015-06-30T13:55:11.000Z",
         //                 "type" => "withdraw",
         //                 "price" => 103.00,
-        //                 "$currency" => "EUR",
+        //                 "currency" => "EUR",
         //                 "fund_id" => null,
         //                 "order_id" => null,
         //                 "trade_id" => null,
@@ -831,7 +829,7 @@ class therock extends Exchange {
         //                 "date" => "2015-06-30T13:55:11.000Z",
         //                 "type" => "atm_payment",
         //                 "price" => 2.01291,
-        //                 "$currency" => "BTC",
+        //                 "currency" => "BTC",
         //                 "fund_id" => "null",
         //                 "order_id" => null,
         //                 "trade_id" => null,
@@ -850,7 +848,7 @@ class therock extends Exchange {
         //                 "fund_id" => "BTCEUR",
         //                 "order_id" => 12832371,
         //                 "trade_id" => 12923212,
-        //                 "$currency" => "BTC",
+        //                 "currency" => "BTC",
         //                 "transfer_detail" => null
         //             }
         //         ),
@@ -884,13 +882,13 @@ class therock extends Exchange {
     public function parse_order($order, $market = null) {
         //
         //     {
-        //         "$id" => 4325578,
+        //         "id" => 4325578,
         //         "fund_id":"BTCEUR",
-        //         "$side":"buy",
-        //         "$type":"limit",
-        //         "$status":"executed",
-        //         "$price":0.0102,
-        //         "$amount" => 50.0,
+        //         "side":"buy",
+        //         "type":"limit",
+        //         "status":"executed",
+        //         "price":0.0102,
+        //         "amount" => 50.0,
         //         "amount_unfilled" => 0.0,
         //         "conditional_type" => null,
         //         "conditional_price" => null,
@@ -898,13 +896,13 @@ class therock extends Exchange {
         //         "close_on" => nil,
         //         "leverage" => 1.0,
         //         "position_id" => null,
-        //         "$trades" => array(
+        //         "trades" => array(
         //             {
-        //                 "$id":237338,
+        //                 "id":237338,
         //                 "fund_id":"BTCEUR",
-        //                 "$amount":50,
-        //                 "$price":0.0102,
-        //                 "$side":"buy",
+        //                 "amount":50,
+        //                 "price":0.0102,
+        //                 "side":"buy",
         //                 "dark":false,
         //                 "date":"2015-06-03T00:49:49.000Z"
         //             }
@@ -1205,13 +1203,13 @@ class therock extends Exchange {
         }
         //
         //     {
-        //         "$errors":
+        //         "errors":
         //         array(
-        //             array( "$message" => ":currency is not a valid value for param currency","code" => "11","meta" => array( "key":"currency","value":":currency") ),
-        //             array( "$message" => "Address allocation limit reached for currency :currency.","code" => "13" ),
-        //             array( "$message" => "Request already running", "code" => "50"),
-        //             array( "$message" => "cannot specify multiple address types", "code" => "12" ),
-        //             array( "$message" => ":address_type is invalid", "code" => "12" )
+        //             array( "message" => ":currency is not a valid value for param currency","code" => "11","meta" => array( "key":"currency","value":":currency") ),
+        //             array( "message" => "Address allocation limit reached for currency :currency.","code" => "13" ),
+        //             array( "message" => "Request already running", "code" => "50"),
+        //             array( "message" => "cannot specify multiple address types", "code" => "12" ),
+        //             array( "message" => ":address_type is invalid", "code" => "12" )
         //         )
         //     }
         //

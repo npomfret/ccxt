@@ -9,7 +9,6 @@ from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import RateLimitExceeded
-from ccxt.base.precise import Precise
 
 
 class coinfalcon(Exchange):
@@ -25,6 +24,7 @@ class coinfalcon(Exchange):
                 'cancelOrder': True,
                 'createOrder': True,
                 'fetchBalance': True,
+                'fetchDeposits': True,
                 'fetchMarkets': True,
                 'fetchMyTrades': True,
                 'fetchOpenOrders': True,
@@ -33,6 +33,8 @@ class coinfalcon(Exchange):
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTrades': True,
+                'fetchWithdrawals': True,
+                'withdraw': True,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/41822275-ed982188-77f5-11e8-92bb-496bcd14ca52.jpg',
@@ -109,6 +111,8 @@ class coinfalcon(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
                 'active': True,
                 'precision': precision,
                 'limits': {
@@ -133,7 +137,7 @@ class coinfalcon(Exchange):
         marketId = self.safe_string(ticker, 'name')
         symbol = self.safe_symbol(marketId, market, '-')
         timestamp = self.milliseconds()
-        last = float(ticker['last_price'])
+        last = self.safe_number(ticker, 'last_price')
         return {
             'symbol': symbol,
             'timestamp': timestamp,
@@ -184,25 +188,48 @@ class coinfalcon(Exchange):
         return self.parse_order_book(data, symbol, None, 'bids', 'asks', 'price', 'size')
 
     def parse_trade(self, trade, market=None):
+        #
+        # fetchTrades(public)
+        #
+        #      {
+        #          "id":"5ec36295-5c8d-4874-8d66-2609d4938557",
+        #          "price":"4050.06","size":"0.0044",
+        #          "market_name":"ETH-USDT",
+        #          "side":"sell",
+        #          "created_at":"2021-12-07T17:47:36.811000Z"
+        #      }
+        #
+        # fetchMyTrades(private)
+        #
+        #      {
+        #              "id": "0718d520-c796-4061-a16b-915cd13f20c6",
+        #              "price": "0.00000358",
+        #              "size": "50.0",
+        #              "market_name": "DOGE-BTC",
+        #              "order_id": "ff2616d8-58d4-40fd-87ae-937c73eb6f1c",
+        #              "side": "buy",
+        #              "fee': "0.00000036",
+        #              "fee_currency_code": "btc",
+        #              "liquidity": "T",
+        #              "created_at": "2021-12-08T18:26:33.840000Z"
+        #      }
+        #
         timestamp = self.parse8601(self.safe_string(trade, 'created_at'))
         priceString = self.safe_string(trade, 'price')
         amountString = self.safe_string(trade, 'size')
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         symbol = market['symbol']
         tradeId = self.safe_string(trade, 'id')
         side = self.safe_string(trade, 'side')
         orderId = self.safe_string(trade, 'order_id')
         fee = None
-        feeCost = self.safe_number(trade, 'fee')
-        if feeCost is not None:
+        feeCostString = self.safe_string(trade, 'fee')
+        if feeCostString is not None:
             feeCurrencyCode = self.safe_string(trade, 'fee_currency_code')
             fee = {
-                'cost': feeCost,
+                'cost': feeCostString,
                 'currency': self.safe_currency_code(feeCurrencyCode),
             }
-        return {
+        return self.safe_trade({
             'info': trade,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -212,11 +239,11 @@ class coinfalcon(Exchange):
             'type': None,
             'side': side,
             'takerOrMaker': None,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'fee': fee,
-        }
+        }, market)
 
     async def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         if symbol is None:
@@ -231,6 +258,24 @@ class coinfalcon(Exchange):
         if limit is not None:
             request['limit'] = limit
         response = await self.privateGetUserTrades(self.extend(request, params))
+        #
+        #      {
+        #          "data": [
+        #              {
+        #                  "id": "0718d520-c796-4061-a16b-915cd13f20c6",
+        #                  "price": "0.00000358",
+        #                  "size": "50.0",
+        #                  "market_name": "DOGE-BTC",
+        #                  "order_id": "ff2616d8-58d4-40fd-87ae-937c73eb6f1c",
+        #                  "side": "buy",
+        #                  "fee': "0.00000036",
+        #                  "fee_currency_code": "btc",
+        #                  "liquidity": "T",
+        #                  "created_at": "2021-12-08T18:26:33.840000Z"
+        #              },
+        #          ]
+        #      }
+        #
         data = self.safe_value(response, 'data', [])
         return self.parse_trades(data, market, since, limit)
 
@@ -243,12 +288,23 @@ class coinfalcon(Exchange):
         if since is not None:
             request['since'] = self.iso8601(since)
         response = await self.publicGetMarketsMarketTrades(self.extend(request, params))
+        #
+        #      {
+        #          "data":[
+        #              {
+        #                  "id":"5ec36295-5c8d-4874-8d66-2609d4938557",
+        #                  "price":"4050.06","size":"0.0044",
+        #                  "market_name":"ETH-USDT",
+        #                  "side":"sell",
+        #                  "created_at":"2021-12-07T17:47:36.811000Z"
+        #              },
+        #          ]
+        #      }
+        #
         data = self.safe_value(response, 'data', [])
         return self.parse_trades(data, market, since, limit)
 
-    async def fetch_balance(self, params={}):
-        await self.load_markets()
-        response = await self.privateGetUserAccounts(params)
+    def parse_balance(self, response):
         result = {'info': response}
         balances = self.safe_value(response, 'data')
         for i in range(0, len(balances)):
@@ -260,7 +316,12 @@ class coinfalcon(Exchange):
             account['used'] = self.safe_string(balance, 'hold_balance')
             account['total'] = self.safe_string(balance, 'balance')
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.safe_balance(result)
+
+    async def fetch_balance(self, params={}):
+        await self.load_markets()
+        response = await self.privateGetUserAccounts(params)
+        return self.parse_balance(response)
 
     def parse_order_status(self, status):
         statuses = {
@@ -293,9 +354,9 @@ class coinfalcon(Exchange):
         marketId = self.safe_string(order, 'market')
         symbol = self.safe_symbol(marketId, market, '-')
         timestamp = self.parse8601(self.safe_string(order, 'created_at'))
-        price = self.safe_number(order, 'price')
-        amount = self.safe_number(order, 'size')
-        filled = self.safe_number(order, 'size_filled')
+        priceString = self.safe_string(order, 'price')
+        amountString = self.safe_string(order, 'size')
+        filledString = self.safe_string(order, 'size_filled')
         status = self.parse_order_status(self.safe_string(order, 'status'))
         type = self.safe_string(order, 'operation_type')
         if type is not None:
@@ -314,18 +375,18 @@ class coinfalcon(Exchange):
             'timeInForce': None,
             'postOnly': postOnly,
             'side': side,
-            'price': price,
+            'price': priceString,
             'stopPrice': None,
             'cost': None,
-            'amount': amount,
-            'filled': filled,
+            'amount': amountString,
+            'filled': filledString,
             'remaining': None,
             'trades': None,
             'fee': None,
             'info': order,
             'lastTradeTimestamp': None,
             'average': None,
-        })
+        }, market)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
@@ -377,6 +438,179 @@ class coinfalcon(Exchange):
         data = self.safe_value(response, 'data', [])
         orders = self.filter_by_array(data, 'status', ['pending', 'open', 'partially_filled'], False)
         return self.parse_orders(orders, market, since, limit)
+
+    async def fetch_deposits(self, code=None, since=None, limit=None, params={}):
+        await self.load_markets()
+        request = {
+            # currency: 'xrp',  # optional: currency code in lowercase
+            # status: 'completed',  # optional: withdrawal status
+            # since_time  # datetime in ISO8601 format(2017-11-06T09:53:08.383210Z)
+            # end_time  # datetime in ISO8601 format(2017-11-06T09:53:08.383210Z)
+            # start_time  # datetime in ISO8601 format(2017-11-06T09:53:08.383210Z)
+        }
+        currency = None
+        if code is not None:
+            currency = self.currency(code)
+            request['currency'] = currency['id'].lower()
+        if since is not None:
+            request['since_time'] = self.iso8601(since)
+        response = await self.privateGetAccountDeposits(self.extend(request, params))
+        #
+        #     data: [
+        #         {
+        #             id: '6e2f18b5-f80e-xxx-xxx-xxx',
+        #             amount: '0.1',
+        #             status: 'completed',
+        #             currency_code: 'eth',
+        #             txid: '0xxxx',
+        #             address: '0xxxx',
+        #             tag: null,
+        #             type: 'deposit'
+        #         },
+        #     ]
+        #
+        transactions = self.safe_value(response, 'data', [])
+        transactions.reverse()  # no timestamp but in reversed order
+        return self.parse_transactions(transactions, currency, None, limit)
+
+    async def fetch_withdrawals(self, code=None, since=None, limit=None, params={}):
+        await self.load_markets()
+        request = {
+            # currency: 'xrp',  # optional: currency code in lowercase
+            # status: 'completed',  # optional: withdrawal status
+            # since_time  # datetime in ISO8601 format(2017-11-06T09:53:08.383210Z)
+            # end_time  # datetime in ISO8601 format(2017-11-06T09:53:08.383210Z)
+            # start_time  # datetime in ISO8601 format(2017-11-06T09:53:08.383210Z)
+        }
+        currency = None
+        if code is not None:
+            currency = self.currency(code)
+            request['currency'] = currency['id'].lower()
+        if since is not None:
+            request['since_time'] = self.iso8601(since)
+        response = await self.privateGetAccountWithdrawals(self.extend(request, params))
+        #
+        #     data: [
+        #         {
+        #             id: '25f6f144-3666-xxx-xxx-xxx',
+        #             amount: '0.01',
+        #             status: 'completed',
+        #             fee: '0.0005',
+        #             currency_code: 'btc',
+        #             txid: '4xxx',
+        #             address: 'bc1xxx',
+        #             tag: null,
+        #             type: 'withdraw'
+        #         },
+        #     ]
+        #
+        transactions = self.safe_value(response, 'data', [])
+        transactions.reverse()  # no timestamp but in reversed order
+        return self.parse_transactions(transactions, currency, None, limit)
+
+    async def withdraw(self, code, amount, address, tag=None, params={}):
+        tag, params = self.handle_withdraw_tag_and_params(tag, params)
+        self.check_address(address)
+        await self.load_markets()
+        currency = self.currency(code)
+        request = {
+            'currency': currency['id'].lower(),
+            'address': address,
+            'amount': amount,
+            # 'tag': 'string',  # withdraw tag/memo
+        }
+        if tag is not None:
+            request['tag'] = tag
+        response = await self.privatePostAccountWithdraw(self.extend(request, params))
+        #
+        #     data: [
+        #         {
+        #             id: '25f6f144-3666-xxx-xxx-xxx',
+        #             amount: '0.01',
+        #             status: 'approval_pending',
+        #             fee: '0.0005',
+        #             currency_code: 'btc',
+        #             txid: null,
+        #             address: 'bc1xxx',
+        #             tag: null,
+        #             type: 'withdraw'
+        #         },
+        #     ]
+        #
+        transaction = self.safe_value(response, 'data', [])
+        return self.parse_transaction(transaction, currency)
+
+    def parse_transaction_status(self, status):
+        statuses = {
+            'completed': 'ok',
+            'denied': 'failed',
+            'approval_pending': 'pending',
+        }
+        return self.safe_string(statuses, status, status)
+
+    def parse_transaction(self, transaction, currency=None):
+        #
+        # fetchWithdrawals, withdraw
+        #
+        #     {
+        #         id: '25f6f144-3666-xxx-xxx-xxx',
+        #         amount: '0.01',
+        #         status: 'completed',
+        #         fee: '0.0005',
+        #         currency_code: 'btc',
+        #         txid: '4xxx',
+        #         address: 'bc1xxx',
+        #         tag: null,
+        #         type: 'withdraw'
+        #     },
+        #
+        # fetchDeposits
+        #
+        #     {
+        #         id: '6e2f18b5-f80e-xxx-xxx-xxx',
+        #         amount: '0.1',
+        #         status: 'completed',
+        #         currency_code: 'eth',
+        #         txid: '0xxxx',
+        #         address: '0xxxx',
+        #         tag: null,
+        #         type: 'deposit'
+        #     },
+        #
+        id = self.safe_string(transaction, 'id')
+        address = self.safe_string(transaction, 'address')
+        tag = self.safe_string(transaction, 'tag')
+        txid = self.safe_string(transaction, 'txid')
+        currencyId = self.safe_string(transaction, 'currency_code')
+        code = self.safe_currency_code(currencyId, currency)
+        type = self.safe_string(transaction, 'type')
+        if type == 'withdraw':
+            type = 'withdrawal'
+        status = self.parse_transaction_status(self.safe_string(transaction, 'status'))
+        amountString = self.safe_string(transaction, 'amount')
+        amount = self.parse_number(amountString)
+        feeCostString = self.safe_string(transaction, 'fee')
+        feeCost = 0
+        if feeCostString is not None:
+            feeCost = self.parse_number(feeCostString)
+        return {
+            'info': transaction,
+            'id': id,
+            'txid': txid,
+            'timestamp': None,
+            'datetime': None,
+            'address': address,
+            'tag': tag,
+            'type': type,
+            'amount': amount,
+            'currency': code,
+            'status': status,
+            'updated': None,
+            'fee': {
+                'currency': code,
+                'cost': feeCost,
+            },
+        }
 
     def nonce(self):
         return self.milliseconds()

@@ -23,7 +23,6 @@ from ccxt.base.errors import NotSupported
 from ccxt.base.errors import DDoSProtection
 from ccxt.base.errors import RateLimitExceeded
 from ccxt.base.errors import InvalidNonce
-from ccxt.base.precise import Precise
 
 
 class cex(Exchange):
@@ -36,7 +35,7 @@ class cex(Exchange):
             'rateLimit': 1500,
             'has': {
                 'cancelOrder': True,
-                'CORS': False,
+                'CORS': None,
                 'createOrder': True,
                 'editOrder': True,
                 'fetchBalance': True,
@@ -55,6 +54,8 @@ class cex(Exchange):
             },
             'timeframes': {
                 '1m': '1m',
+                '1h': '1h',
+                '1d': '1d',
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/27766442-8ddc33b0-5ed8-11e7-8b98-f786aef0f3c9.jpg',
@@ -114,23 +115,11 @@ class cex(Exchange):
             },
             'fees': {
                 'trading': {
-                    'maker': 0.16 / 100,
-                    'taker': 0.25 / 100,
+                    'maker': self.parse_number('0.0016'),
+                    'taker': self.parse_number('0.0025'),
                 },
                 'funding': {
-                    'withdraw': {
-                        # 'USD': None,
-                        # 'EUR': None,
-                        # 'RUB': None,
-                        # 'GBP': None,
-                        'BTC': 0.001,
-                        'ETH': 0.01,
-                        'BCH': 0.001,
-                        'DASH': 0.01,
-                        'BTG': 0.001,
-                        'ZEC': 0.001,
-                        'XRP': 0.02,
-                    },
+                    'withdraw': {},
                     'deposit': {
                         # 'USD': amount => amount * 0.035 + 0.25,
                         # 'EUR': amount => amount * 0.035 + 0.24,
@@ -354,6 +343,9 @@ class cex(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'type': 'spot',
+                'spot': True,
+                'active': None,
                 'precision': precision,
                 'limits': {
                     'amount': {
@@ -369,13 +361,10 @@ class cex(Exchange):
                         'max': None,
                     },
                 },
-                'active': None,
             })
         return result
 
-    def fetch_balance(self, params={}):
-        self.load_markets()
-        response = self.privatePostBalance(params)
+    def parse_balance(self, response):
         result = {'info': response}
         ommited = ['username', 'timestamp']
         balances = self.omit(response, ommited)
@@ -389,7 +378,12 @@ class cex(Exchange):
             account['used'] = self.safe_string(balance, 'orders', '0')
             code = self.safe_currency_code(currencyId)
             result[code] = account
-        return self.parse_balance(result, False)
+        return self.safe_balance(result)
+
+    def fetch_balance(self, params={}):
+        self.load_markets()
+        response = self.privatePostBalance(params)
+        return self.parse_balance(response)
 
     def fetch_order_book(self, symbol, limit=None, params={}):
         self.load_markets()
@@ -430,12 +424,9 @@ class cex(Exchange):
         else:
             if self.options['fetchOHLCVWarning']:
                 raise ExchangeError(self.id + " fetchOHLCV warning: CEX can return historical candles for a certain date only, self might produce an empty or None reply. Set exchange.options['fetchOHLCVWarning'] = False or add({'options': {'fetchOHLCVWarning': False}}) to constructor params to suppress self warning message.")
-        ymd = self.ymd(since)
-        ymd = ymd.split('-')
-        ymd = ''.join(ymd)
         request = {
             'pair': market['id'],
-            'yyyymmdd': ymd,
+            'yyyymmdd': self.yyyymmdd(since, ''),
         }
         try:
             response = self.publicGetOhlcvHdYyyymmddPair(self.extend(request, params))
@@ -513,19 +504,27 @@ class cex(Exchange):
         return self.parse_ticker(ticker, market)
 
     def parse_trade(self, trade, market=None):
+        #
+        # fetchTrades(public)
+        #
+        #      {
+        #          "type": "sell",
+        #          "date": "1638401878",
+        #          "amount": "0.401000",
+        #          "price": "249",
+        #          "tid": "11922"
+        #      }
+        #
         timestamp = self.safe_timestamp(trade, 'date')
         id = self.safe_string(trade, 'tid')
         type = None
         side = self.safe_string(trade, 'type')
         priceString = self.safe_string(trade, 'price')
         amountString = self.safe_string(trade, 'amount')
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(Precise.string_mul(priceString, amountString))
         symbol = None
         if market is not None:
             symbol = market['symbol']
-        return {
+        return self.safe_trade({
             'info': trade,
             'id': id,
             'timestamp': timestamp,
@@ -535,11 +534,11 @@ class cex(Exchange):
             'side': side,
             'order': None,
             'takerOrMaker': None,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': None,
             'fee': None,
-        }
+        }, market)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
         self.load_markets()
@@ -1233,6 +1232,7 @@ class cex(Exchange):
             'currency': code,
             'address': address,
             'tag': None,
+            'network': None,
             'info': response,
         }
 

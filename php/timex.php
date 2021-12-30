@@ -21,7 +21,7 @@ class timex extends Exchange {
             'has' => array(
                 'cancelOrder' => true,
                 'cancelOrders' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createOrder' => true,
                 'editOrder' => true,
                 'fetchBalance' => true,
@@ -182,6 +182,7 @@ class timex extends Exchange {
                 ),
             ),
             'options' => array(
+                'expireIn' => 31536000, // 365 × 24 × 60 × 60
                 'fetchTickers' => array(
                     'period' => '1d',
                 ),
@@ -285,7 +286,7 @@ class timex extends Exchange {
         //             "low" => 0.015,
         //             "market" => "TIME/ETH",
         //             "open" => 0.016,
-        //             "$period" => "H1",
+        //             "period" => "H1",
         //             "timestamp" => "2018-12-14T20:50:36.134Z",
         //             "volume" => 4.57,
         //             "volumeQuote" => 0.07312
@@ -312,9 +313,9 @@ class timex extends Exchange {
         //             "high" => 0.019,
         //             "last" => 0.017,
         //             "low" => 0.015,
-        //             "$market" => "TIME/ETH",
+        //             "market" => "TIME/ETH",
         //             "open" => 0.016,
-        //             "$period" => "H1",
+        //             "period" => "H1",
         //             "timestamp" => "2018-12-14T20:50:36.134Z",
         //             "volume" => 4.57,
         //             "volumeQuote" => 0.07312
@@ -337,7 +338,7 @@ class timex extends Exchange {
         $response = $this->publicGetOrderbookV2 (array_merge($request, $params));
         //
         //     {
-        //         "$timestamp":"2019-12-05T00:21:09.538",
+        //         "timestamp":"2019-12-05T00:21:09.538",
         //         "bid":array(
         //             array(
         //                 "index":"2",
@@ -439,18 +440,7 @@ class timex extends Exchange {
         return $this->parse_ohlcvs($response, $market, $timeframe, $since, $limit);
     }
 
-    public function fetch_balance($params = array ()) {
-        $this->load_markets();
-        $response = $this->tradingGetBalances ($params);
-        //
-        //     array(
-        //         array("currency":"BTC","totalBalance":"0","lockedBalance":"0"),
-        //         array("currency":"AUDT","totalBalance":"0","lockedBalance":"0"),
-        //         array("currency":"ETH","totalBalance":"0","lockedBalance":"0"),
-        //         array("currency":"TIME","totalBalance":"0","lockedBalance":"0"),
-        //         array("currency":"USDT","totalBalance":"0","lockedBalance":"0")
-        //     )
-        //
+    public function parse_balance($response) {
         $result = array(
             'info' => $response,
             'timestamp' => null,
@@ -465,7 +455,22 @@ class timex extends Exchange {
             $account['used'] = $this->safe_string($balance, 'lockedBalance');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        $this->load_markets();
+        $response = $this->tradingGetBalances ($params);
+        //
+        //     array(
+        //         array("currency":"BTC","totalBalance":"0","lockedBalance":"0"),
+        //         array("currency":"AUDT","totalBalance":"0","lockedBalance":"0"),
+        //         array("currency":"ETH","totalBalance":"0","lockedBalance":"0"),
+        //         array("currency":"TIME","totalBalance":"0","lockedBalance":"0"),
+        //         array("currency":"USDT","totalBalance":"0","lockedBalance":"0")
+        //     )
+        //
+        return $this->parse_balance($response);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -473,6 +478,11 @@ class timex extends Exchange {
         $market = $this->market($symbol);
         $uppercaseSide = strtoupper($side);
         $uppercaseType = strtoupper($type);
+        $postOnly = $this->safe_value($params, 'postOnly', false);
+        if ($postOnly) {
+            $uppercaseType = 'POST_ONLY';
+            $params = $this->omit($params, array( 'postOnly' ));
+        }
         $request = array(
             'symbol' => $market['id'],
             'quantity' => $this->amount_to_precision($symbol, $amount),
@@ -483,7 +493,7 @@ class timex extends Exchange {
             // 'expireTime' => 1575523308, // unix timestamp
         );
         $query = $params;
-        if ($uppercaseType === 'LIMIT') {
+        if (($uppercaseType === 'LIMIT') || ($uppercaseType === 'POST_ONLY')) {
             $request['price'] = $this->price_to_precision($symbol, $price);
             $defaultExpireIn = $this->safe_integer($this->options, 'expireIn');
             $expireTime = $this->safe_value($params, 'expireTime');
@@ -502,20 +512,20 @@ class timex extends Exchange {
         $response = $this->tradingPostOrders (array_merge($request, $query));
         //
         //     {
-        //         "$orders" => array(
+        //         "orders" => array(
         //             {
         //                 "cancelledQuantity" => "0.3",
         //                 "clientOrderId" => "my-$order-1",
         //                 "createdAt" => "1970-01-01T00:00:00",
         //                 "cursorId" => 50,
-        //                 "$expireTime" => "1970-01-01T00:00:00",
+        //                 "expireTime" => "1970-01-01T00:00:00",
         //                 "filledQuantity" => "0.3",
         //                 "id" => "string",
-        //                 "$price" => "0.017",
+        //                 "price" => "0.017",
         //                 "quantity" => "0.3",
-        //                 "$side" => "BUY",
-        //                 "$symbol" => "TIMEETH",
-        //                 "$type" => "LIMIT",
+        //                 "side" => "BUY",
+        //                 "symbol" => "TIMEETH",
+        //                 "type" => "LIMIT",
         //                 "updatedAt" => "1970-01-01T00:00:00"
         //             }
         //         )
@@ -550,12 +560,12 @@ class timex extends Exchange {
         //                 "cursorId" => 50,
         //                 "expireTime" => "1970-01-01T00:00:00",
         //                 "filledQuantity" => "0.3",
-        //                 "$id" => "string",
-        //                 "$price" => "0.017",
+        //                 "id" => "string",
+        //                 "price" => "0.017",
         //                 "quantity" => "0.3",
-        //                 "$side" => "BUY",
-        //                 "$symbol" => "TIMEETH",
-        //                 "$type" => "LIMIT",
+        //                 "side" => "BUY",
+        //                 "symbol" => "TIMEETH",
+        //                 "type" => "LIMIT",
         //                 "updatedAt" => "1970-01-01T00:00:00"
         //                 ),
         //                 "oldId" => "string",
@@ -604,7 +614,7 @@ class timex extends Exchange {
         //                     "price" => "0.017",
         //                     "quantity" => "0.3",
         //                     "side" => "BUY",
-        //                     "$symbol" => "TIMEETH",
+        //                     "symbol" => "TIMEETH",
         //                     "type" => "LIMIT",
         //                     "updatedAt" => "1970-01-01T00:00:00"
         //                 ),
@@ -624,31 +634,31 @@ class timex extends Exchange {
         $response = $this->historyGetOrdersDetails ($request);
         //
         //     {
-        //         "$order" => array(
+        //         "order" => array(
         //             "cancelledQuantity" => "0.3",
         //             "clientOrderId" => "my-$order-1",
         //             "createdAt" => "1970-01-01T00:00:00",
         //             "cursorId" => 50,
         //             "expireTime" => "1970-01-01T00:00:00",
         //             "filledQuantity" => "0.3",
-        //             "$id" => "string",
+        //             "id" => "string",
         //             "price" => "0.017",
         //             "quantity" => "0.3",
         //             "side" => "BUY",
-        //             "$symbol" => "TIMEETH",
+        //             "symbol" => "TIMEETH",
         //             "type" => "LIMIT",
         //             "updatedAt" => "1970-01-01T00:00:00"
         //         ),
-        //         "$trades" => array(
+        //         "trades" => array(
         //             {
         //                 "fee" => "0.3",
-        //                 "$id" => 100,
+        //                 "id" => 100,
         //                 "makerOrTaker" => "MAKER",
         //                 "makerOrderId" => "string",
         //                 "price" => "0.017",
         //                 "quantity" => "0.3",
         //                 "side" => "BUY",
-        //                 "$symbol" => "TIMEETH",
+        //                 "symbol" => "TIMEETH",
         //                 "takerOrderId" => "string",
         //                 "timestamp" => "2019-12-05T07:48:26.310Z"
         //             }
@@ -682,7 +692,7 @@ class timex extends Exchange {
         $response = $this->tradingGetOrders (array_merge($request, $query));
         //
         //     {
-        //         "$orders" => array(
+        //         "orders" => array(
         //             {
         //                 "cancelledQuantity" => "0.3",
         //                 "clientOrderId" => "my-order-1",
@@ -694,7 +704,7 @@ class timex extends Exchange {
         //                 "price" => "0.017",
         //                 "quantity" => "0.3",
         //                 "side" => "BUY",
-        //                 "$symbol" => "TIMEETH",
+        //                 "symbol" => "TIMEETH",
         //                 "type" => "LIMIT",
         //                 "updatedAt" => "1970-01-01T00:00:00"
         //             }
@@ -732,7 +742,7 @@ class timex extends Exchange {
         $response = $this->historyGetOrders (array_merge($request, $query));
         //
         //     {
-        //         "$orders" => array(
+        //         "orders" => array(
         //             {
         //                 "cancelledQuantity" => "0.3",
         //                 "clientOrderId" => "my-order-1",
@@ -744,7 +754,7 @@ class timex extends Exchange {
         //                 "price" => "0.017",
         //                 "quantity" => "0.3",
         //                 "side" => "BUY",
-        //                 "$symbol" => "TIMEETH",
+        //                 "symbol" => "TIMEETH",
         //                 "type" => "LIMIT",
         //                 "updatedAt" => "1970-01-01T00:00:00"
         //             }
@@ -788,7 +798,7 @@ class timex extends Exchange {
         $response = $this->historyGetTrades (array_merge($request, $query));
         //
         //     {
-        //         "$trades" => array(
+        //         "trades" => array(
         //             {
         //                 "fee" => "0.3",
         //                 "id" => 100,
@@ -797,7 +807,7 @@ class timex extends Exchange {
         //                 "price" => "0.017",
         //                 "quantity" => "0.3",
         //                 "side" => "BUY",
-        //                 "$symbol" => "TIMEETH",
+        //                 "symbol" => "TIMEETH",
         //                 "takerOrderId" => "string",
         //                 "timestamp" => "2019-12-08T04:54:11.171Z"
         //             }
@@ -806,6 +816,23 @@ class timex extends Exchange {
         //
         $trades = $this->safe_value($response, 'trades', array());
         return $this->parse_trades($trades, $market, $since, $limit);
+    }
+
+    public function parse_trading_fee($fee, $market = null) {
+        //
+        //     {
+        //         "fee" => 0.0075,
+        //         "market" => "ETHBTC"
+        //     }
+        //
+        $marketId = $this->safe_string($fee, 'market');
+        $rate = $this->safe_number($fee, 'fee');
+        return array(
+            'info' => $fee,
+            'symbol' => $this->safe_symbol($marketId, $market),
+            'maker' => $rate,
+            'taker' => $rate,
+        );
     }
 
     public function fetch_trading_fee($symbol, $params = array ()) {
@@ -819,22 +846,18 @@ class timex extends Exchange {
         //     array(
         //         {
         //             "fee" => 0.0075,
-        //             "$market" => "ETHBTC"
+        //             "market" => "ETHBTC"
         //         }
         //     )
         //
         $result = $this->safe_value($response, 0, array());
-        return array(
-            'info' => $response,
-            'maker' => $this->safe_number($result, 'fee'),
-            'taker' => null,
-        );
+        return $this->parse_trading_fee($result, $market);
     }
 
     public function parse_market($market) {
         //
         //     {
-        //         "$symbol" => "ETHBTC",
+        //         "symbol" => "ETHBTC",
         //         "name" => "ETH/BTC",
         //         "baseCurrency" => "ETH",
         //         "baseTokenAddress" => "0x45932db54b38af1f5a57136302eeba66a5975c15",
@@ -848,7 +871,7 @@ class timex extends Exchange {
         //         "tickSize" => "0.00000001",
         //         "baseMinSize" => "0.0001",
         //         "quoteMinSize" => "0.00001",
-        //         "$locked" => false
+        //         "locked" => false
         //     }
         //
         $locked = $this->safe_value($market, 'locked');
@@ -883,6 +906,7 @@ class timex extends Exchange {
             'baseId' => $baseId,
             'quoteId' => $quoteId,
             'type' => 'spot',
+            'spot' => true,
             'active' => $active,
             'precision' => $precision,
             'limits' => $limits,
@@ -896,13 +920,13 @@ class timex extends Exchange {
         //
         //     {
         //         "symbol" => "BTC",
-        //         "$name" => "Bitcoin",
+        //         "name" => "Bitcoin",
         //         "address" => "0x8370fbc6ddec1e18b4e41e72ed943e238458487c",
         //         "icon" => "data:image/svg+xml;base64,PHN2ZyB3aWR...mc+Cg==",
         //         "background" => "transparent",
         //         "fiatSymbol" => "BTC",
         //         "decimals" => 8,
-        //         "$tradeDecimals" => 20,
+        //         "tradeDecimals" => 20,
         //         "displayDecimals" => 4,
         //         "crypto" => true,
         //         "depositEnabled" => true,
@@ -911,7 +935,7 @@ class timex extends Exchange {
         //         "buyEnabled" => false,
         //         "purchaseEnabled" => false,
         //         "redeemEnabled" => false,
-        //         "$active" => true,
+        //         "active" => true,
         //         "withdrawalFee" => "50000000000000000",
         //         "purchaseCommissions" => array()
         //     }
@@ -920,14 +944,14 @@ class timex extends Exchange {
         //
         //     {
         //         "symbol":"XRP",
-        //         "$name":"Ripple",
+        //         "name":"Ripple",
         //         "address":"0x0dc8882914f3ddeebf4cec6dc20edb99df3def6c",
         //         "decimals":6,
-        //         "$tradeDecimals":16,
+        //         "tradeDecimals":16,
         //         "depositEnabled":true,
         //         "withdrawalEnabled":true,
         //         "transferEnabled":true,
-        //         "$active":true
+        //         "active":true
         //     }
         //
         $id = $this->safe_string($currency, 'symbol');
@@ -945,13 +969,13 @@ class timex extends Exchange {
             if ($dotIndex > 0) {
                 $whole = mb_substr($feeString, 0, $dotIndex - 0);
                 $fraction = mb_substr($feeString, -$dotIndex);
-                $fee = floatval($whole . '.' . $fraction);
+                $fee = $this->parse_number($whole . '.' . $fraction);
             } else {
                 $fraction = '.';
                 for ($i = 0; $i < -$dotIndex; $i++) {
                     $fraction .= '0';
                 }
-                $fee = floatval($fraction . $feeString);
+                $fee = $this->parse_number($fraction . $feeString);
             }
         }
         return array(
@@ -976,12 +1000,12 @@ class timex extends Exchange {
         //         "ask" => 0.017,
         //         "bid" => 0.016,
         //         "high" => 0.019,
-        //         "$last" => 0.017,
+        //         "last" => 0.017,
         //         "low" => 0.015,
-        //         "$market" => "TIME/ETH",
-        //         "$open" => 0.016,
+        //         "market" => "TIME/ETH",
+        //         "open" => 0.016,
         //         "period" => "H1",
-        //         "$timestamp" => "2018-12-14T20:50:36.134Z",
+        //         "timestamp" => "2018-12-14T20:50:36.134Z",
         //         "volume" => 4.57,
         //         "volumeQuote" => 0.07312
         //     }
@@ -991,17 +1015,7 @@ class timex extends Exchange {
         $timestamp = $this->parse8601($this->safe_string($ticker, 'timestamp'));
         $last = $this->safe_number($ticker, 'last');
         $open = $this->safe_number($ticker, 'open');
-        $change = null;
-        $average = null;
-        if ($last !== null && $open !== null) {
-            $change = $last - $open;
-            $average = $this->sum($last, $open) / 2;
-        }
-        $percentage = null;
-        if ($change !== null && $open) {
-            $percentage = ($change / $open) * 100;
-        }
-        return array(
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'info' => $ticker,
             'timestamp' => $timestamp,
@@ -1017,12 +1031,12 @@ class timex extends Exchange {
             'close' => $last,
             'last' => $last,
             'previousClose' => null,
-            'change' => $change,
-            'percentage' => $percentage,
-            'average' => $average,
+            'change' => null,
+            'percentage' => null,
+            'average' => null,
             'baseVolume' => $this->safe_number($ticker, 'volume'),
             'quoteVolume' => $this->safe_number($ticker, 'volumeQuote'),
-        );
+        ), $market);
     }
 
     public function parse_trade($trade, $market = null) {
@@ -1030,27 +1044,27 @@ class timex extends Exchange {
         // fetchTrades (public)
         //
         //     {
-        //         "$id":1,
-        //         "$timestamp":"2019-06-25T17:01:50.309",
+        //         "id":1,
+        //         "timestamp":"2019-06-25T17:01:50.309",
         //         "direction":"BUY",
-        //         "$price":"0.027",
+        //         "price":"0.027",
         //         "quantity":"0.001"
         //     }
         //
         // fetchMyTrades, fetchOrder (private)
         //
         //     {
-        //         "$id" => "7613414",
+        //         "id" => "7613414",
         //         "makerOrderId" => "0x8420af060722f560098f786a2894d4358079b6ea5d14b395969ed77bc87a623a",
         //         "takerOrderId" => "0x1235ef158a361815b54c9988b6241c85aedcbc1fe81caf8df8587d5ab0373d1a",
-        //         "$symbol" => "LTCUSDT",
-        //         "$side" => "BUY",
+        //         "symbol" => "LTCUSDT",
+        //         "side" => "BUY",
         //         "quantity" => "0.2",
-        //         "$fee" => "0.22685",
+        //         "fee" => "0.22685",
         //         "feeToken" => "USDT",
-        //         "$price" => "226.85",
+        //         "price" => "226.85",
         //         "makerOrTaker" => "TAKER",
-        //         "$timestamp" => "2021-04-09T15:39:45.608"
+        //         "timestamp" => "2021-04-09T15:39:45.608"
         //    }
         //
         $marketId = $this->safe_string($trade, 'symbol');
@@ -1122,19 +1136,19 @@ class timex extends Exchange {
         //
         //     {
         //         "cancelledQuantity" => "0.3",
-        //         "$clientOrderId" => "my-$order-1",
+        //         "clientOrderId" => "my-$order-1",
         //         "createdAt" => "1970-01-01T00:00:00",
         //         "cursorId" => 50,
         //         "expireTime" => "1970-01-01T00:00:00",
         //         "filledQuantity" => "0.3",
-        //         "$id" => "string",
-        //         "$price" => "0.017",
+        //         "id" => "string",
+        //         "price" => "0.017",
         //         "quantity" => "0.3",
-        //         "$side" => "BUY",
-        //         "$symbol" => "TIMEETH",
-        //         "$type" => "LIMIT",
+        //         "side" => "BUY",
+        //         "symbol" => "TIMEETH",
+        //         "type" => "LIMIT",
         //         "updatedAt" => "1970-01-01T00:00:00"
-        //         "$trades" => array(), // injected from the outside
+        //         "trades" => array(), // injected from the outside
         //     }
         //
         $id = $this->safe_string($order, 'id');
@@ -1143,25 +1157,19 @@ class timex extends Exchange {
         $marketId = $this->safe_string($order, 'symbol');
         $symbol = $this->safe_symbol($marketId, $market);
         $timestamp = $this->parse8601($this->safe_string($order, 'createdAt'));
-        $price = $this->safe_number($order, 'price');
-        $amount = $this->safe_number($order, 'quantity');
-        $filled = $this->safe_number($order, 'filledQuantity');
-        $canceledQuantity = $this->safe_number($order, 'cancelledQuantity');
+        $price = $this->safe_string($order, 'price');
+        $amount = $this->safe_string($order, 'quantity');
+        $filled = $this->safe_string($order, 'filledQuantity');
+        $canceledQuantity = $this->omit_zero($this->safe_string($order, 'cancelledQuantity'));
         $status = null;
-        if (($amount !== null) && ($filled !== null)) {
-            if ($filled >= $amount) {
-                $status = 'closed';
-            } else if (($canceledQuantity !== null) && ($canceledQuantity > 0)) {
-                $status = 'canceled';
-            } else {
-                $status = 'open';
-            }
+        if (Precise::string_equals($filled, $amount)) {
+            $status = 'closed';
+        } else if ($canceledQuantity !== null) {
+            $status = 'canceled';
+        } else {
+            $status = 'open';
         }
         $rawTrades = $this->safe_value($order, 'trades', array());
-        $trades = $this->parse_trades($rawTrades, $market, null, null, array(
-            'order' => $id,
-            'type' => $type,
-        ));
         $clientOrderId = $this->safe_string($order, 'clientOrderId');
         return $this->safe_order(array(
             'info' => $order,
@@ -1184,8 +1192,8 @@ class timex extends Exchange {
             'remaining' => null,
             'status' => $status,
             'fee' => null,
-            'trades' => $trades,
-        ));
+            'trades' => $rawTrades,
+        ), $market);
     }
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
@@ -1208,8 +1216,8 @@ class timex extends Exchange {
         }
         if ($statusCode >= 400) {
             //
-            //     array("$error":array("timestamp":"05.12.2019T05:25:43.584+0000","status":"BAD_REQUEST","$message":"Insufficient ETH balance. Required => 1, actual => 0.","$code":4001))
-            //     array("$error":array("timestamp":"05.12.2019T04:03:25.419+0000","status":"FORBIDDEN","$message":"Access denied","$code":4300))
+            //     array("error":array("timestamp":"05.12.2019T05:25:43.584+0000","status":"BAD_REQUEST","message":"Insufficient ETH balance. Required => 1, actual => 0.","code":4001))
+            //     array("error":array("timestamp":"05.12.2019T04:03:25.419+0000","status":"FORBIDDEN","message":"Access denied","code":4300))
             //
             $feedback = $this->id . ' ' . $responseBody;
             $error = $this->safe_value($response, 'error');

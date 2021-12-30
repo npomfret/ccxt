@@ -17,7 +17,7 @@ class independentreserve extends Exchange {
             'rateLimit' => 1000,
             'has' => array(
                 'cancelOrder' => true,
-                'CORS' => false,
+                'CORS' => null,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchClosedOrders' => true,
@@ -53,26 +53,31 @@ class independentreserve extends Exchange {
                         'GetTradeHistorySummary',
                         'GetRecentTrades',
                         'GetFxRates',
+                        'GetOrderMinimumVolumes',
+                        'GetCryptoWithdrawalFees',
                     ),
                 ),
                 'private' => array(
                     'post' => array(
-                        'PlaceLimitOrder',
-                        'PlaceMarketOrder',
-                        'CancelOrder',
                         'GetOpenOrders',
                         'GetClosedOrders',
                         'GetClosedFilledOrders',
                         'GetOrderDetails',
                         'GetAccounts',
                         'GetTransactions',
+                        'GetFiatBankAccounts',
                         'GetDigitalCurrencyDepositAddress',
                         'GetDigitalCurrencyDepositAddresses',
-                        'SynchDigitalCurrencyDepositAddressWithBlockchain',
-                        'WithdrawDigitalCurrency',
-                        'RequestFiatWithdrawal',
                         'GetTrades',
                         'GetBrokerageFees',
+                        'GetDigitalCurrencyWithdrawal',
+                        'PlaceLimitOrder',
+                        'PlaceMarketOrder',
+                        'CancelOrder',
+                        'SynchDigitalCurrencyDepositAddressWithBlockchain',
+                        'RequestFiatWithdrawal',
+                        'WithdrawFiatCurrency',
+                        'WithdrawDigitalCurrency',
                     ),
                 ),
             ),
@@ -93,10 +98,22 @@ class independentreserve extends Exchange {
     public function fetch_markets($params = array ()) {
         $baseCurrencies = $this->publicGetGetValidPrimaryCurrencyCodes ($params);
         $quoteCurrencies = $this->publicGetGetValidSecondaryCurrencyCodes ($params);
+        $limits = $this->publicGetGetOrderMinimumVolumes ($params);
+        //
+        //     {
+        //         "Xbt" => 0.0001,
+        //         "Bch" => 0.001,
+        //         "Bsv" => 0.001,
+        //         "Eth" => 0.001,
+        //         "Ltc" => 0.01,
+        //         "Xrp" => 1,
+        //     }
+        //
         $result = array();
         for ($i = 0; $i < count($baseCurrencies); $i++) {
             $baseId = $baseCurrencies[$i];
             $base = $this->safe_currency_code($baseId);
+            $minAmount = $this->safe_number($limits, $baseId);
             for ($j = 0; $j < count($quoteCurrencies); $j++) {
                 $quoteId = $quoteCurrencies[$j];
                 $quote = $this->safe_currency_code($quoteId);
@@ -110,21 +127,23 @@ class independentreserve extends Exchange {
                     'baseId' => $baseId,
                     'quoteId' => $quoteId,
                     'info' => $id,
+                    'type' => 'spot',
+                    'spot' => true,
                     'active' => null,
                     'precision' => $this->precision,
-                    'limits' => $this->limits,
+                    'limits' => array(
+                        'amount' => array( 'min' => $minAmount, 'max' => null ),
+                    ),
                 );
             }
         }
         return $result;
     }
 
-    public function fetch_balance($params = array ()) {
-        $this->load_markets();
-        $balances = $this->privatePostGetAccounts ($params);
-        $result = array( 'info' => $balances );
-        for ($i = 0; $i < count($balances); $i++) {
-            $balance = $balances[$i];
+    public function parse_balance($response) {
+        $result = array( 'info' => $response );
+        for ($i = 0; $i < count($response); $i++) {
+            $balance = $response[$i];
             $currencyId = $this->safe_string($balance, 'CurrencyCode');
             $code = $this->safe_currency_code($currencyId);
             $account = $this->account();
@@ -132,7 +151,13 @@ class independentreserve extends Exchange {
             $account['total'] = $this->safe_string($balance, 'TotalBalance');
             $result[$code] = $account;
         }
-        return $this->parse_balance($result, false);
+        return $this->safe_balance($result);
+    }
+
+    public function fetch_balance($params = array ()) {
+        $this->load_markets();
+        $response = $this->privatePostGetAccounts ($params);
+        return $this->parse_balance($response);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
@@ -251,12 +276,12 @@ class independentreserve extends Exchange {
             $orderType = 'limit';
         }
         $timestamp = $this->parse8601($this->safe_string($order, 'CreatedTimestampUtc'));
-        $amount = $this->safe_number_2($order, 'VolumeOrdered', 'Volume');
-        $filled = $this->safe_number($order, 'VolumeFilled');
-        $remaining = $this->safe_number($order, 'Outstanding');
+        $amount = $this->safe_string_2($order, 'VolumeOrdered', 'Volume');
+        $filled = $this->safe_string($order, 'VolumeFilled');
+        $remaining = $this->safe_string($order, 'Outstanding');
         $feeRate = $this->safe_number($order, 'FeePercent');
         $feeCost = null;
-        if ($feeRate !== null) {
+        if ($feeRate !== null && $filled !== null) {
             $feeCost = $feeRate * $filled;
         }
         $fee = array(
@@ -266,9 +291,9 @@ class independentreserve extends Exchange {
         );
         $id = $this->safe_string($order, 'OrderGuid');
         $status = $this->parse_order_status($this->safe_string($order, 'Status'));
-        $cost = $this->safe_number($order, 'Value');
-        $average = $this->safe_number($order, 'AvgPrice');
-        $price = $this->safe_number($order, 'Price');
+        $cost = $this->safe_string($order, 'Value');
+        $average = $this->safe_string($order, 'AvgPrice');
+        $price = $this->safe_string($order, 'Price');
         return $this->safe_order(array(
             'info' => $order,
             'id' => $id,
@@ -291,7 +316,7 @@ class independentreserve extends Exchange {
             'status' => $status,
             'fee' => $fee,
             'trades' => null,
-        ));
+        ), $market);
     }
 
     public function parse_order_status($status) {

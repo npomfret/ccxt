@@ -3,8 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { ExchangeError, InvalidOrder, InsufficientFunds, AuthenticationError, BadSymbol } = require ('./base/errors');
-const Precise = require ('./base/Precise');
+const { ExchangeError, InvalidOrder, InsufficientFunds, AuthenticationError, RateLimitExceeded, BadSymbol } = require ('./base/errors');
 
 //  ---------------------------------------------------------------------------
 
@@ -24,30 +23,30 @@ module.exports = class qtrade extends Exchange {
                 'referral': 'https://qtrade.io/?ref=BKOQWVFGRH2C',
             },
             'has': {
-                'CORS': false,
-                'fetchTrades': true,
+                'cancelOrder': true,
+                'CORS': undefined,
+                'createMarketOrder': undefined,
+                'createOrder': true,
+                'fetchBalance': true,
+                'fetchClosedOrders': true,
+                'fetchCurrencies': true,
+                'fetchDeposit': true,
+                'fetchDepositAddress': true,
+                'fetchDeposits': true,
+                'fetchMarkets': true,
+                'fetchMyTrades': true,
+                'fetchOHLCV': true,
+                'fetchOpenOrders': true,
+                'fetchOrder': true,
+                'fetchOrderBook': true,
+                'fetchOrders': true,
                 'fetchTicker': true,
                 'fetchTickers': true,
-                'fetchMarkets': true,
-                'fetchCurrencies': true,
-                'fetchBalance': true,
-                'fetchOrderBook': true,
-                'fetchOrder': true,
-                'fetchOrders': true,
-                'fetchMyTrades': true,
-                'fetchClosedOrders': true,
-                'fetchOpenOrders': true,
-                'fetchOHLCV': true,
-                'createOrder': true,
-                'cancelOrder': true,
-                'createMarketOrder': false,
-                'withdraw': true,
-                'fetchDepositAddress': true,
-                'fetchTransactions': false,
-                'fetchDeposits': true,
-                'fetchWithdrawals': true,
-                'fetchDeposit': true,
+                'fetchTrades': true,
+                'fetchTransactions': undefined,
                 'fetchWithdrawal': true,
+                'fetchWithdrawals': true,
+                'withdraw': true,
             },
             'timeframes': {
                 '5m': 'fivemin',
@@ -99,14 +98,18 @@ module.exports = class qtrade extends Exchange {
             },
             'fees': {
                 'trading': {
+                    'feeSide': 'quote',
                     'tierBased': true,
                     'percentage': true,
-                    'taker': 0.0025,
+                    'taker': 0.005,
                     'maker': 0.0,
                 },
                 'funding': {
                     'withdraw': {},
                 },
+            },
+            'commonCurrencies': {
+                'BTM': 'Bitmark',
             },
             'exceptions': {
                 'exact': {
@@ -114,6 +117,7 @@ module.exports = class qtrade extends Exchange {
                     'insuff_funds': InsufficientFunds,
                     'market_not_found': BadSymbol, // {"errors":[{"code":"market_not_found","title":"Requested market does not exist"}]}
                     'too_small': InvalidOrder,
+                    'limit_exceeded': RateLimitExceeded, // {"errors":[{"code":"limit_exceeded","title":"You have exceeded the windowed rate limit. Please see docs."}]}
                 },
             },
         });
@@ -180,6 +184,8 @@ module.exports = class qtrade extends Exchange {
                 'quoteId': quoteId,
                 'base': base,
                 'quote': quote,
+                'type': 'spot',
+                'spot': true,
                 'active': active,
                 'precision': precision,
                 'taker': this.safeNumber (market, 'taker_fee'),
@@ -403,20 +409,17 @@ module.exports = class qtrade extends Exchange {
         const day_change = this.safeNumber (ticker, 'day_change');
         let percentage = undefined;
         let change = undefined;
-        let average = this.safeNumber (ticker, 'day_avg_price');
+        const average = this.safeNumber (ticker, 'day_avg_price');
         if (day_change !== undefined) {
             percentage = day_change * 100;
             if (previous !== undefined) {
                 change = day_change * previous;
             }
         }
-        if ((average === undefined) && (last !== undefined) && (previous !== undefined)) {
-            average = this.sum (last, previous) / 2;
-        }
         const baseVolume = this.safeNumber (ticker, 'day_volume_market');
         const quoteVolume = this.safeNumber (ticker, 'day_volume_base');
         const vwap = this.vwap (baseVolume, quoteVolume);
-        return {
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -437,7 +440,7 @@ module.exports = class qtrade extends Exchange {
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchTickers (symbols = undefined, params = {}) {
@@ -631,17 +634,12 @@ module.exports = class qtrade extends Exchange {
         }
         const side = this.safeString (trade, 'side');
         const marketId = this.safeString (trade, 'market_string');
-        const symbol = this.safeSymbol (marketId, market, '_');
-        let cost = this.safeNumber2 (trade, 'base_volume', 'base_amount');
-        const priceString = this.safeString (trade, 'price');
-        const amountString = this.safeString2 (trade, 'market_amount', 'amount');
-        const price = this.parseNumber (priceString);
-        const amount = this.parseNumber (amountString);
-        if (cost === undefined) {
-            cost = this.parseNumber (Precise.stringMul (priceString, amountString));
-        }
+        market = this.safeMarket (marketId, market);
+        const cost = this.safeString2 (trade, 'base_volume', 'base_amount');
+        const price = this.safeString (trade, 'price');
+        const amount = this.safeString2 (trade, 'market_amount', 'amount');
         let fee = undefined;
-        const feeCost = this.safeNumber (trade, 'base_fee');
+        const feeCost = this.safeString (trade, 'base_fee');
         if (feeCost !== undefined) {
             const feeCurrencyCode = (market === undefined) ? undefined : market['quote'];
             fee = {
@@ -652,12 +650,12 @@ module.exports = class qtrade extends Exchange {
         const taker = this.safeValue (trade, 'taker', true);
         const takerOrMaker = taker ? 'taker' : 'maker';
         const orderId = this.safeString (trade, 'order_id');
-        const result = {
+        return this.safeTrade ({
             'id': id,
             'info': trade,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'symbol': symbol,
+            'symbol': market['symbol'],
             'order': orderId,
             'type': undefined,
             'side': side,
@@ -666,28 +664,10 @@ module.exports = class qtrade extends Exchange {
             'amount': amount,
             'cost': cost,
             'fee': fee,
-        };
-        return result;
+        }, market);
     }
 
-    async fetchBalance (params = {}) {
-        await this.loadMarkets ();
-        const response = await this.privateGetBalancesAll (params);
-        //
-        //     {
-        //         "data":{
-        //             "balances": [
-        //                 { "balance": "100000000", "currency": "BCH" },
-        //                 { "balance": "99992435.78253015", "currency": "LTC" },
-        //                 { "balance": "99927153.76074182", "currency": "BTC" },
-        //             ],
-        //             "order_balances":[],
-        //             "limit_used":0,
-        //             "limit_remaining":4000,
-        //             "limit":4000
-        //         }
-        //     }
-        //
+    parseBalance (response) {
         const data = this.safeValue (response, 'data', {});
         let balances = this.safeValue (data, 'balances', []);
         const result = {
@@ -713,7 +693,28 @@ module.exports = class qtrade extends Exchange {
             account['used'] = this.safeString (balance, 'balance');
             result[code] = account;
         }
-        return this.parseBalance (result, false);
+        return this.safeBalance (result);
+    }
+
+    async fetchBalance (params = {}) {
+        await this.loadMarkets ();
+        const response = await this.privateGetBalancesAll (params);
+        //
+        //     {
+        //         "data":{
+        //             "balances": [
+        //                 { "balance": "100000000", "currency": "BCH" },
+        //                 { "balance": "99992435.78253015", "currency": "LTC" },
+        //                 { "balance": "99927153.76074182", "currency": "BTC" },
+        //             ],
+        //             "order_balances":[],
+        //             "limit_used":0,
+        //             "limit_remaining":4000,
+        //             "limit":4000
+        //         }
+        //     }
+        //
+        return this.parseBalance (response);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -842,9 +843,9 @@ module.exports = class qtrade extends Exchange {
             side = this.safeString (parts, 0);
             orderType = this.safeString (parts, 1);
         }
-        const price = this.safeNumber (order, 'price');
-        const amount = this.safeNumber (order, 'market_amount');
-        const remaining = this.safeNumber (order, 'market_amount_remaining');
+        const price = this.safeString (order, 'price');
+        const amount = this.safeString (order, 'market_amount');
+        const remaining = this.safeString (order, 'market_amount_remaining');
         const open = this.safeValue (order, 'open', false);
         const closeReason = this.safeString (order, 'close_reason');
         let status = undefined;
@@ -859,11 +860,6 @@ module.exports = class qtrade extends Exchange {
         market = this.safeMarket (marketId, market, '_');
         const symbol = market['symbol'];
         const rawTrades = this.safeValue (order, 'trades', []);
-        const parsedTrades = this.parseTrades (rawTrades, market, undefined, undefined, {
-            'order': id,
-            'side': side,
-            'type': orderType,
-        });
         return this.safeOrder ({
             'info': order,
             'id': id,
@@ -886,8 +882,8 @@ module.exports = class qtrade extends Exchange {
             'fee': undefined,
             'fees': undefined,
             'cost': undefined,
-            'trades': parsedTrades,
-        });
+            'trades': rawTrades,
+        }, market);
     }
 
     async cancelOrder (id, symbol = undefined, params = {}) {
@@ -1024,6 +1020,7 @@ module.exports = class qtrade extends Exchange {
             'currency': code,
             'address': address,
             'tag': tag,
+            'network': undefined,
             'info': depositAddress,
         };
     }
@@ -1399,6 +1396,7 @@ module.exports = class qtrade extends Exchange {
     }
 
     async withdraw (code, amount, address, tag = undefined, params = {}) {
+        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
         await this.loadMarkets ();
         const currency = this.currency (code);
         const request = {
