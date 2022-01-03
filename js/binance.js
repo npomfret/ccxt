@@ -26,51 +26,88 @@ module.exports = class binance extends Exchange {
                 'addMargin': true,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
+                'cancelOrders': undefined,
                 'CORS': undefined,
+                'createDepositAddress': undefined,
                 'createOrder': true,
                 'createReduceOnlyOrder': true,
+                'deposit': undefined,
+                'fetchAccounts': undefined,
+                'fetchAllTradingFees': undefined,
                 'fetchBalance': true,
                 'fetchBidsAsks': true,
                 'fetchBorrowRate': true,
                 'fetchBorrowRateHistory': true,
                 'fetchBorrowRates': false,
+                'fetchBorrowRatesPerSymbol': false,
+                'fetchCanceledOrders': undefined,
+                'fetchClosedOrder': undefined,
                 'fetchClosedOrders': 'emulated',
                 'fetchCurrencies': true,
+                'fetchDeposit': undefined,
                 'fetchDepositAddress': true,
+                'fetchDepositAddresses': undefined,
+                'fetchDepositAddressesByNetwork': undefined,
                 'fetchDeposits': true,
+                'fetchFundingFee': undefined,
                 'fetchFundingFees': true,
                 'fetchFundingHistory': true,
                 'fetchFundingRate': true,
                 'fetchFundingRateHistory': true,
                 'fetchFundingRates': true,
                 'fetchIndexOHLCV': true,
+                'fetchIsolatedPositions': undefined,
+                'fetchL3OrderBook': undefined,
+                'fetchLedger': undefined,
+                'fetchLedgerEntry': undefined,
+                'fetchLeverage': undefined,
                 'fetchMarkets': true,
+                'fetchMarketsByType': undefined,
                 'fetchMarkOHLCV': true,
+                'fetchMyBuys': undefined,
+                'fetchMySells': undefined,
                 'fetchMyTrades': true,
+                'fetchNetworkDepositAddress': undefined,
                 'fetchOHLCV': true,
+                'fetchOpenOrder': undefined,
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
                 'fetchOrderBook': true,
+                'fetchOrderBooks': undefined,
                 'fetchOrders': true,
+                'fetchOrdersByState': undefined,
+                'fetchOrdersByStatus': undefined,
                 'fetchOrderTrades': true,
+                'fetchPartiallyFilledOrders': undefined,
+                'fetchPosition': undefined,
                 'fetchPositions': true,
                 'fetchPositionsRisk': true,
                 'fetchPremiumIndexOHLCV': false,
                 'fetchStatus': true,
                 'fetchTicker': true,
                 'fetchTickers': true,
+                'fetchTickersByType': undefined,
                 'fetchTime': true,
                 'fetchTrades': true,
                 'fetchTradingFee': true,
                 'fetchTradingFees': true,
+                'fetchTradingLimits': undefined,
                 'fetchTransactions': false,
                 'fetchTransfers': true,
+                'fetchWithdrawAddress': undefined,
+                'fetchWithdrawAddressesByNetwork': undefined,
+                'fetchWithdrawal': undefined,
                 'fetchWithdrawals': true,
+                'fetchWithdrawalWhitelist': undefined,
+                'loadLeverageBrackets': undefined,
+                'loadTimeDifference': undefined,
                 'reduceMargin': true,
                 'setLeverage': true,
                 'setMarginMode': true,
                 'setPositionMode': true,
+                'signIn': undefined,
                 'transfer': true,
+                'transferOut': false,
                 'withdraw': true,
             },
             'timeframes': {
@@ -133,9 +170,9 @@ module.exports = class binance extends Exchange {
                 // the API structure below will need 3-layer apidefs
                 'sapi': {
                     'get': {
-                        'accountSnapshot': 1,
                         'system/status': 1,
                         // these endpoints require this.apiKey
+                        'accountSnapshot': 1,
                         'margin/asset': 1,
                         'margin/pair': 1,
                         'margin/allAssets': 1,
@@ -169,6 +206,9 @@ module.exports = class binance extends Exchange {
                         'margin/orderList': 2,
                         'margin/allOrderList': 10,
                         'margin/openOrderList': 3,
+                        'margin/crossMarginData': { 'cost': 1, 'noCoin': 5 },
+                        'margin/isolatedMarginData': { 'cost': 1, 'noCoin': 10 },
+                        'margin/isolatedMarginTier': 1,
                         'loan/income': 1,
                         'fiat/orders': 1,
                         'fiat/payments': 1,
@@ -272,6 +312,12 @@ module.exports = class binance extends Exchange {
                         'account/apiRestrictions': 1,
                         // c2c / p2p
                         'c2c/orderMatch/listUserOrderHistory': 1,
+                        // nft endpoints
+                        'nft/history/transactions': 1,
+                        'nft/history/deposit': 1,
+                        'nft/history/withdraw': 1,
+                        'nft/user/getAsset': 1,
+                        'pay/transactions': 1,
                     },
                     'post': {
                         'asset/dust': 1,
@@ -4326,6 +4372,7 @@ module.exports = class binance extends Exchange {
         if (!rational) {
             initialMarginPercentageString = Precise.stringDiv (Precise.stringAdd (initialMarginPercentageString, '1e-8'), '1', 8);
         }
+        // as oppose to notionalValue
         const usdm = ('notional' in position);
         const maintenanceMarginString = this.safeString (position, 'maintMargin');
         const maintenanceMargin = this.parseNumber (maintenanceMarginString);
@@ -4541,9 +4588,11 @@ module.exports = class binance extends Exchange {
         }
         const entryPriceString = this.safeString (position, 'entryPrice');
         const entryPrice = this.parseNumber (entryPriceString);
+        // as oppose to notionalValue
+        const linear = ('notional' in position);
         if (marginType === 'cross') {
             // calculate collateral
-            if (market['linear']) {
+            if (linear) {
                 // walletBalance = (liquidationPrice * (±1 + mmp) ± entryPrice) * contracts
                 let onePlusMaintenanceMarginPercentageString = undefined;
                 let entryPriceSignString = entryPriceString;
@@ -4937,7 +4986,7 @@ module.exports = class binance extends Exchange {
             } else {
                 throw new AuthenticationError (this.id + ' userDataStream endpoint requires `apiKey` credential');
             }
-        } else if ((api === 'private') || (api === 'sapi') || (api === 'wapi' && path !== 'systemStatus') || (api === 'dapiPrivate') || (api === 'dapiPrivateV2') || (api === 'fapiPrivate') || (api === 'fapiPrivateV2')) {
+        } else if ((api === 'private') || (api === 'sapi' && path !== 'system/status') || (api === 'wapi' && path !== 'systemStatus') || (api === 'dapiPrivate') || (api === 'dapiPrivateV2') || (api === 'fapiPrivate') || (api === 'fapiPrivateV2')) {
             this.checkRequiredCredentials ();
             let query = undefined;
             const recvWindow = this.safeInteger (this.options, 'recvWindow', 5000);
@@ -5044,7 +5093,9 @@ module.exports = class binance extends Exchange {
     }
 
     calculateRateLimiterCost (api, method, path, params, config = {}, context = {}) {
-        if (('noSymbol' in config) && !('symbol' in params)) {
+        if (('noCoin' in config) && !('coin' in params)) {
+            return config['noCoin'];
+        } else if (('noSymbol' in config) && !('symbol' in params)) {
             return config['noSymbol'];
         } else if (('noPoolId' in config) && !('poolId' in params)) {
             return config['noPoolId'];

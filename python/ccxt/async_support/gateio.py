@@ -136,6 +136,22 @@ class gateio(Exchange):
                             '{settle}/insurance': 1.5,
                         },
                     },
+                    'options': {
+                        'get': {
+                            'underlyings': 1.5,
+                            'expirations': 1.5,
+                            'contracts': 1.5,
+                            'contracts/{contract}': 1.5,
+                            'settlements': 1.5,
+                            'settlements/{contract}': 1.5,
+                            'order_book': 1.5,
+                            'tickers': 1.5,
+                            'underlying/tickers/{underlying}': 1.5,
+                            'candlesticks': 1.5,
+                            'underlying/candlesticks': 1.5,
+                            'trades': 1.5,
+                        },
+                    },
                 },
                 'private': {
                     'withdrawals': {
@@ -278,6 +294,25 @@ class gateio(Exchange):
                             '{settle}/orders/{order_id}': 1.5,
                             '{settle}/price_orders': 1.5,
                             '{settle}/price_orders/{order_id}': 1.5,
+                        },
+                    },
+                    'options': {
+                        'get': {
+                            'accounts': 1.5,
+                            'account_book': 1.5,
+                            'positions': 1.5,
+                            'positions/{contract}': 1.5,
+                            'position_close': 1.5,
+                            'orders': 1.5,
+                            'orders/{order_id}': 1.5,
+                            'my_trades': 1.5,
+                        },
+                        'post': {
+                            'orders': 1.5,
+                        },
+                        'delete': {
+                            'orders': 1.5,
+                            'orders/{order_id}': 1.5,
                         },
                     },
                 },
@@ -703,7 +738,6 @@ class gateio(Exchange):
                         'future': future,
                         'option': option,
                         'active': True,
-                        'derivative': True,
                         'contract': True,
                         'linear': linear,
                         'inverse': inverse,
@@ -800,7 +834,6 @@ class gateio(Exchange):
                     'future': False,
                     'option': False,
                     'active': tradeStatus == 'tradable',
-                    'derivative': False,
                     'contract': False,
                     'linear': None,
                     'inverse': None,
@@ -2293,6 +2326,7 @@ class gateio(Exchange):
         #
         #
         id = self.safe_string(order, 'id')
+        clientOrderId = self.safe_string(order, 'text')
         marketId = self.safe_string_2(order, 'currency_pair', 'contract')
         symbol = self.safe_symbol(marketId, market)
         timestamp = self.safe_timestamp(order, 'create_time')
@@ -2354,7 +2388,7 @@ class gateio(Exchange):
             })
         return self.safe_order({
             'id': id,
-            'clientOrderId': id,
+            'clientOrderId': clientOrderId,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'lastTradeTimestamp': lastTradeTimestamp,

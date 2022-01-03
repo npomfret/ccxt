@@ -47,51 +47,88 @@ class binance(Exchange):
                 'addMargin': True,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
+                'cancelOrders': None,
                 'CORS': None,
+                'createDepositAddress': None,
                 'createOrder': True,
                 'createReduceOnlyOrder': True,
+                'deposit': None,
+                'fetchAccounts': None,
+                'fetchAllTradingFees': None,
                 'fetchBalance': True,
                 'fetchBidsAsks': True,
                 'fetchBorrowRate': True,
                 'fetchBorrowRateHistory': True,
                 'fetchBorrowRates': False,
+                'fetchBorrowRatesPerSymbol': False,
+                'fetchCanceledOrders': None,
+                'fetchClosedOrder': None,
                 'fetchClosedOrders': 'emulated',
                 'fetchCurrencies': True,
+                'fetchDeposit': None,
                 'fetchDepositAddress': True,
+                'fetchDepositAddresses': None,
+                'fetchDepositAddressesByNetwork': None,
                 'fetchDeposits': True,
+                'fetchFundingFee': None,
                 'fetchFundingFees': True,
                 'fetchFundingHistory': True,
                 'fetchFundingRate': True,
                 'fetchFundingRateHistory': True,
                 'fetchFundingRates': True,
                 'fetchIndexOHLCV': True,
+                'fetchIsolatedPositions': None,
+                'fetchL3OrderBook': None,
+                'fetchLedger': None,
+                'fetchLedgerEntry': None,
+                'fetchLeverage': None,
                 'fetchMarkets': True,
+                'fetchMarketsByType': None,
                 'fetchMarkOHLCV': True,
+                'fetchMyBuys': None,
+                'fetchMySells': None,
                 'fetchMyTrades': True,
+                'fetchNetworkDepositAddress': None,
                 'fetchOHLCV': True,
+                'fetchOpenOrder': None,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
+                'fetchOrderBooks': None,
                 'fetchOrders': True,
+                'fetchOrdersByState': None,
+                'fetchOrdersByStatus': None,
                 'fetchOrderTrades': True,
+                'fetchPartiallyFilledOrders': None,
+                'fetchPosition': None,
                 'fetchPositions': True,
                 'fetchPositionsRisk': True,
                 'fetchPremiumIndexOHLCV': False,
                 'fetchStatus': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
+                'fetchTickersByType': None,
                 'fetchTime': True,
                 'fetchTrades': True,
                 'fetchTradingFee': True,
                 'fetchTradingFees': True,
+                'fetchTradingLimits': None,
                 'fetchTransactions': False,
                 'fetchTransfers': True,
+                'fetchWithdrawAddress': None,
+                'fetchWithdrawAddressesByNetwork': None,
+                'fetchWithdrawal': None,
                 'fetchWithdrawals': True,
+                'fetchWithdrawalWhitelist': None,
+                'loadLeverageBrackets': None,
+                'loadTimeDifference': None,
                 'reduceMargin': True,
                 'setLeverage': True,
                 'setMarginMode': True,
                 'setPositionMode': True,
+                'signIn': None,
                 'transfer': True,
+                'transferOut': False,
                 'withdraw': True,
             },
             'timeframes': {
@@ -154,9 +191,9 @@ class binance(Exchange):
                 # the API structure below will need 3-layer apidefs
                 'sapi': {
                     'get': {
-                        'accountSnapshot': 1,
                         'system/status': 1,
                         # these endpoints require self.apiKey
+                        'accountSnapshot': 1,
                         'margin/asset': 1,
                         'margin/pair': 1,
                         'margin/allAssets': 1,
@@ -190,6 +227,9 @@ class binance(Exchange):
                         'margin/orderList': 2,
                         'margin/allOrderList': 10,
                         'margin/openOrderList': 3,
+                        'margin/crossMarginData': {'cost': 1, 'noCoin': 5},
+                        'margin/isolatedMarginData': {'cost': 1, 'noCoin': 10},
+                        'margin/isolatedMarginTier': 1,
                         'loan/income': 1,
                         'fiat/orders': 1,
                         'fiat/payments': 1,
@@ -293,6 +333,12 @@ class binance(Exchange):
                         'account/apiRestrictions': 1,
                         # c2c / p2p
                         'c2c/orderMatch/listUserOrderHistory': 1,
+                        # nft endpoints
+                        'nft/history/transactions': 1,
+                        'nft/history/deposit': 1,
+                        'nft/history/withdraw': 1,
+                        'nft/user/getAsset': 1,
+                        'pay/transactions': 1,
                     },
                     'post': {
                         'asset/dust': 1,
@@ -4121,6 +4167,7 @@ class binance(Exchange):
         rational = (1000 % leverage) == 0
         if not rational:
             initialMarginPercentageString = Precise.string_div(Precise.string_add(initialMarginPercentageString, '1e-8'), '1', 8)
+        # as oppose to notionalValue
         usdm = ('notional' in position)
         maintenanceMarginString = self.safe_string(position, 'maintMargin')
         maintenanceMargin = self.parse_number(maintenanceMarginString)
@@ -4322,9 +4369,11 @@ class binance(Exchange):
             side = 'short'
         entryPriceString = self.safe_string(position, 'entryPrice')
         entryPrice = self.parse_number(entryPriceString)
+        # as oppose to notionalValue
+        linear = ('notional' in position)
         if marginType == 'cross':
             # calculate collateral
-            if market['linear']:
+            if linear:
                 # walletBalance = (liquidationPrice * (±1 + mmp) ± entryPrice) * contracts
                 onePlusMaintenanceMarginPercentageString = None
                 entryPriceSignString = entryPriceString
@@ -4672,7 +4721,7 @@ class binance(Exchange):
                     body = self.urlencode(params)
             else:
                 raise AuthenticationError(self.id + ' userDataStream endpoint requires `apiKey` credential')
-        elif (api == 'private') or (api == 'sapi') or (api == 'wapi' and path != 'systemStatus') or (api == 'dapiPrivate') or (api == 'dapiPrivateV2') or (api == 'fapiPrivate') or (api == 'fapiPrivateV2'):
+        elif (api == 'private') or (api == 'sapi' and path != 'system/status') or (api == 'wapi' and path != 'systemStatus') or (api == 'dapiPrivate') or (api == 'dapiPrivateV2') or (api == 'fapiPrivate') or (api == 'fapiPrivateV2'):
             self.check_required_credentials()
             query = None
             recvWindow = self.safe_integer(self.options, 'recvWindow', 5000)
@@ -4758,7 +4807,9 @@ class binance(Exchange):
             raise ExchangeError(self.id + ' ' + body)
 
     def calculate_rate_limiter_cost(self, api, method, path, params, config={}, context={}):
-        if ('noSymbol' in config) and not ('symbol' in params):
+        if ('noCoin' in config) and not ('coin' in params):
+            return config['noCoin']
+        elif ('noSymbol' in config) and not ('symbol' in params):
             return config['noSymbol']
         elif ('noPoolId' in config) and not ('poolId' in params):
             return config['noPoolId']

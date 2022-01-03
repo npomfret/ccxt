@@ -32,51 +32,88 @@ class binance extends Exchange {
                 'addMargin' => true,
                 'cancelAllOrders' => true,
                 'cancelOrder' => true,
+                'cancelOrders' => null,
                 'CORS' => null,
+                'createDepositAddress' => null,
                 'createOrder' => true,
                 'createReduceOnlyOrder' => true,
+                'deposit' => null,
+                'fetchAccounts' => null,
+                'fetchAllTradingFees' => null,
                 'fetchBalance' => true,
                 'fetchBidsAsks' => true,
                 'fetchBorrowRate' => true,
                 'fetchBorrowRateHistory' => true,
                 'fetchBorrowRates' => false,
+                'fetchBorrowRatesPerSymbol' => false,
+                'fetchCanceledOrders' => null,
+                'fetchClosedOrder' => null,
                 'fetchClosedOrders' => 'emulated',
                 'fetchCurrencies' => true,
+                'fetchDeposit' => null,
                 'fetchDepositAddress' => true,
+                'fetchDepositAddresses' => null,
+                'fetchDepositAddressesByNetwork' => null,
                 'fetchDeposits' => true,
+                'fetchFundingFee' => null,
                 'fetchFundingFees' => true,
                 'fetchFundingHistory' => true,
                 'fetchFundingRate' => true,
                 'fetchFundingRateHistory' => true,
                 'fetchFundingRates' => true,
                 'fetchIndexOHLCV' => true,
+                'fetchIsolatedPositions' => null,
+                'fetchL3OrderBook' => null,
+                'fetchLedger' => null,
+                'fetchLedgerEntry' => null,
+                'fetchLeverage' => null,
                 'fetchMarkets' => true,
+                'fetchMarketsByType' => null,
                 'fetchMarkOHLCV' => true,
+                'fetchMyBuys' => null,
+                'fetchMySells' => null,
                 'fetchMyTrades' => true,
+                'fetchNetworkDepositAddress' => null,
                 'fetchOHLCV' => true,
+                'fetchOpenOrder' => null,
                 'fetchOpenOrders' => true,
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
+                'fetchOrderBooks' => null,
                 'fetchOrders' => true,
+                'fetchOrdersByState' => null,
+                'fetchOrdersByStatus' => null,
                 'fetchOrderTrades' => true,
+                'fetchPartiallyFilledOrders' => null,
+                'fetchPosition' => null,
                 'fetchPositions' => true,
                 'fetchPositionsRisk' => true,
                 'fetchPremiumIndexOHLCV' => false,
                 'fetchStatus' => true,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
+                'fetchTickersByType' => null,
                 'fetchTime' => true,
                 'fetchTrades' => true,
                 'fetchTradingFee' => true,
                 'fetchTradingFees' => true,
+                'fetchTradingLimits' => null,
                 'fetchTransactions' => false,
                 'fetchTransfers' => true,
+                'fetchWithdrawAddress' => null,
+                'fetchWithdrawAddressesByNetwork' => null,
+                'fetchWithdrawal' => null,
                 'fetchWithdrawals' => true,
+                'fetchWithdrawalWhitelist' => null,
+                'loadLeverageBrackets' => null,
+                'loadTimeDifference' => null,
                 'reduceMargin' => true,
                 'setLeverage' => true,
                 'setMarginMode' => true,
                 'setPositionMode' => true,
+                'signIn' => null,
                 'transfer' => true,
+                'transferOut' => false,
                 'withdraw' => true,
             ),
             'timeframes' => array(
@@ -139,9 +176,9 @@ class binance extends Exchange {
                 // the API structure below will need 3-layer apidefs
                 'sapi' => array(
                     'get' => array(
-                        'accountSnapshot' => 1,
                         'system/status' => 1,
                         // these endpoints require $this->apiKey
+                        'accountSnapshot' => 1,
                         'margin/asset' => 1,
                         'margin/pair' => 1,
                         'margin/allAssets' => 1,
@@ -175,6 +212,9 @@ class binance extends Exchange {
                         'margin/orderList' => 2,
                         'margin/allOrderList' => 10,
                         'margin/openOrderList' => 3,
+                        'margin/crossMarginData' => array( 'cost' => 1, 'noCoin' => 5 ),
+                        'margin/isolatedMarginData' => array( 'cost' => 1, 'noCoin' => 10 ),
+                        'margin/isolatedMarginTier' => 1,
                         'loan/income' => 1,
                         'fiat/orders' => 1,
                         'fiat/payments' => 1,
@@ -278,6 +318,12 @@ class binance extends Exchange {
                         'account/apiRestrictions' => 1,
                         // c2c / p2p
                         'c2c/orderMatch/listUserOrderHistory' => 1,
+                        // nft endpoints
+                        'nft/history/transactions' => 1,
+                        'nft/history/deposit' => 1,
+                        'nft/history/withdraw' => 1,
+                        'nft/user/getAsset' => 1,
+                        'pay/transactions' => 1,
                     ),
                     'post' => array(
                         'asset/dust' => 1,
@@ -4332,6 +4378,7 @@ class binance extends Exchange {
         if (!$rational) {
             $initialMarginPercentageString = Precise::string_div(Precise::string_add($initialMarginPercentageString, '1e-8'), '1', 8);
         }
+        // as oppose to notionalValue
         $usdm = (is_array($position) && array_key_exists('notional', $position));
         $maintenanceMarginString = $this->safe_string($position, 'maintMargin');
         $maintenanceMargin = $this->parse_number($maintenanceMarginString);
@@ -4547,9 +4594,11 @@ class binance extends Exchange {
         }
         $entryPriceString = $this->safe_string($position, 'entryPrice');
         $entryPrice = $this->parse_number($entryPriceString);
+        // as oppose to notionalValue
+        $linear = (is_array($position) && array_key_exists('notional', $position));
         if ($marginType === 'cross') {
             // calculate $collateral
-            if ($market['linear']) {
+            if ($linear) {
                 // walletBalance = ($liquidationPrice * (±1 . mmp) ± $entryPrice) * $contracts
                 $onePlusMaintenanceMarginPercentageString = null;
                 $entryPriceSignString = $entryPriceString;
@@ -4943,7 +4992,7 @@ class binance extends Exchange {
             } else {
                 throw new AuthenticationError($this->id . ' $userDataStream endpoint requires `apiKey` credential');
             }
-        } else if (($api === 'private') || ($api === 'sapi') || ($api === 'wapi' && $path !== 'systemStatus') || ($api === 'dapiPrivate') || ($api === 'dapiPrivateV2') || ($api === 'fapiPrivate') || ($api === 'fapiPrivateV2')) {
+        } else if (($api === 'private') || ($api === 'sapi' && $path !== 'system/status') || ($api === 'wapi' && $path !== 'systemStatus') || ($api === 'dapiPrivate') || ($api === 'dapiPrivateV2') || ($api === 'fapiPrivate') || ($api === 'fapiPrivateV2')) {
             $this->check_required_credentials();
             $query = null;
             $recvWindow = $this->safe_integer($this->options, 'recvWindow', 5000);
@@ -5050,7 +5099,9 @@ class binance extends Exchange {
     }
 
     public function calculate_rate_limiter_cost($api, $method, $path, $params, $config = array (), $context = array ()) {
-        if ((is_array($config) && array_key_exists('noSymbol', $config)) && !(is_array($params) && array_key_exists('symbol', $params))) {
+        if ((is_array($config) && array_key_exists('noCoin', $config)) && !(is_array($params) && array_key_exists('coin', $params))) {
+            return $config['noCoin'];
+        } else if ((is_array($config) && array_key_exists('noSymbol', $config)) && !(is_array($params) && array_key_exists('symbol', $params))) {
             return $config['noSymbol'];
         } else if ((is_array($config) && array_key_exists('noPoolId', $config)) && !(is_array($params) && array_key_exists('poolId', $params))) {
             return $config['noPoolId'];

@@ -532,7 +532,9 @@ module.exports = class Exchange {
                     const path = value[k].trim ()
                     this.defineRestApiEndpoint (methodName, uppercaseMethod, lowercaseMethod, camelcaseMethod, path, paths)
                 }
-            } else if (key.match (/^(?:get|post|put|delete|options|head|patch)$/i)) {
+            // the options HTTP method conflicts with the 'options' API url path
+            // } else if (key.match (/^(?:get|post|put|delete|options|head|patch)$/i)) {
+            } else if (key.match (/^(?:get|post|put|delete|head|patch)$/i)) {
                 const endpoints = Object.keys (value);
                 for (let j = 0; j < endpoints.length; j++) {
                     const endpoint = endpoints[j]
@@ -1382,6 +1384,7 @@ module.exports = class Exchange {
             if (this.markets_by_id !== undefined && marketId in this.markets_by_id) {
                 market = this.markets_by_id[marketId]
             } else if (delimiter !== undefined) {
+                // * Will not work for swap and futures markets
                 const [ baseId, quoteId ] = marketId.split (delimiter)
                 const base = this.safeCurrencyCode (baseId)
                 const quote = this.safeCurrencyCode (quoteId)

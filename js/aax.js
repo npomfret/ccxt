@@ -22,26 +22,96 @@ module.exports = class aax extends Exchange {
             'certified': true,
             'pro': true,
             'has': {
+                'margin': false,
+                'swap': true,
+                'future': false,
+                'addMargin': undefined,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
+                'cancelOrders': undefined,
+                'CORS': undefined,
+                'createDepositAddress': undefined,
                 'createOrder': true,
+                'createReduceOnlyOrder': undefined,
+                'deposit': undefined,
                 'editOrder': true,
+                'fetchAccounts': undefined,
+                'fetchAllTradingFees': undefined,
                 'fetchBalance': true,
+                'fetchBidsAsks': undefined,
+                'fetchBorrowRate': false,
+                'fetchBorrowRateHistory': false,
+                'fetchBorrowRates': false,
+                'fetchBorrowRatesPerSymbol': false,
                 'fetchCanceledOrders': true,
+                'fetchClosedOrder': undefined,
                 'fetchClosedOrders': true,
                 'fetchCurrencies': true,
+                'fetchDeposit': undefined,
                 'fetchDepositAddress': true,
+                'fetchDepositAddresses': undefined,
+                'fetchDepositAddressesByNetwork': undefined,
+                'fetchDeposits': undefined,
+                'fetchFundingFee': undefined,
+                'fetchFundingFees': undefined,
+                'fetchFundingHistory': true,
+                'fetchFundingRate': true,
+                'fetchFundingRateHistory': true,
+                'fetchFundingRates': undefined,
+                'fetchIndexOHLCV': false,
+                'fetchIsolatedPositions': undefined,
+                'fetchL3OrderBook': undefined,
+                'fetchLedger': undefined,
+                'fetchLedgerEntry': undefined,
+                'fetchLeverage': undefined,
                 'fetchMarkets': true,
+                'fetchMarketsByType': undefined,
+                'fetchMarkOHLCV': false,
+                'fetchMyBuys': undefined,
+                'fetchMySells': undefined,
                 'fetchMyTrades': true,
+                'fetchNetworkDepositAddress': undefined,
                 'fetchOHLCV': true,
+                'fetchOpenOrder': undefined,
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
                 'fetchOrderBook': true,
+                'fetchOrderBooks': undefined,
                 'fetchOrders': true,
+                'fetchOrdersByState': undefined,
+                'fetchOrdersByStatus': undefined,
+                'fetchOrderTrades': undefined,
+                'fetchPartiallyFilledOrders': undefined,
+                'fetchPosition': undefined,
+                'fetchPositions': undefined,
+                'fetchPositionsRisk': undefined,
+                'fetchPremiumIndexOHLCV': false,
                 'fetchStatus': true,
                 'fetchTicker': 'emulated',
                 'fetchTickers': true,
+                'fetchTickersByType': undefined,
+                'fetchTime': true,
                 'fetchTrades': true,
+                'fetchTradingFee': undefined,
+                'fetchTradingFees': undefined,
+                'fetchTradingLimits': undefined,
+                'fetchTransactions': undefined,
+                'fetchTransfers': undefined,
+                'fetchWithdrawAddress': undefined,
+                'fetchWithdrawAddressesByNetwork': undefined,
+                'fetchWithdrawal': undefined,
+                'fetchWithdrawals': undefined,
+                'fetchWithdrawalWhitelist': undefined,
+                'loadLeverageBrackets': undefined,
+                'loadTimeDifference': undefined,
+                'reduceMargin': undefined,
+                'setLeverage': undefined,
+                'setMarginMode': undefined,
+                'setPositionMode': undefined,
+                'signIn': undefined,
+                'transfer': undefined,
+                'transferOut': false,
+                'withdraw': undefined,
             },
             'timeframes': {
                 '1m': '1m',
@@ -92,6 +162,7 @@ module.exports = class aax extends Exchange {
                     'get': [
                         'currencies',
                         'announcement/maintenance', // System Maintenance Notice
+                        'time',
                         'instruments', // Retrieve all trading pairs information
                         'market/orderbook', // Order Book
                         'futures/position/openInterest', // Open Interest
@@ -102,6 +173,7 @@ module.exports = class aax extends Exchange {
                         'market/markPrice', // Get Current Mark Price
                         'futures/funding/predictedFunding/{symbol}', // Get Predicted Funding Rate
                         'futures/funding/prevFundingRate/{symbol}', // Get Last Funding Rate
+                        'futures/funding/fundingRate',
                         'market/candles/index', // * Deprecated
                         'market/index/candles',
                     ],
@@ -119,6 +191,7 @@ module.exports = class aax extends Exchange {
                         'futures/trades', // Retrieve trade details for a futures order
                         'futures/openOrders', // Retrieve futures open orders
                         'futures/orders', // Retrieve historical futures orders
+                        'futures/funding/fundingFee',
                         'futures/funding/predictedFundingFee/{symbol}', // Get predicted funding fee
                     ],
                     'post': [
@@ -256,6 +329,19 @@ module.exports = class aax extends Exchange {
         });
     }
 
+    async fetchTime (params = {}) {
+        const response = await this.publicGetTime (params);
+        //
+        //    {
+        //        "code": 1,
+        //        "data": 1573542445411,  // unit: millisecond
+        //        "message": "success",
+        //        "ts": 1573542445411
+        //    }
+        //
+        return this.safeInteger (response, 'data');
+    }
+
     async fetchStatus (params = {}) {
         const response = await this.publicGetAnnouncementMaintenance (params);
         //
@@ -391,7 +477,7 @@ module.exports = class aax extends Exchange {
             if (swap) {
                 symbol = symbol + ':' + settle;
                 type = 'swap';
-                contractSize = this.safeNumber (market, 'multiplier');
+                contractSize = this.safeString (market, 'multiplier');
             }
             result.push ({
                 'id': id,
@@ -408,7 +494,6 @@ module.exports = class aax extends Exchange {
                 'swap': swap,
                 'future': false,
                 'option': false,
-                'derivative': swap,
                 'contract': swap,
                 'linear': linear,
                 'inverse': inverse,
@@ -1818,6 +1903,68 @@ module.exports = class aax extends Exchange {
         return this.parseDepositAddress (data, currency);
     }
 
+    async fetchFundingRate (symbol, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        if (!market['swap']) {
+            throw new BadRequest ('Funding rates only exist for swap contracts');
+        }
+        const request = {
+            'symbol': market['id'],
+        };
+        const response = await this.publicGetFuturesFundingPrevFundingRateSymbol (this.extend (request, params));
+        //
+        //    {
+        //        "code": 1,
+        //        "data": {
+        //           "symbol": "BTCUSDFP",
+        //           "markPrice": "11192.5",
+        //           "fundingRate": "0.001",
+        //           "fundingTime": "2020-08-12T08:00:00Z",
+        //           "nextFundingTime": "2020-08-12T16:00:00Z"
+        //        },
+        //        "message": "success",
+        //        "ts": 1573542445411
+        //    }
+        //
+        const data = this.safeValue (response, 'data');
+        return this.parseFundingRate (data);
+    }
+
+    parseFundingRate (contract, market = undefined) {
+        //
+        //    {
+        //        "symbol": "BTCUSDFP",
+        //        "markPrice": "11192.5",
+        //        "fundingRate": "0.001",
+        //        "fundingTime": "2020-08-12T08:00:00Z",
+        //        "nextFundingTime": "2020-08-12T16:00:00Z"
+        //    }
+        //
+        const marketId = this.safeString (contract, 'symbol');
+        const symbol = this.safeSymbol (marketId, market);
+        const markPrice = this.safeNumber (contract, 'markPrice');
+        const fundingRate = this.safeNumber (contract, 'fundingRate');
+        const prevFundingDatetime = this.safeString (contract, 'fundingTime');
+        const nextFundingDatetime = this.safeString (contract, 'nextFundingTime');
+        return {
+            'info': contract,
+            'symbol': symbol,
+            'markPrice': markPrice,
+            'indexPrice': undefined,
+            'interestRate': undefined,
+            'estimatedSettlePrice': undefined,
+            'timestamp': undefined,
+            'datetime': undefined,
+            'previousFundingRate': fundingRate,
+            'nextFundingRate': undefined,
+            'previousFundingTimestamp': this.parse8601 (prevFundingDatetime),
+            'nextFundingTimestamp': this.parse8601 (nextFundingDatetime),
+            'previousFundingDatetime': prevFundingDatetime,
+            'nextFundingDatetime': nextFundingDatetime,
+        };
+    }
+
     parseDepositAddress (depositAddress, currency = undefined) {
         //
         //     {
@@ -1842,6 +1989,115 @@ module.exports = class aax extends Exchange {
             'tag': tag,
             'network': network,
         };
+    }
+
+    async fetchFundingRateHistory (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' fetchFundingRateHistory() requires a symbol argument');
+        }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'symbol': market['id'],
+        };
+        if (since !== undefined) {
+            request['startTime'] = parseInt (since / 1000);
+        }
+        const till = this.safeInteger (params, 'till'); // unified in milliseconds
+        const endTime = this.safeString (params, 'endTime'); // exchange-specific in seconds
+        params = this.omit (params, [ 'endTime', 'till' ]);
+        if (till !== undefined) {
+            request['endTime'] = parseInt (till / 1000);
+        } else if (endTime !== undefined) {
+            request['endTime'] = endTime;
+        }
+        if (limit !== undefined) {
+            request['limit'] = limit;
+        }
+        const response = await this.publicGetFuturesFundingFundingRate (this.extend (request, params));
+        //
+        //    {
+        //        "code": 1,
+        //        "data": [
+        //            {
+        //                "fundingRate": "0.00033992",
+        //                "fundingTime": "2021-12-31T00:00:00.000Z",
+        //                "symbol": "ETHUSDTFP"
+        //            },
+        //        ]
+        //    }
+        //
+        const data = this.safeValue (response, 'data');
+        const rates = [];
+        for (let i = 0; i < data.length; i++) {
+            const entry = data[i];
+            const marketId = this.safeString (entry, 'symbol');
+            const symbol = this.safeSymbol (marketId);
+            const datetime = this.safeString (entry, 'fundingTime');
+            rates.push ({
+                'info': entry,
+                'symbol': symbol,
+                'fundingRate': this.safeNumber (entry, 'fundingRate'),
+                'timestamp': this.parse8601 (datetime),
+                'datetime': datetime,
+            });
+        }
+        const sorted = this.sortBy (rates, 'timestamp');
+        return this.filterBySymbolSinceLimit (sorted, symbol, since, limit);
+    }
+
+    async fetchFundingHistory (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' fetchFundingHistory() requires a symbol argument');
+        }
+        if (limit === undefined) {
+            limit = 100; // Default
+        } else if (limit > 1000) {
+            throw new BadRequest (this.id + ' fetchFundingHistory() limit argument cannot exceed 1000');
+        }
+        const market = this.market (symbol);
+        const request = {
+            'symbol': market['id'],
+            'limit': limit,
+        };
+        if (since !== undefined) {
+            request['startTime'] = since;
+        }
+        const response = await this.privateGetFuturesFundingFundingFee (this.extend (request, params));
+        //
+        //    {
+        //        "code": 1,
+        //        "data": [
+        //            {
+        //                "symbol": "BTCUSDTFP",
+        //                "fundingRate":"0.001",
+        //                "fundingFee":"100",
+        //                "currency":"USDT",
+        //                "fundingTime": "2020-08-12T08:00:00Z",
+        //                "markPrice": "11192.5",
+        //            }
+        //        ],
+        //        "message": "success",
+        //        "ts": 1573542445411
+        //    }
+        //
+        const data = this.safeValue (response, 'data', []);
+        const result = [];
+        for (let i = 0; i < data.length; i++) {
+            const entry = data[i];
+            const datetime = this.safeString (entry, 'fundingTime');
+            result.push ({
+                'info': entry,
+                'symbol': symbol,
+                'code': this.safeCurrencyCode (this.safeString (entry, 'currency')),
+                'timestamp': this.parse8601 (datetime),
+                'datetime': datetime,
+                'id': undefined,
+                'amount': this.safeNumber (entry, 'fundingFee'),
+            });
+        }
+        return result;
     }
 
     nonce () {
