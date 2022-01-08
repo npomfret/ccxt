@@ -44,7 +44,7 @@ const Exchange  = require ('./js/base/Exchange')
 //-----------------------------------------------------------------------------
 // this is updated by vss.js when building
 
-const version = '1.66.23'
+const version = '1.66.52'
 
 Exchange.ccxtVersion = version
 
@@ -228,7 +228,7 @@ module.exports = class aax extends Exchange {
                 'fetchDepositAddress': true,
                 'fetchDepositAddresses': undefined,
                 'fetchDepositAddressesByNetwork': undefined,
-                'fetchDeposits': undefined,
+                'fetchDeposits': true,
                 'fetchFundingFee': undefined,
                 'fetchFundingFees': undefined,
                 'fetchFundingHistory': true,
@@ -280,7 +280,6 @@ module.exports = class aax extends Exchange {
                 'fetchWithdrawals': undefined,
                 'fetchWithdrawalWhitelist': undefined,
                 'loadLeverageBrackets': undefined,
-                'loadTimeDifference': undefined,
                 'reduceMargin': undefined,
                 'setLeverage': undefined,
                 'setMarginMode': undefined,
@@ -360,6 +359,7 @@ module.exports = class aax extends Exchange {
                         'user/info', // Retrieve user information
                         'account/balances', // Get Account Balances
                         'account/deposit/address', // undocumented
+                        'account/deposits', // Get account deposits history
                         'spot/trades', // Retrieve trades details for a spot order
                         'spot/openOrders', // Retrieve spot open orders
                         'spot/orders', // Retrieve historical spot orders
@@ -654,7 +654,7 @@ module.exports = class aax extends Exchange {
             if (swap) {
                 symbol = symbol + ':' + settle;
                 type = 'swap';
-                contractSize = this.safeString (market, 'multiplier');
+                contractSize = this.safeNumber (market, 'multiplier');
             }
             result.push ({
                 'id': id,
@@ -2080,6 +2080,98 @@ module.exports = class aax extends Exchange {
         return this.parseDepositAddress (data, currency);
     }
 
+    async fetchDeposits (code = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets ();
+        const request = {
+            // status Not required -  Deposit status, "1: pending,2: confirmed, 3:failed"
+            // currency: Not required -  String Currency
+            // startTime Not required Integer Default: 90 days from current timestamp.
+            // endTime Not required Integer Default: present timestamp.
+        };
+        let currency = undefined;
+        if (code !== undefined) {
+            currency = this.currency (code);
+            request['currency'] = currency['id'];
+        }
+        if (since !== undefined) {
+            const startTime = parseInt (since / 1000);
+            request['startTime'] = startTime;
+            request['endTime'] = this.sum (startTime, 90 * 24 * 60 * 60); // Only allows a 90 day window between start and end
+        }
+        const response = await this.privateGetAccountDeposits (this.extend (request, params));
+        // {    "code": 1,
+        //     "data": [{
+        //         "currency": "USDT",
+        //         "network": "USDT",
+        //         "quantity": "19.000000000000",
+        //         "txHash": "75eb2e5f037b025c535664c49a0f7cc8f601dae218a5f4fe82290ff652c43f3d",
+        //         "address": "1GkB7Taf7uttcguKEb2DmmyRTnihskJ9Le",
+        //         "status": "2",
+        //         "createdTime": "2021-01-08T19:45:01.354Z",
+        //         "updatedTime": "2021-01-08T20:03:05.000Z",
+        //     }]
+        //     "message": "success",
+        //     "ts": 1573561743499
+        // }
+        const deposits = this.safeValue (response, 'data', []);
+        return this.parseTransactions (deposits, code, since, limit);
+    }
+
+    parseTransactionStatus (status) {
+        const statuses = {
+            '1': 'pending',
+            '2': 'ok',
+            '3': 'failed',
+        };
+        return this.safeString (statuses, status, status);
+    }
+
+    parseTransaction (transaction, currency = undefined) {
+        //
+        // fetchDeposits
+        //
+        //    {
+        //         "currency": "USDT",
+        //         "network": "USDT",
+        //         "quantity": "19.000000000000",
+        //         "txHash": "75eb2e5f037b025c535664c49a0f7cc8f601dae218a5f4fe82290ff652c43f3d",
+        //         "address": "1GkB7Taf7uttcguKEb2DmmyRTnihskJ9Le",
+        //         "status": "2",
+        //         "createdTime": "2021-01-08T19:45:01.354Z",
+        //         "updatedTime": "2021-01-08T20:03:05.000Z",
+        //     }
+        //
+        const code = this.safeCurrencyCode (this.safeString (transaction, 'currency'));
+        const txid = this.safeString (transaction, 'txHash');
+        const address = this.safeString (transaction, 'address');
+        const type = 'deposit';
+        const amountString = this.safeString (transaction, 'quantity');
+        const timestamp = this.parse8601 (this.safeString (transaction, 'createdTime'));
+        const updated = this.parse8601 (this.safeString (transaction, 'updatedTime'));
+        const status = this.parseTransactionStatus (this.safeString (transaction, 'status'));
+        const tag = this.safeString (transaction, 'addressTag'); // withdrawals only
+        return {
+            'id': undefined,
+            'info': transaction,
+            'txid': txid,
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+            'addressFrom': address,
+            'address': address,
+            'addressTo': undefined,
+            'amount': this.parseNumber (amountString),
+            'type': type,
+            'currency': code,
+            'status': status,
+            'updated': updated,
+            'tagFrom': tag,
+            'tag': tag,
+            'tagTo': undefined,
+            'comment': undefined,
+            'fee': undefined,
+        };
+    }
+
     async fetchFundingRate (symbol, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
@@ -2357,6 +2449,11 @@ module.exports = class ascendex extends Exchange {
             'certified': true,
             // new metainfo interface
             'has': {
+                'spot': true,
+                'margin': undefined,
+                'swap': true,
+                'future': false,
+                'option': false,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
                 'CORS': undefined,
@@ -2836,7 +2933,7 @@ module.exports = class ascendex extends Exchange {
             const type = swap ? 'swap' : 'spot';
             const margin = this.safeValue (market, 'marginTradable', false);
             const linear = swap ? true : undefined;
-            const contractSize = swap ? '1' : undefined;
+            const contractSize = swap ? this.parseNumber ('1') : undefined;
             let minQty = this.safeNumber (market, 'minQty');
             let maxQty = this.safeNumber (market, 'maxQty');
             let minPrice = this.safeNumber (market, 'tickSize');
@@ -4170,8 +4267,21 @@ module.exports = class ascendex extends Exchange {
     }
 
     safeNetwork (networkId) {
-        // TODO: parse network
-        return networkId;
+        const networksById = {
+            'TRC20': 'TRC20',
+            'ERC20': 'ERC20',
+            'GO20': 'GO20',
+            'BEP2': 'BEP2',
+            'BEP20 (BSC)': 'BEP20',
+            'Bitcoin': 'BTC',
+            'Bitcoin ABC': 'BCH',
+            'Litecoin': 'LTC',
+            'Matic Network': 'MATIC',
+            'Solana': 'SOL',
+            'xDai': 'STAKE',
+            'Akash': 'AKT',
+        };
+        return this.safeString (networksById, networkId, networkId);
     }
 
     async fetchDepositAddress (code, params = {}) {
@@ -6602,6 +6712,13 @@ module.exports = class Exchange {
         params = this.omit (params, [ 'defaultType', 'type' ]);
         return [ type, params ];
     }
+
+    async loadTimeDifference (params = {}) {
+        const serverTime = await this.fetchTime (params);
+        const after = this.milliseconds ();
+        this.options['timeDifference'] = after - serverTime;
+        return this.options['timeDifference'];
+    }
 }
 
 },{"../static_dependencies/BN/bn":118,"./Precise":6,"./errors":8,"./functions":9}],6:[function(require,module,exports){
@@ -7752,7 +7869,7 @@ const precisionConstants = {
 
 function numberToString (x) { // avoids scientific notation for too large and too small numbers
 
-    if (typeof x === 'string') return x
+    if (typeof x !== 'number') return x.toString ()
 
     const s = x.toString ()
     if (Math.abs (x) < 1.0) {
@@ -11262,18 +11379,17 @@ module.exports = class binance extends Exchange {
                 'fetchTradingLimits': undefined,
                 'fetchTransactions': false,
                 'fetchTransfers': true,
-                'fetchWithdrawAddress': undefined,
-                'fetchWithdrawAddressesByNetwork': undefined,
-                'fetchWithdrawal': undefined,
+                'fetchWithdrawAddress': false,
+                'fetchWithdrawAddressesByNetwork': false,
+                'fetchWithdrawal': false,
                 'fetchWithdrawals': true,
-                'fetchWithdrawalWhitelist': undefined,
-                'loadLeverageBrackets': undefined,
-                'loadTimeDifference': undefined,
+                'fetchWithdrawalWhitelist': false,
+                'loadLeverageBrackets': true,
                 'reduceMargin': true,
                 'setLeverage': true,
                 'setMarginMode': true,
                 'setPositionMode': true,
-                'signIn': undefined,
+                'signIn': false,
                 'transfer': true,
                 'transferOut': false,
                 'withdraw': true,
@@ -12324,13 +12440,6 @@ module.exports = class binance extends Exchange {
         return this.safeInteger (response, 'serverTime');
     }
 
-    async loadTimeDifference (params = {}) {
-        const serverTime = await this.fetchTime (params);
-        const after = this.milliseconds ();
-        this.options['timeDifference'] = after - serverTime;
-        return this.options['timeDifference'];
-    }
-
     async fetchCurrencies (params = {}) {
         const fetchCurrenciesEnabled = this.safeValue (this.options, 'fetchCurrencies');
         if (!fetchCurrenciesEnabled) {
@@ -12672,7 +12781,7 @@ module.exports = class binance extends Exchange {
             let contractSize = undefined;
             let fees = this.fees;
             if (future || delivery) {
-                contractSize = this.safeString (market, 'contractSize', '1');
+                contractSize = this.safeNumber (market, 'contractSize', this.parseNumber ('1'));
                 fees = this.fees[type];
             }
             const maker = fees['trading']['maker'];
@@ -15595,6 +15704,8 @@ module.exports = class binance extends Exchange {
         let percentage = undefined;
         let liquidationPriceStringRaw = undefined;
         let liquidationPrice = undefined;
+        const contractSize = this.safeValue (market, 'contractSize');
+        const contractSizeString = this.numberToString (contractSize);
         if (notionalFloat === 0.0) {
             entryPrice = undefined;
         } else {
@@ -15633,7 +15744,7 @@ module.exports = class binance extends Exchange {
                     onePlusMaintenanceMarginPercentageString = Precise.stringSub ('-1', maintenanceMarginPercentageString);
                     entryPriceSignString = Precise.stringMul ('-1', entryPriceSignString);
                 }
-                const size = Precise.stringMul (contractsStringAbs, market['contractSize']);
+                const size = Precise.stringMul (contractsStringAbs, contractSizeString);
                 const leftSide = Precise.stringMul (size, onePlusMaintenanceMarginPercentageString);
                 const rightSide = Precise.stringSub (Precise.stringMul (Precise.stringDiv ('1', entryPriceSignString), size), walletBalance);
                 liquidationPriceStringRaw = Precise.stringDiv (leftSide, rightSide);
@@ -15669,7 +15780,7 @@ module.exports = class binance extends Exchange {
             'leverage': this.parseNumber (leverageString),
             'unrealizedPnl': unrealizedPnl,
             'contracts': contracts,
-            'contractSize': this.parseNumber (market['contractSize']),
+            'contractSize': contractSize,
             'marginRatio': marginRatio,
             'liquidationPrice': liquidationPrice,
             'markPrice': undefined,
@@ -15756,6 +15867,8 @@ module.exports = class binance extends Exchange {
         }
         const entryPriceString = this.safeString (position, 'entryPrice');
         const entryPrice = this.parseNumber (entryPriceString);
+        const contractSize = this.safeValue (market, 'contractSize');
+        const contractSizeString = this.numberToString (contractSize);
         // as oppose to notionalValue
         const linear = ('notional' in position);
         if (marginType === 'cross') {
@@ -15783,7 +15896,7 @@ module.exports = class binance extends Exchange {
                     onePlusMaintenanceMarginPercentageString = Precise.stringSub ('-1', maintenanceMarginPercentageString);
                     entryPriceSignString = Precise.stringMul ('-1', entryPriceSignString);
                 }
-                const leftSide = Precise.stringMul (contractsAbs, market['contractSize']);
+                const leftSide = Precise.stringMul (contractsAbs, contractSizeString);
                 const rightSide = Precise.stringSub (Precise.stringDiv ('1', entryPriceSignString), Precise.stringDiv (onePlusMaintenanceMarginPercentageString, liquidationPriceString));
                 collateralString = Precise.stringDiv (Precise.stringMul (leftSide, rightSide), '1', market['precision']['base']);
             }
@@ -15820,7 +15933,7 @@ module.exports = class binance extends Exchange {
             'info': position,
             'symbol': symbol,
             'contracts': contracts,
-            'contractSize': this.parseNumber (market['contractSize']),
+            'contractSize': contractSize,
             'unrealizedPnl': unrealizedPnl,
             'leverage': this.parseNumber (leverageString),
             'liquidationPrice': liquidationPrice,
@@ -19001,30 +19114,30 @@ module.exports = class bitfinex extends Exchange {
                     'taker': this.parseNumber ('0.002'),
                     'tiers': {
                         'taker': [
-                            [this.parseNumber ('0'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('500000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('1000000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('2500000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('5000000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('7500000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('10000000'), this.parseNumber ('0.0018')],
-                            [this.parseNumber ('15000000'), this.parseNumber ('0.0016')],
-                            [this.parseNumber ('20000000'), this.parseNumber ('0.0014')],
-                            [this.parseNumber ('25000000'), this.parseNumber ('0.0012')],
-                            [this.parseNumber ('30000000'), this.parseNumber ('0.001')],
+                            [ this.parseNumber ('0'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('500000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('1000000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('2500000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('5000000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('7500000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('10000000'), this.parseNumber ('0.0018') ],
+                            [ this.parseNumber ('15000000'), this.parseNumber ('0.0016') ],
+                            [ this.parseNumber ('20000000'), this.parseNumber ('0.0014') ],
+                            [ this.parseNumber ('25000000'), this.parseNumber ('0.0012') ],
+                            [ this.parseNumber ('30000000'), this.parseNumber ('0.001') ],
                         ],
                         'maker': [
-                            [this.parseNumber ('0'), this.parseNumber ('0.001')],
-                            [this.parseNumber ('500000'), this.parseNumber ('0.0008')],
-                            [this.parseNumber ('1000000'), this.parseNumber ('0.0006')],
-                            [this.parseNumber ('2500000'), this.parseNumber ('0.0004')],
-                            [this.parseNumber ('5000000'), this.parseNumber ('0.0002')],
-                            [this.parseNumber ('7500000'), this.parseNumber ('0')],
-                            [this.parseNumber ('10000000'), this.parseNumber ('0')],
-                            [this.parseNumber ('15000000'), this.parseNumber ('0')],
-                            [this.parseNumber ('20000000'), this.parseNumber ('0')],
-                            [this.parseNumber ('25000000'), this.parseNumber ('0')],
-                            [this.parseNumber ('30000000'), this.parseNumber ('0')],
+                            [ this.parseNumber ('0'), this.parseNumber ('0.001') ],
+                            [ this.parseNumber ('500000'), this.parseNumber ('0.0008') ],
+                            [ this.parseNumber ('1000000'), this.parseNumber ('0.0006') ],
+                            [ this.parseNumber ('2500000'), this.parseNumber ('0.0004') ],
+                            [ this.parseNumber ('5000000'), this.parseNumber ('0.0002') ],
+                            [ this.parseNumber ('7500000'), this.parseNumber ('0') ],
+                            [ this.parseNumber ('10000000'), this.parseNumber ('0') ],
+                            [ this.parseNumber ('15000000'), this.parseNumber ('0') ],
+                            [ this.parseNumber ('20000000'), this.parseNumber ('0') ],
+                            [ this.parseNumber ('25000000'), this.parseNumber ('0') ],
+                            [ this.parseNumber ('30000000'), this.parseNumber ('0') ],
                         ],
                     },
                 },
@@ -20390,30 +20503,30 @@ module.exports = class bitfinex2 extends bitfinex {
                     'taker': this.parseNumber ('0.002'),
                     'tiers': {
                         'taker': [
-                            [this.parseNumber ('0'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('500000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('1000000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('2500000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('5000000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('7500000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('10000000'), this.parseNumber ('0.0018')],
-                            [this.parseNumber ('15000000'), this.parseNumber ('0.0016')],
-                            [this.parseNumber ('20000000'), this.parseNumber ('0.0014')],
-                            [this.parseNumber ('25000000'), this.parseNumber ('0.0012')],
-                            [this.parseNumber ('30000000'), this.parseNumber ('0.001')],
+                            [ this.parseNumber ('0'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('500000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('1000000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('2500000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('5000000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('7500000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('10000000'), this.parseNumber ('0.0018') ],
+                            [ this.parseNumber ('15000000'), this.parseNumber ('0.0016') ],
+                            [ this.parseNumber ('20000000'), this.parseNumber ('0.0014') ],
+                            [ this.parseNumber ('25000000'), this.parseNumber ('0.0012') ],
+                            [ this.parseNumber ('30000000'), this.parseNumber ('0.001') ],
                         ],
                         'maker': [
-                            [this.parseNumber ('0'), this.parseNumber ('0.001')],
-                            [this.parseNumber ('500000'), this.parseNumber ('0.0008')],
-                            [this.parseNumber ('1000000'), this.parseNumber ('0.0006')],
-                            [this.parseNumber ('2500000'), this.parseNumber ('0.0004')],
-                            [this.parseNumber ('5000000'), this.parseNumber ('0.0002')],
-                            [this.parseNumber ('7500000'), this.parseNumber ('0')],
-                            [this.parseNumber ('10000000'), this.parseNumber ('0')],
-                            [this.parseNumber ('15000000'), this.parseNumber ('0')],
-                            [this.parseNumber ('20000000'), this.parseNumber ('0')],
-                            [this.parseNumber ('25000000'), this.parseNumber ('0')],
-                            [this.parseNumber ('30000000'), this.parseNumber ('0')],
+                            [ this.parseNumber ('0'), this.parseNumber ('0.001') ],
+                            [ this.parseNumber ('500000'), this.parseNumber ('0.0008') ],
+                            [ this.parseNumber ('1000000'), this.parseNumber ('0.0006') ],
+                            [ this.parseNumber ('2500000'), this.parseNumber ('0.0004') ],
+                            [ this.parseNumber ('5000000'), this.parseNumber ('0.0002') ],
+                            [ this.parseNumber ('7500000'), this.parseNumber ('0') ],
+                            [ this.parseNumber ('10000000'), this.parseNumber ('0') ],
+                            [ this.parseNumber ('15000000'), this.parseNumber ('0') ],
+                            [ this.parseNumber ('20000000'), this.parseNumber ('0') ],
+                            [ this.parseNumber ('25000000'), this.parseNumber ('0') ],
+                            [ this.parseNumber ('30000000'), this.parseNumber ('0') ],
                         ],
                     },
                 },
@@ -20532,8 +20645,8 @@ module.exports = class bitfinex2 extends bitfinex {
             if (this.inArray (id, futuresMarketIds)) {
                 spot = false;
             }
-            const futures = !spot;
-            const type = spot ? 'spot' : 'futures';
+            const future = !spot;
+            const type = spot ? 'spot' : 'future';
             let baseId = undefined;
             let quoteId = undefined;
             if (id.indexOf (':') >= 0) {
@@ -20586,7 +20699,7 @@ module.exports = class bitfinex2 extends bitfinex {
                 'swap': false,
                 'spot': spot,
                 'margin': margin,
-                'futures': futures,
+                'future': future,
             });
         }
         return result;
@@ -24692,7 +24805,7 @@ module.exports = class bitget extends Exchange {
         } else if (type === 'swap') {
             return this.parseSwapBalance (response);
         }
-        throw new NotSupported (this.id + " fetchBalance does not support the '" + type + "' type (the type must be one of 'account', 'spot', 'margin', 'futures', 'swap')");
+        throw new NotSupported (this.id + " fetchBalance does not support the '" + type + "' type (the type must be one of 'account', 'spot', or 'swap')");
     }
 
     parseOrderStatus (status) {
@@ -24832,7 +24945,7 @@ module.exports = class bitget extends Exchange {
         // }
         // if ((type !== 'limit') && (type !== 'market')) {
         //     if ('pnl' in order) {
-        //         type = 'futures';
+        //         type = 'future';
         //     } else {
         //         type = 'swap';
         //     }
@@ -26879,24 +26992,24 @@ module.exports = class bitmart extends Exchange {
                     'maker': this.parseNumber ('0.0025'),
                     'tiers': {
                         'taker': [
-                            [this.parseNumber ('0'), this.parseNumber ('0.0020')],
-                            [this.parseNumber ('10'), this.parseNumber ('0.18')],
-                            [this.parseNumber ('50'), this.parseNumber ('0.0016')],
-                            [this.parseNumber ('250'), this.parseNumber ('0.0014')],
-                            [this.parseNumber ('1000'), this.parseNumber ('0.0012')],
-                            [this.parseNumber ('5000'), this.parseNumber ('0.0010')],
-                            [this.parseNumber ('25000'), this.parseNumber ('0.0008')],
-                            [this.parseNumber ('50000'), this.parseNumber ('0.0006')],
+                            [ this.parseNumber ('0'), this.parseNumber ('0.0020') ],
+                            [ this.parseNumber ('10'), this.parseNumber ('0.18') ],
+                            [ this.parseNumber ('50'), this.parseNumber ('0.0016') ],
+                            [ this.parseNumber ('250'), this.parseNumber ('0.0014') ],
+                            [ this.parseNumber ('1000'), this.parseNumber ('0.0012') ],
+                            [ this.parseNumber ('5000'), this.parseNumber ('0.0010') ],
+                            [ this.parseNumber ('25000'), this.parseNumber ('0.0008') ],
+                            [ this.parseNumber ('50000'), this.parseNumber ('0.0006') ],
                         ],
                         'maker': [
-                            [this.parseNumber ('0'), this.parseNumber ('0.001')],
-                            [this.parseNumber ('10'), this.parseNumber ('0.0009')],
-                            [this.parseNumber ('50'), this.parseNumber ('0.0008')],
-                            [this.parseNumber ('250'), this.parseNumber ('0.0007')],
-                            [this.parseNumber ('1000'), this.parseNumber ('0.0006')],
-                            [this.parseNumber ('5000'), this.parseNumber ('0.0005')],
-                            [this.parseNumber ('25000'), this.parseNumber ('0.0004')],
-                            [this.parseNumber ('50000'), this.parseNumber ('0.0003')],
+                            [ this.parseNumber ('0'), this.parseNumber ('0.001') ],
+                            [ this.parseNumber ('10'), this.parseNumber ('0.0009') ],
+                            [ this.parseNumber ('50'), this.parseNumber ('0.0008') ],
+                            [ this.parseNumber ('250'), this.parseNumber ('0.0007') ],
+                            [ this.parseNumber ('1000'), this.parseNumber ('0.0006') ],
+                            [ this.parseNumber ('5000'), this.parseNumber ('0.0005') ],
+                            [ this.parseNumber ('25000'), this.parseNumber ('0.0004') ],
+                            [ this.parseNumber ('50000'), this.parseNumber ('0.0003') ],
                         ],
                     },
                 },
@@ -27189,8 +27302,6 @@ module.exports = class bitmart extends Exchange {
                 'contract': false,
                 'linear': undefined,
                 'inverse': undefined,
-                'taker': undefined,
-                'maker': undefined,
                 'contractSize': undefined,
                 'active': true,
                 'expiry': undefined,
@@ -27343,7 +27454,7 @@ module.exports = class bitmart extends Exchange {
                 'inverse': undefined,
                 'taker': this.safeNumber (feeConfig, 'taker_fee'),
                 'maker': this.safeNumber (feeConfig, 'maker_fee'),
-                'contractSize': this.safeString (market, 'contract_size'),
+                'contractSize': this.safeNumber (market, 'contract_size'),
                 'active': undefined,
                 'expiry': expiry,
                 'expiryDatetime': this.iso8601 (expiry),
@@ -30948,22 +31059,22 @@ module.exports = class bitpanda extends Exchange {
                         // volume in BTC
                         {
                             'taker': [
-                                [this.parseNumber ('0'), this.parseNumber ('0.0015')],
-                                [this.parseNumber ('100'), this.parseNumber ('0.0013')],
-                                [this.parseNumber ('250'), this.parseNumber ('0.0013')],
-                                [this.parseNumber ('1000'), this.parseNumber ('0.001')],
-                                [this.parseNumber ('5000'), this.parseNumber ('0.0009')],
-                                [this.parseNumber ('10000'), this.parseNumber ('0.00075')],
-                                [this.parseNumber ('20000'), this.parseNumber ('0.00065')],
+                                [ this.parseNumber ('0'), this.parseNumber ('0.0015') ],
+                                [ this.parseNumber ('100'), this.parseNumber ('0.0013') ],
+                                [ this.parseNumber ('250'), this.parseNumber ('0.0013') ],
+                                [ this.parseNumber ('1000'), this.parseNumber ('0.001') ],
+                                [ this.parseNumber ('5000'), this.parseNumber ('0.0009') ],
+                                [ this.parseNumber ('10000'), this.parseNumber ('0.00075') ],
+                                [ this.parseNumber ('20000'), this.parseNumber ('0.00065') ],
                             ],
                             'maker': [
-                                [this.parseNumber ('0'), this.parseNumber ('0.001')],
-                                [this.parseNumber ('100'), this.parseNumber ('0.001')],
-                                [this.parseNumber ('250'), this.parseNumber ('0.0009')],
-                                [this.parseNumber ('1000'), this.parseNumber ('0.00075')],
-                                [this.parseNumber ('5000'), this.parseNumber ('0.0006')],
-                                [this.parseNumber ('10000'), this.parseNumber ('0.0005')],
-                                [this.parseNumber ('20000'), this.parseNumber ('0.0005')],
+                                [ this.parseNumber ('0'), this.parseNumber ('0.001') ],
+                                [ this.parseNumber ('100'), this.parseNumber ('0.001') ],
+                                [ this.parseNumber ('250'), this.parseNumber ('0.0009') ],
+                                [ this.parseNumber ('1000'), this.parseNumber ('0.00075') ],
+                                [ this.parseNumber ('5000'), this.parseNumber ('0.0006') ],
+                                [ this.parseNumber ('10000'), this.parseNumber ('0.0005') ],
+                                [ this.parseNumber ('20000'), this.parseNumber ('0.0005') ],
                             ],
                         },
                     ],
@@ -32918,13 +33029,6 @@ module.exports = class bitrue extends Exchange {
         //     }
         //
         return this.safeInteger (response, 'serverTime');
-    }
-
-    async loadTimeDifference (params = {}) {
-        const serverTime = await this.fetchTime (params);
-        const after = this.milliseconds ();
-        this.options['timeDifference'] = after - serverTime;
-        return this.options['timeDifference'];
     }
 
     safeNetwork (networkId) {
@@ -35315,7 +35419,7 @@ module.exports = class bitstamp extends Exchange {
                     'Please update your profile with your FATCA information, before using API.': PermissionDenied,
                     'Order not found': OrderNotFound,
                     'Price is more than 20% below market price.': InvalidOrder,
-                    'Bitstamp.net is under scheduled maintenance.': OnMaintenance, // { "error": "Bitstamp.net is under scheduled maintenance. We'll be back soon." }
+                    "Bitstamp.net is under scheduled maintenance. We'll be back soon.": OnMaintenance, // { "error": "Bitstamp.net is under scheduled maintenance. We'll be back soon." }
                     'Order could not be placed.': ExchangeNotAvailable, // Order could not be placed (perhaps due to internal error or trade halt). Please retry placing order.
                     'Invalid offset.': BadRequest,
                 },
@@ -38704,8 +38808,6 @@ module.exports = class bitvavo extends Exchange {
                 'contract': false,
                 'linear': undefined,
                 'inverse': undefined,
-                'taker': undefined,
-                'maker': undefined,
                 'contractSize': undefined,
                 'active': (status === 'trading'),
                 'expiry': undefined,
@@ -40167,7 +40269,7 @@ module.exports = class blockchaincom extends Exchange {
             'id': 'blockchaincom',
             'secret': undefined,
             'name': 'Blockchain.com',
-            'countries': ['LX'],
+            'countries': [ 'LX' ],
             'rateLimit': 10000,
             'version': 'v3',
             'has': {
@@ -40261,32 +40363,32 @@ module.exports = class blockchaincom extends Exchange {
                     'percentage': true,
                     'tiers': {
                         'taker': [
-                            [this.parseNumber ('0'), this.parseNumber ('0.004')],
-                            [this.parseNumber ('10000'), this.parseNumber ('0.0022')],
-                            [this.parseNumber ('50000'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('100000'), this.parseNumber ('0.0018')],
-                            [this.parseNumber ('500000'), this.parseNumber ('0.0018')],
-                            [this.parseNumber ('1000000'), this.parseNumber ('0.0018')],
-                            [this.parseNumber ('2500000'), this.parseNumber ('0.0018')],
-                            [this.parseNumber ('5000000'), this.parseNumber ('0.0016')],
-                            [this.parseNumber ('25000000'), this.parseNumber ('0.0014')],
-                            [this.parseNumber ('100000000'), this.parseNumber ('0.0011')],
-                            [this.parseNumber ('500000000'), this.parseNumber ('0.0008')],
-                            [this.parseNumber ('1000000000'), this.parseNumber ('0.0006')],
+                            [ this.parseNumber ('0'), this.parseNumber ('0.004') ],
+                            [ this.parseNumber ('10000'), this.parseNumber ('0.0022') ],
+                            [ this.parseNumber ('50000'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('100000'), this.parseNumber ('0.0018') ],
+                            [ this.parseNumber ('500000'), this.parseNumber ('0.0018') ],
+                            [ this.parseNumber ('1000000'), this.parseNumber ('0.0018') ],
+                            [ this.parseNumber ('2500000'), this.parseNumber ('0.0018') ],
+                            [ this.parseNumber ('5000000'), this.parseNumber ('0.0016') ],
+                            [ this.parseNumber ('25000000'), this.parseNumber ('0.0014') ],
+                            [ this.parseNumber ('100000000'), this.parseNumber ('0.0011') ],
+                            [ this.parseNumber ('500000000'), this.parseNumber ('0.0008') ],
+                            [ this.parseNumber ('1000000000'), this.parseNumber ('0.0006') ],
                         ],
                         'maker': [
-                            [this.parseNumber ('0'), this.parseNumber ('0.002')],
-                            [this.parseNumber ('10000'), this.parseNumber ('0.0012')],
-                            [this.parseNumber ('50000'), this.parseNumber ('0.001')],
-                            [this.parseNumber ('100000'), this.parseNumber ('0.0008')],
-                            [this.parseNumber ('500000'), this.parseNumber ('0.0007000000000000001')],
-                            [this.parseNumber ('1000000'), this.parseNumber ('0.0006')],
-                            [this.parseNumber ('2500000'), this.parseNumber ('0.0005')],
-                            [this.parseNumber ('5000000'), this.parseNumber ('0.0004')],
-                            [this.parseNumber ('25000000'), this.parseNumber ('0.0003')],
-                            [this.parseNumber ('100000000'), this.parseNumber ('0.0002')],
-                            [this.parseNumber ('500000000'), this.parseNumber ('0.0001')],
-                            [this.parseNumber ('1000000000'), this.parseNumber ('0')],
+                            [ this.parseNumber ('0'), this.parseNumber ('0.002') ],
+                            [ this.parseNumber ('10000'), this.parseNumber ('0.0012') ],
+                            [ this.parseNumber ('50000'), this.parseNumber ('0.001') ],
+                            [ this.parseNumber ('100000'), this.parseNumber ('0.0008') ],
+                            [ this.parseNumber ('500000'), this.parseNumber ('0.0007000000000000001') ],
+                            [ this.parseNumber ('1000000'), this.parseNumber ('0.0006') ],
+                            [ this.parseNumber ('2500000'), this.parseNumber ('0.0005') ],
+                            [ this.parseNumber ('5000000'), this.parseNumber ('0.0004') ],
+                            [ this.parseNumber ('25000000'), this.parseNumber ('0.0003') ],
+                            [ this.parseNumber ('100000000'), this.parseNumber ('0.0002') ],
+                            [ this.parseNumber ('500000000'), this.parseNumber ('0.0001') ],
+                            [ this.parseNumber ('1000000000'), this.parseNumber ('0') ],
                         ],
                     },
                 },
@@ -40580,7 +40682,7 @@ module.exports = class blockchaincom extends Exchange {
             'ordType': type.toUpperCase (), // LIMIT, MARKET, STOP, STOPLIMIT
             'clOrdId': clientOrderId,
         };
-        params = this.omit (params, ['clientOrderId', 'clOrdId']);
+        params = this.omit (params, [ 'clientOrderId', 'clOrdId' ]);
         if (request['ordType'] === 'LIMIT') {
             request['price'] = this.priceToPrecision (symbol, price);
         }
@@ -40757,7 +40859,7 @@ module.exports = class blockchaincom extends Exchange {
         let address = undefined;
         if (rawAddress !== undefined) {
             // if a tag or memo is used it is separated by a colon in the 'address' value
-            [address, tag] = rawAddress.split (':');
+            [ address, tag ] = rawAddress.split (':');
         }
         const result = { 'info': response };
         result['currency'] = currency['code'];
@@ -44337,22 +44439,22 @@ module.exports = class buda extends Exchange {
                     'maker': 0.004,  // 0.4%
                     'tiers': {
                         'taker': [
-                            [0, 0.008],  // 0.8%
-                            [2000, 0.007],  // 0.7%
-                            [20000, 0.006],  // 0.6%
-                            [100000, 0.005],  // 0.5%
-                            [500000, 0.004],  // 0.4%
-                            [2500000, 0.003],  // 0.3%
-                            [12500000, 0.002],  // 0.2%
+                            [ 0, 0.008 ],  // 0.8%
+                            [ 2000, 0.007 ],  // 0.7%
+                            [ 20000, 0.006 ],  // 0.6%
+                            [ 100000, 0.005 ],  // 0.5%
+                            [ 500000, 0.004 ],  // 0.4%
+                            [ 2500000, 0.003 ],  // 0.3%
+                            [ 12500000, 0.002 ],  // 0.2%
                         ],
                         'maker': [
-                            [0, 0.004],  // 0.4%
-                            [2000, 0.0035],  // 0.35%
-                            [20000, 0.003],  // 0.3%
-                            [100000, 0.0025],  // 0.25%
-                            [500000, 0.002],  // 0.2%
-                            [2500000, 0.0015],  // 0.15%
-                            [12500000, 0.001],  // 0.1%
+                            [ 0, 0.004 ],  // 0.4%
+                            [ 2000, 0.0035 ],  // 0.35%
+                            [ 20000, 0.003 ],  // 0.3%
+                            [ 100000, 0.0025 ],  // 0.25%
+                            [ 500000, 0.002 ],  // 0.2%
+                            [ 2500000, 0.0015 ],  // 0.15%
+                            [ 12500000, 0.001 ],  // 0.1%
                         ],
                     },
                 },
@@ -46667,13 +46769,6 @@ module.exports = class bybit extends Exchange {
         return this.milliseconds () - this.options['timeDifference'];
     }
 
-    async loadTimeDifference (params = {}) {
-        const serverTime = await this.fetchTime (params);
-        const after = this.milliseconds ();
-        this.options['timeDifference'] = after - serverTime;
-        return this.options['timeDifference'];
-    }
-
     async fetchTime (params = {}) {
         const response = await this.v2PublicGetTime (params);
         //
@@ -48920,7 +49015,7 @@ module.exports = class bytetrade extends Exchange {
         return this.deepExtend (super.describe (), {
             'id': 'bytetrade',
             'name': 'ByteTrade',
-            'countries': ['HK'],
+            'countries': [ 'HK' ],
             'rateLimit': 500,
             'requiresWeb3': true,
             'certified': false,
@@ -53847,7 +53942,7 @@ module.exports = class coinbase extends Exchange {
             currency = this.currency (code);
         }
         const request = await this.prepareAccountRequestWithCurrencyCode (code, limit, params);
-        const query = this.omit (params, ['account_id', 'accountId']);
+        const query = this.omit (params, [ 'account_id', 'accountId' ]);
         // for pagination use parameter 'starting_after'
         // the value for the next page can be obtained from the result of the previous call in the 'pagination' field
         // eg: instance.last_json_response.pagination.next_starting_after
@@ -58266,24 +58361,24 @@ module.exports = class coinmate extends Exchange {
                     'taker': 0.25 / 100,
                     'tiers': {
                         'taker': [
-                            [0, 0.25 / 100],
-                            [10000, 0.23 / 100],
-                            [100000, 0.21 / 100],
-                            [250000, 0.20 / 100],
-                            [500000, 0.15 / 100],
-                            [1000000, 0.13 / 100],
-                            [3000000, 0.10 / 100],
-                            [15000000, 0.05 / 100],
+                            [ 0, 0.25 / 100 ],
+                            [ 10000, 0.23 / 100 ],
+                            [ 100000, 0.21 / 100 ],
+                            [ 250000, 0.20 / 100 ],
+                            [ 500000, 0.15 / 100 ],
+                            [ 1000000, 0.13 / 100 ],
+                            [ 3000000, 0.10 / 100 ],
+                            [ 15000000, 0.05 / 100 ],
                         ],
                         'maker': [
-                            [0, 0.12 / 100],
-                            [10000, 0.11 / 100],
-                            [1000000, 0.10 / 100],
-                            [250000, 0.08 / 100],
-                            [500000, 0.05 / 100],
-                            [1000000, 0.03 / 100],
-                            [3000000, 0.02 / 100],
-                            [15000000, 0],
+                            [ 0, 0.12 / 100 ],
+                            [ 10000, 0.11 / 100 ],
+                            [ 1000000, 0.10 / 100 ],
+                            [ 250000, 0.08 / 100 ],
+                            [ 500000, 0.05 / 100 ],
+                            [ 1000000, 0.03 / 100 ],
+                            [ 3000000, 0.02 / 100 ],
+                            [ 15000000, 0 ],
                         ],
                     },
                 },
@@ -58293,31 +58388,31 @@ module.exports = class coinmate extends Exchange {
                         'taker': 0.15 / 100,
                         'tiers': {
                             'taker': [
-                                [0, 0.15 / 100],
-                                [10000, 0.14 / 100],
-                                [100000, 0.13 / 100],
-                                [250000, 0.12 / 100],
-                                [500000, 0.11 / 100],
-                                [1000000, 0.1 / 100],
-                                [3000000, 0.08 / 100],
-                                [15000000, 0.05 / 100],
+                                [ 0, 0.15 / 100 ],
+                                [ 10000, 0.14 / 100 ],
+                                [ 100000, 0.13 / 100 ],
+                                [ 250000, 0.12 / 100 ],
+                                [ 500000, 0.11 / 100 ],
+                                [ 1000000, 0.1 / 100 ],
+                                [ 3000000, 0.08 / 100 ],
+                                [ 15000000, 0.05 / 100 ],
                             ],
                             'maker': [
-                                [0, 0.05 / 100],
-                                [10000, 0.04 / 100],
-                                [1000000, 0.03 / 100],
-                                [250000, 0.02 / 100],
-                                [500000, 0],
-                                [1000000, 0],
-                                [3000000, 0],
-                                [15000000, 0],
+                                [ 0, 0.05 / 100 ],
+                                [ 10000, 0.04 / 100 ],
+                                [ 1000000, 0.03 / 100 ],
+                                [ 250000, 0.02 / 100 ],
+                                [ 500000, 0 ],
+                                [ 1000000, 0 ],
+                                [ 3000000, 0 ],
+                                [ 15000000, 0 ],
                             ],
                         },
                     },
                 },
             },
             'options': {
-                'promotionalMarkets': ['ETH/EUR', 'ETH/CZK', 'ETH/BTC', 'XRP/EUR', 'XRP/CZK', 'XRP/BTC', 'DASH/EUR', 'DASH/CZK', 'DASH/BTC', 'BCH/EUR', 'BCH/CZK', 'BCH/BTC'],
+                'promotionalMarkets': [ 'ETH/EUR', 'ETH/CZK', 'ETH/BTC', 'XRP/EUR', 'XRP/CZK', 'XRP/BTC', 'DASH/EUR', 'DASH/CZK', 'DASH/BTC', 'BCH/EUR', 'BCH/CZK', 'BCH/BTC' ],
             },
             'exceptions': {
                 'exact': {
@@ -61767,7 +61862,7 @@ module.exports = class cryptocom extends Exchange {
                 type = 'future';
                 symbol = symbol + '-' + this.yymmdd (expiry);
             }
-            const contractSize = this.safeString (market, 'contract_size');
+            const contractSize = this.safeNumber (market, 'contract_size');
             const marketId = this.safeString (market, 'symbol');
             const maxLeverage = this.safeNumber (market, 'max_leverage');
             const active = this.safeValue (market, 'tradable');
@@ -62334,20 +62429,15 @@ module.exports = class cryptocom extends Exchange {
     async fetchOpenOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets ();
         let market = undefined;
+        const request = {};
         if (symbol !== undefined) {
             market = this.market (symbol);
+            request['instrument_name'] = market['id'];
         }
-        const request = {};
         if (limit !== undefined) {
             request['page_size'] = limit;
         }
         const [ marketType, query ] = this.handleMarketTypeAndParams ('fetchOpenOrders', market, params);
-        if (marketType === 'spot') {
-            if (symbol === undefined) {
-                throw new ArgumentsRequired (this.id + ' fetchOpenOrders() requires a symbol argument for ' + marketType + ' orders');
-            }
-            request['instrument_name'] = market['id'];
-        }
         const method = this.getSupportedMapping (marketType, {
             'spot': 'spotPrivatePostPrivateGetOpenOrders',
             'future': 'derivativesPrivatePostPrivateGetOpenOrders',
@@ -63345,13 +63435,6 @@ module.exports = class currencycom extends Exchange {
         //     }
         //
         return this.safeInteger (response, 'serverTime');
-    }
-
-    async loadTimeDifference (params = {}) {
-        const response = await this.publicGetTime (params);
-        const after = this.milliseconds ();
-        this.options['timeDifference'] = parseInt (after - response['serverTime']);
-        return this.options['timeDifference'];
     }
 
     async fetchMarkets (params = {}) {
@@ -64384,22 +64467,22 @@ module.exports = class delta extends Exchange {
                     'maker': 0.10 / 100,
                     'tiers': {
                         'taker': [
-                            [0, 0.15 / 100],
-                            [100, 0.13 / 100],
-                            [250, 0.13 / 100],
-                            [1000, 0.1 / 100],
-                            [5000, 0.09 / 100],
-                            [10000, 0.075 / 100],
-                            [20000, 0.065 / 100],
+                            [ 0, 0.15 / 100 ],
+                            [ 100, 0.13 / 100 ],
+                            [ 250, 0.13 / 100 ],
+                            [ 1000, 0.1 / 100 ],
+                            [ 5000, 0.09 / 100 ],
+                            [ 10000, 0.075 / 100 ],
+                            [ 20000, 0.065 / 100 ],
                         ],
                         'maker': [
-                            [0, 0.1 / 100],
-                            [100, 0.1 / 100],
-                            [250, 0.09 / 100],
-                            [1000, 0.075 / 100],
-                            [5000, 0.06 / 100],
-                            [10000, 0.05 / 100],
-                            [20000, 0.05 / 100],
+                            [ 0, 0.1 / 100 ],
+                            [ 100, 0.1 / 100 ],
+                            [ 250, 0.09 / 100 ],
+                            [ 1000, 0.075 / 100 ],
+                            [ 5000, 0.06 / 100 ],
+                            [ 10000, 0.05 / 100 ],
+                            [ 20000, 0.05 / 100 ],
                         ],
                     },
                 },
@@ -65756,6 +65839,7 @@ module.exports = class deribit extends Exchange {
                 'fetchClosedOrders': true,
                 'fetchDepositAddress': true,
                 'fetchDeposits': true,
+                'fetchHistoricalVolatility': true,
                 'fetchIndexOHLCV': false,
                 'fetchMarkets': true,
                 'fetchMarkOHLCV': false,
@@ -66232,7 +66316,7 @@ module.exports = class deribit extends Exchange {
                     'inverse': true,
                     'taker': this.safeNumber (market, 'taker_commission'),
                     'maker': this.safeNumber (market, 'maker_commission'),
-                    'contractSize': this.safeString (market, 'contract_size'),
+                    'contractSize': this.safeNumber (market, 'contract_size'),
                     'active': this.safeValue (market, 'is_active'),
                     'expiry': expiry,
                     'expiryDatetime': this.iso8601 (expiry),
@@ -66453,7 +66537,7 @@ module.exports = class deribit extends Exchange {
         const symbol = this.safeSymbol (marketId, market);
         const last = this.safeNumber2 (ticker, 'last_price', 'last');
         const stats = this.safeValue (ticker, 'stats', ticker);
-        return {
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -66474,7 +66558,7 @@ module.exports = class deribit extends Exchange {
             'baseVolume': undefined,
             'quoteVolume': this.safeNumber (stats, 'volume'),
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -67410,6 +67494,69 @@ module.exports = class deribit extends Exchange {
         };
     }
 
+    parsePosition (position, market = undefined) {
+        //
+        //     {
+        //         "jsonrpc": "2.0",
+        //         "id": 404,
+        //         "result": {
+        //             "average_price": 0,
+        //             "delta": 0,
+        //             "direction": "buy",
+        //             "estimated_liquidation_price": 0,
+        //             "floating_profit_loss": 0,
+        //             "index_price": 3555.86,
+        //             "initial_margin": 0,
+        //             "instrument_name": "BTC-PERPETUAL",
+        //             "leverage": 100,
+        //             "kind": "future",
+        //             "maintenance_margin": 0,
+        //             "mark_price": 3556.62,
+        //             "open_orders_margin": 0.000165889,
+        //             "realized_profit_loss": 0,
+        //             "settlement_price": 3555.44,
+        //             "size": 0,
+        //             "size_currency": 0,
+        //             "total_profit_loss": 0
+        //         }
+        //     }
+        //
+        const contract = this.safeString (position, 'instrument_name');
+        market = this.safeMarket (contract, market);
+        const size = this.safeString (position, 'size');
+        const side = this.safeString (position, 'direction');
+        const maintenanceRate = this.safeString (position, 'maintenance_margin');
+        const markPrice = this.safeString (position, 'mark_price');
+        const notionalString = Precise.stringMul (markPrice, size);
+        const unrealisedPnl = this.safeString (position, 'floating_profit_loss');
+        const initialMarginString = this.safeString (position, 'initial_margin');
+        const percentage = Precise.stringMul (Precise.stringDiv (unrealisedPnl, initialMarginString), '100');
+        const currentTime = this.milliseconds ();
+        return {
+            'info': position,
+            'symbol': this.safeString (market, 'symbol'),
+            'timestamp': currentTime,
+            'datetime': this.iso8601 (currentTime),
+            'initialMargin': this.parseNumber (initialMarginString),
+            'initialMarginPercentage': this.parseNumber (Precise.stringDiv (initialMarginString, notionalString)),
+            'maintenanceMargin': this.parseNumber (Precise.stringMul (maintenanceRate, notionalString)),
+            'maintenanceMarginPercentage': this.parseNumber (maintenanceRate),
+            'entryPrice': this.safeString (position, 'average_price'),
+            'notional': this.parseNumber (notionalString),
+            'leverage': this.safeNumber (position, 'leverage'),
+            'unrealizedPnl': this.parseNumber (unrealisedPnl),
+            'contracts': this.parseNumber (size),  // in USD for perpetuals on deribit
+            'contractSize': this.safeValue (market, 'contractSize'),
+            'marginRatio': undefined,
+            'liquidationPrice': this.safeNumber (position, 'estimated_liquidation_price'),
+            'markPrice': markPrice,
+            'collateral': undefined,
+            'marginType': undefined,
+            'side': side,
+            'percentage': this.parseNumber (percentage),
+        };
+    }
+
     async fetchPosition (symbol, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
@@ -67443,8 +67590,16 @@ module.exports = class deribit extends Exchange {
         //         }
         //     }
         //
-        // todo unify parsePosition/parsePositions
         const result = this.safeValue (response, 'result');
+        return this.parsePosition (result);
+    }
+
+    parsePositions (positions) {
+        const result = [];
+        for (let i = 0; i < positions.length; i++) {
+            result.push (this.parsePosition (positions[i]));
+        }
+        // todo unify parsePositions
         return result;
     }
 
@@ -67485,8 +67640,45 @@ module.exports = class deribit extends Exchange {
         //         ]
         //     }
         //
-        // todo unify parsePosition/parsePositions
-        const result = this.safeValue (response, 'result', []);
+        // response is returning an empty list for result
+        // todo unify parsePositions
+        const result = this.parsePositions (response);
+        return this.filterByArray (result, 'symbol', symbols, false);
+    }
+
+    async fetchHistoricalVolatility (code, params = {}) {
+        await this.loadMarkets ();
+        const currency = this.currency (code);
+        const request = {
+            'currency': currency['id'],
+        };
+        const response = await this.publicGetGetHistoricalVolatility (this.extend (request, params));
+        //
+        //     {
+        //         "jsonrpc": "2.0",
+        //         "result": [
+        //             [1640142000000,63.828320460740585],
+        //             [1640142000000,63.828320460740585],
+        //             [1640145600000,64.03821964123213]
+        //         ],
+        //         "usIn": 1641515379467734,
+        //         "usOut": 1641515379468095,
+        //         "usDiff": 361,
+        //         "testnet": false
+        //     }
+        //
+        const volatilityResult = this.safeValue (response, 'result', {});
+        const result = [];
+        for (let i = 0; i < volatilityResult.length; i++) {
+            const timestamp = this.safeInteger (volatilityResult[i], 0);
+            const volatility = this.safeNumber (volatilityResult[i], 1);
+            result.push ({
+                'info': response,
+                'timestamp': timestamp,
+                'datetime': this.iso8601 (timestamp),
+                'volatility': volatility,
+            });
+        }
         return result;
     }
 
@@ -69415,7 +69607,7 @@ module.exports = class eqonex extends Exchange {
         const low = this.parseNumber (this.convertFromScale (this.safeString (ohlcv, 3), market['precision']['price']));
         const close = this.parseNumber (this.convertFromScale (this.safeString (ohlcv, 4), market['precision']['price']));
         const volume = this.parseNumber (this.convertFromScale (this.safeString (ohlcv, 5), market['precision']['amount']));
-        return [timestamp, open, high, low, close, volume];
+        return [ timestamp, open, high, low, close, volume ];
     }
 
     parseBidAsk (bidask, priceKey = 0, amountKey = 1, market = undefined) {
@@ -72411,9 +72603,11 @@ module.exports = class ftx extends Exchange {
                 },
             },
             'has': {
+                'spot': true,
                 'margin': true,
                 'swap': true,
                 'future': true,
+                'option': false,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
                 'createOrder': true,
@@ -72915,7 +73109,7 @@ module.exports = class ftx extends Exchange {
             const baseId = this.safeString2 (market, 'baseCurrency', 'underlying');
             const quoteId = this.safeString (market, 'quoteCurrency', 'USD');
             const settleId = contract ? 'USD' : undefined;
-            const base = this.safeCurrencyCode (baseId);
+            let base = this.safeCurrencyCode (baseId);
             const quote = this.safeCurrencyCode (quoteId);
             const settle = this.safeCurrencyCode (settleId);
             const spot = !contract;
@@ -72934,6 +73128,20 @@ module.exports = class ftx extends Exchange {
             } else if (isFuture) {
                 type = 'future';
                 expiry = this.parse8601 (expiryDatetime);
+                const parsedId = id.split ('-');
+                const length = parsedId.length;
+                if (length > 2) {
+                    // handling for MOVE contracts
+                    // BTC-MOVE-2022Q1
+                    // BTC-MOVE-0106
+                    // BTC-MOVE-WK-0121
+                    parsedId.pop ();
+                    // remove expiry
+                    // [ 'BTC', 'MOVE' ]
+                    // [ 'BTC', 'MOVE' ]
+                    // [ 'BTC', 'MOVE', 'WK' ]
+                    base = parsedId.join ('-');
+                }
                 symbol = base + '/' + quote + ':' + settle + '-' + this.yymmdd (expiry, '');
             }
             // check if a market is a spot or future market
@@ -72959,7 +73167,7 @@ module.exports = class ftx extends Exchange {
                 'contract': contract,
                 'linear': true,
                 'inverse': false,
-                'contractSize': 1,
+                'contractSize': this.parseNumber ('1'),
                 'expiry': expiry,
                 'expiryDatetime': this.iso8601 (expiry),
                 'strike': undefined,
@@ -73515,11 +73723,10 @@ module.exports = class ftx extends Exchange {
         for (let i = 0; i < result.length; i++) {
             const entry = result[i];
             const marketId = this.safeString (entry, 'future');
-            const symbol = this.safeSymbol (marketId);
             const timestamp = this.parse8601 (this.safeString (result[i], 'time'));
             rates.push ({
                 'info': entry,
-                'symbol': symbol,
+                'symbol': this.safeSymbol (marketId),
                 'fundingRate': this.safeNumber (entry, 'rate'),
                 'timestamp': timestamp,
                 'datetime': this.iso8601 (timestamp),
@@ -74004,7 +74211,7 @@ module.exports = class ftx extends Exchange {
             request['order_id'] = id;
         } else {
             request['client_order_id'] = clientOrderId;
-            params = this.omit (params, [ 'client_order_id', 'clientOrderId']);
+            params = this.omit (params, [ 'client_order_id', 'clientOrderId' ]);
             method = 'privateGetOrdersByClientIdClientOrderId';
         }
         const response = await this[method] (this.extend (request, params));
@@ -74336,7 +74543,7 @@ module.exports = class ftx extends Exchange {
             'leverage': leverage,
             'unrealizedPnl': this.parseNumber (unrealizedPnlString),
             'contracts': this.parseNumber (contractsString),
-            'contractSize': this.parseNumber ('1'),
+            'contractSize': this.safeValue (market, 'contractSize'),
             'marginRatio': marginRatio,
             'liquidationPrice': this.parseNumber (liquidationPriceString),
             'markPrice': this.parseNumber (markPriceString),
@@ -74794,7 +75001,7 @@ module.exports = class ftxus extends ftx {
         return this.deepExtend (super.describe (), {
             'id': 'ftxus',
             'name': 'FTX US',
-            'countries': ['US'],
+            'countries': [ 'US' ],
             'certified': false,
             'hostname': 'ftx.us',
             'has': {
@@ -75545,7 +75752,7 @@ module.exports = class gateio extends Exchange {
                         'inverse': inverse,
                         'taker': taker,
                         'maker': maker,
-                        'contractSize': this.safeString (market, 'quanto_multiplier'),
+                        'contractSize': this.safeNumber (market, 'quanto_multiplier'),
                         'expiry': expiry,
                         'expiryDatetime': this.iso8601 (expiry),
                         'strike': undefined,
@@ -75694,7 +75901,7 @@ module.exports = class gateio extends Exchange {
     getSettlementCurrencies (type, method) {
         const options = this.safeValue (this.options, type, {}); // [ 'BTC', 'USDT' ] unified codes
         const fetchMarketsContractOptions = this.safeValue (options, method, {});
-        const defaultSettle = (type === 'swap') ? ['usdt'] : ['btc'];
+        const defaultSettle = (type === 'swap') ? [ 'usdt' ] : [ 'btc' ];
         return this.safeValue (fetchMarketsContractOptions, 'settlementCurrencies', defaultSettle);
     }
 
@@ -76347,7 +76554,7 @@ module.exports = class gateio extends Exchange {
             const defaultSettle = swap ? 'usdt' : 'btc';
             request['settle'] = this.safeStringLower (params, 'settle', defaultSettle);
             const response_item = await this[method] (this.extend (request, params));
-            response = [response_item];
+            response = [ response_item ];
         } else {
             response = await this[method] (this.extend (request, params));
         }
@@ -76492,7 +76699,9 @@ module.exports = class gateio extends Exchange {
         if (since !== undefined) {
             const duration = this.parseTimeframe (timeframe);
             request['from'] = parseInt (since / 1000);
-            request['to'] = this.sum (request['from'], limit * duration - 1);
+            const toTimestamp = this.sum (request['from'], limit * duration - 1);
+            const currentTimestamp = this.seconds ();
+            request['to'] = Math.min (toTimestamp, currentTimestamp);
         }
         const response = await this[method] (this.extend (request, params));
         return this.parseOHLCVs (response, market, timeframe, since, limit);
@@ -77765,7 +77974,7 @@ module.exports = class gateio extends Exchange {
             'leverage': this.safeNumber (position, 'leverage'),
             'unrealizedPnl': this.parseNumber (unrealisedPnl),
             'contracts': this.parseNumber (size),
-            'contractSize': this.safeNumber (market, 'contractSize'),
+            'contractSize': this.safeValue (market, 'contractSize'),
             //     realisedPnl: position['realised_pnl'],
             'marginRatio': undefined,
             'liquidationPrice': this.safeNumber (position, 'liq_price'),
@@ -78777,7 +78986,7 @@ module.exports = class gemini extends Exchange {
             'network': networkId,
         };
         const response = await this.privatePostV1AddressesNetwork (this.extend (request, params));
-        const results = this.parseDepositAddresses (response, [code], false, { 'network': networkCode, 'currency': code });
+        const results = this.parseDepositAddresses (response, [ code ], false, { 'network': networkCode, 'currency': code });
         return this.groupBy (results, 'network');
     }
 
@@ -80510,7 +80719,7 @@ module.exports = class hitbtc3 extends Exchange {
             let linear = undefined;
             let inverse = undefined;
             if (contract) {
-                contractSize = '1';
+                contractSize = this.parseNumber ('1');
                 settleId = feeCurrencyId;
                 settle = this.safeCurrencyCode (settleId);
                 linear = ((quote !== undefined) && (quote === settle));
@@ -83227,7 +83436,6 @@ module.exports = class huobi extends Exchange {
                 'fetchWithdrawals': true,
                 'fetchWithdrawalWhitelist': undefined,
                 'loadLeverageBrackets': undefined,
-                'loadTimeDifference': undefined,
                 'reduceMargin': undefined,
                 'setLeverage': true,
                 'setMarginMode': undefined,
@@ -84359,7 +84567,7 @@ module.exports = class huobi extends Exchange {
                     symbol += '-' + this.yymmdd (expiry);
                 }
             }
-            const contractSize = this.safeString (market, 'contract_size');
+            const contractSize = this.safeNumber (market, 'contract_size');
             let pricePrecision = undefined;
             let amountPrecision = undefined;
             let costPrecision = undefined;
@@ -87898,7 +88106,8 @@ module.exports = class huobi extends Exchange {
         market = this.safeMarket (this.safeString (position, 'contract_code'));
         const symbol = market['symbol'];
         const contracts = this.safeString (position, 'volume');
-        const contractSize = this.safeString (market, 'contractSize');
+        const contractSize = this.safeValue (market, 'contractSize');
+        const contractSizeString = this.numberToString (contractSize);
         const entryPrice = this.safeNumber (position, 'cost_hold');
         const initialMargin = this.safeString (position, 'position_margin');
         const rawSide = this.safeString (position, 'direction');
@@ -87908,7 +88117,7 @@ module.exports = class huobi extends Exchange {
         const leverage = this.safeString (position, 'lever_rate');
         const percentage = Precise.stringMul (this.safeString (position, 'profit_rate'), '100');
         const lastPrice = this.safeString (position, 'last_price');
-        const faceValue = Precise.stringMul (contracts, contractSize);
+        const faceValue = Precise.stringMul (contracts, contractSizeString);
         let notional = undefined;
         if (market['linear']) {
             notional = Precise.stringMul (faceValue, lastPrice);
@@ -87927,7 +88136,7 @@ module.exports = class huobi extends Exchange {
             'info': position,
             'symbol': symbol,
             'contracts': this.parseNumber (contracts),
-            'contractSize': this.parseNumber (contractSize),
+            'contractSize': contractSize,
             'entryPrice': entryPrice,
             'collateral': this.parseNumber (collateral),
             'side': side,
@@ -90091,7 +90300,7 @@ module.exports = class idex extends Exchange {
                 'spot': true,
                 'margin': false,
                 'swap': false,
-                'futures': false,
+                'future': false,
                 'option': false,
                 'contract': false,
                 'linear': undefined,
@@ -91884,13 +92093,6 @@ module.exports = class indodax extends Exchange {
         return this.safeInteger (response, 'server_time');
     }
 
-    async loadTimeDifference (params = {}) {
-        const serverTime = await this.fetchTime (params);
-        const after = this.milliseconds ();
-        this.options['timeDifference'] = after - serverTime;
-        return this.options['timeDifference'];
-    }
-
     async fetchMarkets (params = {}) {
         const response = await this.publicGetPairs (params);
         //
@@ -93157,26 +93359,26 @@ module.exports = class kraken extends Exchange {
                     'maker': 0.16 / 100,
                     'tiers': {
                         'taker': [
-                            [0, 0.0026],
-                            [50000, 0.0024],
-                            [100000, 0.0022],
-                            [250000, 0.0020],
-                            [500000, 0.0018],
-                            [1000000, 0.0016],
-                            [2500000, 0.0014],
-                            [5000000, 0.0012],
-                            [10000000, 0.0001],
+                            [ 0, 0.0026 ],
+                            [ 50000, 0.0024 ],
+                            [ 100000, 0.0022 ],
+                            [ 250000, 0.0020 ],
+                            [ 500000, 0.0018 ],
+                            [ 1000000, 0.0016 ],
+                            [ 2500000, 0.0014 ],
+                            [ 5000000, 0.0012 ],
+                            [ 10000000, 0.0001 ],
                         ],
                         'maker': [
-                            [0, 0.0016],
-                            [50000, 0.0014],
-                            [100000, 0.0012],
-                            [250000, 0.0010],
-                            [500000, 0.0008],
-                            [1000000, 0.0006],
-                            [2500000, 0.0004],
-                            [5000000, 0.0002],
-                            [10000000, 0.0],
+                            [ 0, 0.0016 ],
+                            [ 50000, 0.0014 ],
+                            [ 100000, 0.0012 ],
+                            [ 250000, 0.0010 ],
+                            [ 500000, 0.0008 ],
+                            [ 1000000, 0.0006 ],
+                            [ 2500000, 0.0004 ],
+                            [ 5000000, 0.0002 ],
+                            [ 10000000, 0.0 ],
                         ],
                     },
                 },
@@ -93283,6 +93485,12 @@ module.exports = class kraken extends Exchange {
                         'WithdrawCancel': 1,
                         'WithdrawInfo': 1,
                         'WithdrawStatus': 1,
+                        // staking
+                        'Stake': 1,
+                        'Unstake': 1,
+                        'Staking/Assets': 1,
+                        'Staking/Pending': 1,
+                        'Staking/Transactions': 1,
                     },
                 },
             },
@@ -94600,7 +94808,7 @@ module.exports = class kraken extends Exchange {
         const request = {
             'txid': clientOrderId, // order id or userref
         };
-        params = this.omit (params, ['userref', 'clientOrderId' ]);
+        params = this.omit (params, [ 'userref', 'clientOrderId' ]);
         try {
             response = await this.privatePostCancelOrder (this.extend (request, params));
         } catch (e) {
@@ -95556,14 +95764,6 @@ module.exports = class kucoin extends Exchange {
 
     nonce () {
         return this.milliseconds ();
-    }
-
-    async loadTimeDifference (params = {}) {
-        const response = await this.publicGetTimestamp (params);
-        const after = this.milliseconds ();
-        const kucoinTime = this.safeInteger (response, 'data');
-        this.options['timeDifference'] = parseInt (after - kucoinTime);
-        return this.options['timeDifference'];
     }
 
     async fetchTime (params = {}) {
@@ -97494,7 +97694,7 @@ module.exports = class kucoinfutures extends kucoin {
     describe () {
         return this.deepExtend (super.describe (), {
             'id': 'kucoinfutures',
-            'name': 'Kucoin Futures',
+            'name': 'KuCoin Futures',
             'countries': [ 'SC' ],
             'rateLimit': 75,
             'version': 'v1',
@@ -97503,6 +97703,11 @@ module.exports = class kucoinfutures extends kucoin {
             'comment': 'Platform 2.0',
             'quoteJsonNumbers': false,
             'has': {
+                'spot': false,
+                'margin': false,
+                'swap': true,
+                'future': true,
+                'option': false,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
                 'CORS': undefined,
@@ -97540,7 +97745,6 @@ module.exports = class kucoinfutures extends kucoin {
                 'fetchTime': true,
                 'fetchTrades': true,
                 'fetchWithdrawals': undefined,
-                'loadTimeDifference': true,
                 'setMarginMode': false,
                 'transfer': true,
                 'transferOut': true,
@@ -97769,14 +97973,6 @@ module.exports = class kucoinfutures extends kucoin {
         throw new BadRequest (this.id + ' has no method fetchAccounts');
     }
 
-    async loadTimeDifference (params = {}) {
-        const response = await this.futuresPublicGetTimestamp (params);
-        const after = this.milliseconds ();
-        const kucoinTime = this.safeInteger (response, 'data');
-        this.options['timeDifference'] = parseInt (after - kucoinTime);
-        return this.options['timeDifference'];
-    }
-
     async fetchStatus (params = {}) {
         const response = await this.futuresPublicGetStatus (params);
         //
@@ -97921,7 +98117,7 @@ module.exports = class kucoinfutures extends kucoin {
                 'inverse': inverse,
                 'taker': this.safeNumber (market, 'takerFeeRate'),
                 'maker': this.safeNumber (market, 'makerFeeRate'),
-                'contractSize': Precise.stringAbs (this.safeString (market, 'multiplier')),
+                'contractSize': this.parseNumber (Precise.stringAbs (this.safeString (market, 'multiplier'))),
                 'expiry': expiry,
                 'expiryDatetime': this.iso8601 (expiry),
                 'precision': {
@@ -98390,7 +98586,7 @@ module.exports = class kucoinfutures extends kucoin {
             'leverage': this.safeNumber (position, 'realLeverage'),
             'unrealizedPnl': this.parseNumber (unrealisedPnl),
             'contracts': this.parseNumber (Precise.stringAbs (size)),
-            'contractSize': this.safeNumber (market, 'contractSize'),
+            'contractSize': this.safeValue (market, 'contractSize'),
             //     realisedPnl: position['realised_pnl'],
             'marginRatio': undefined,
             'liquidationPrice': this.safeNumber (position, 'liquidationPrice'),
@@ -99821,6 +100017,7 @@ module.exports = class latoken extends Exchange {
                 'fetchOrders': true,
                 'fetchTicker': true,
                 'fetchTickers': true,
+                'fetchTime': true,
                 'fetchTrades': true,
                 'fetchTransactions': true,
             },
@@ -99969,13 +100166,6 @@ module.exports = class latoken extends Exchange {
         //     }
         //
         return this.safeInteger (response, 'serverTime');
-    }
-
-    async loadTimeDifference (params = {}) {
-        const serverTime = await this.fetchTime (params);
-        const after = this.milliseconds ();
-        this.options['timeDifference'] = after - serverTime;
-        return this.options['timeDifference'];
     }
 
     async fetchMarkets (params = {}) {
@@ -105821,6 +106011,11 @@ module.exports = class mexc extends Exchange {
             'version': 'v2',
             'certified': true,
             'has': {
+                'spot': true,
+                'margin': undefined,
+                'swap': true,
+                'future': undefined,
+                'option': undefined,
                 'addMargin': true,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
@@ -106313,14 +106508,14 @@ module.exports = class mexc extends Exchange {
                 'spot': false,
                 'margin': false,
                 'swap': true,
-                'futures': false,
+                'future': false,
                 'option': false,
                 'contract': true,
                 'linear': true,
                 'inverse': false,
                 'taker': this.safeNumber (market, 'takerFeeRate'),
                 'maker': this.safeNumber (market, 'makerFeeRate'),
-                'contractSize': this.safeString (market, 'contractSize'),
+                'contractSize': this.safeNumber (market, 'contractSize'),
                 'active': (state === '0'),
                 'expiry': undefined,
                 'expiryDatetime': undefined,
@@ -112284,7 +112479,6 @@ module.exports = class okex extends Exchange {
                 'fetchWithdrawals': true,
                 'fetchWithdrawalWhitelist': undefined,
                 'loadLeverageBrackets': undefined,
-                'loadTimeDifference': undefined,
                 'reduceMargin': true,
                 'setLeverage': true,
                 'setMarginMode': true,
@@ -112980,7 +113174,7 @@ module.exports = class okex extends Exchange {
         const fees = this.safeValue2 (this.fees, type, 'trading', {});
         let contractSize = undefined;
         if (contract) {
-            contractSize = this.safeString (market, 'ctVal');
+            contractSize = this.safeNumber (market, 'ctVal');
         }
         const leverage = this.safeNumber (market, 'lever', 1);
         return this.extend (fees, {
@@ -115355,7 +115549,7 @@ module.exports = class okex extends Exchange {
             'unrealizedPnl': this.parseNumber (unrealizedPnlString),
             'percentage': percentage,
             'contracts': contracts,
-            'contractSize': this.parseNumber (market['contractSize']),
+            'contractSize': this.safeValue (market, 'contractSize'),
             'markPrice': this.parseNumber (markPriceString),
             'side': side,
             'hedged': hedged,
@@ -120238,6 +120432,7 @@ module.exports = class phemex extends Exchange {
                 'defaultNetworks': {
                     'USDT': 'ETH',
                 },
+                'defaultSubType': 'linear',
             },
         });
     }
@@ -120334,7 +120529,7 @@ module.exports = class phemex extends Exchange {
         const taker = this.parseNumber (this.fromEn (takerFeeRateEr, ratioScale));
         const limits = {
             'amount': {
-                'min': precision['amount'],
+                'min': undefined,
                 'max': undefined,
             },
             'price': {
@@ -120348,7 +120543,17 @@ module.exports = class phemex extends Exchange {
         };
         const status = this.safeString (market, 'status');
         const active = status === 'Listed';
-        const contractSize = this.safeString (market, 'contractSize');
+        const contractSizeString = this.safeString (market, 'contractSize', ' ');
+        let contractSize = undefined;
+        if (contractSizeString.indexOf (' ')) {
+            // "1 USD"
+            // "0.005 ETH"
+            const parts = contractSizeString.split (' ');
+            contractSize = this.parseNumber (parts[0]);
+        } else {
+            // "1.0"
+            contractSize = this.parseNumber (contractSizeString);
+        }
         return {
             'id': id,
             'symbol': symbol,
@@ -122370,18 +122575,17 @@ module.exports = class phemex extends Exchange {
 
     async fetchPositions (symbols = undefined, params = {}) {
         await this.loadMarkets ();
-        const code = this.safeString (params, 'code');
-        const request = {};
+        const defaultSubType = this.safeString (this.options, 'defaultSubType', 'linear');
+        let code = this.safeString (params, 'code');
         if (code === undefined) {
-            const currencyId = this.safeString (params, 'currency');
-            if (currencyId === undefined) {
-                throw new ArgumentsRequired (this.id + ' fetchPositions() requires a currency parameter or a code parameter');
-            }
+            code = (defaultSubType === 'linear') ? 'USD' : 'BTC';
         } else {
-            const currency = this.currency (code);
             params = this.omit (params, 'code');
-            request['currency'] = currency['id'];
         }
+        const currency = this.currency (code);
+        const request = {
+            'currency': currency['id'],
+        };
         const response = await this.privateGetAccountsAccountPositions (this.extend (request, params));
         //
         //     {
@@ -122461,8 +122665,147 @@ module.exports = class phemex extends Exchange {
         //
         const data = this.safeValue (response, 'data', {});
         const positions = this.safeValue (data, 'positions', []);
-        // todo unify parsePosition/parsePositions
-        return positions;
+        const result = [];
+        for (let i = 0; i < positions.length; i++) {
+            const position = positions[i];
+            result.push (this.parsePosition (position));
+        }
+        return this.filterByArray (result, 'symbol', symbols, false);
+    }
+
+    parsePosition (position, market = undefined) {
+        //
+        //   {
+        //     userID: '811370',
+        //     accountID: '8113700002',
+        //     symbol: 'ETHUSD',
+        //     currency: 'USD',
+        //     side: 'Buy',
+        //     positionStatus: 'Normal',
+        //     crossMargin: false,
+        //     leverageEr: '200000000',
+        //     leverage: '2.00000000',
+        //     initMarginReqEr: '50000000',
+        //     initMarginReq: '0.50000000',
+        //     maintMarginReqEr: '1000000',
+        //     maintMarginReq: '0.01000000',
+        //     riskLimitEv: '5000000000',
+        //     riskLimit: '500000.00000000',
+        //     size: '1',
+        //     value: '22.22370000',
+        //     valueEv: '222237',
+        //     avgEntryPriceEp: '44447400',
+        //     avgEntryPrice: '4444.74000000',
+        //     posCostEv: '111202',
+        //     posCost: '11.12020000',
+        //     assignedPosBalanceEv: '111202',
+        //     assignedPosBalance: '11.12020000',
+        //     bankruptCommEv: '84',
+        //     bankruptComm: '0.00840000',
+        //     bankruptPriceEp: '22224000',
+        //     bankruptPrice: '2222.40000000',
+        //     positionMarginEv: '111118',
+        //     positionMargin: '11.11180000',
+        //     liquidationPriceEp: '22669000',
+        //     liquidationPrice: '2266.90000000',
+        //     deleveragePercentileEr: '0',
+        //     deleveragePercentile: '0E-8',
+        //     buyValueToCostEr: '50112500',
+        //     buyValueToCost: '0.50112500',
+        //     sellValueToCostEr: '50187500',
+        //     sellValueToCost: '0.50187500',
+        //     markPriceEp: '31332499',
+        //     markPrice: '3133.24990000',
+        //     markValueEv: '0',
+        //     markValue: null,
+        //     unRealisedPosLossEv: '0',
+        //     unRealisedPosLoss: null,
+        //     estimatedOrdLossEv: '0',
+        //     estimatedOrdLoss: '0E-8',
+        //     usedBalanceEv: '111202',
+        //     usedBalance: '11.12020000',
+        //     takeProfitEp: '0',
+        //     takeProfit: null,
+        //     stopLossEp: '0',
+        //     stopLoss: null,
+        //     cumClosedPnlEv: '-1546',
+        //     cumFundingFeeEv: '1605',
+        //     cumTransactFeeEv: '8438',
+        //     realisedPnlEv: '0',
+        //     realisedPnl: null,
+        //     cumRealisedPnlEv: '0',
+        //     cumRealisedPnl: null,
+        //     transactTimeNs: '1641571200001885324',
+        //     takerFeeRateEr: '0',
+        //     makerFeeRateEr: '0',
+        //     term: '6',
+        //     lastTermEndTimeNs: '1607711882505745356',
+        //     lastFundingTimeNs: '1641571200000000000',
+        //     curTermRealisedPnlEv: '-1567',
+        //     execSeq: '12112761561'
+        //   }
+        //
+        const marketId = this.safeString (position, 'symbol');
+        market = this.safeMarket (marketId, market);
+        const symbol = market['symbol'];
+        const collateral = this.safeString (position, 'positionMargin');
+        const notionalString = this.safeString (position, 'value');
+        const maintenanceMarginPercentageString = this.safeString (position, 'maintMarginReq');
+        const maintenanceMarginString = Precise.stringMul (notionalString, maintenanceMarginPercentageString);
+        const initialMarginString = this.safeString (position, 'assignedPosBalance');
+        const initialMarginPercentageString = Precise.stringDiv (initialMarginString, notionalString);
+        const liquidationPrice = this.safeNumber (position, 'liquidationPrice');
+        const markPriceString = this.safeString (position, 'markPrice');
+        const contracts = this.safeString (position, 'size');
+        const contractSize = this.safeValue (market, 'contractSize');
+        const contractSizeString = this.numberToString (contractSize);
+        const leverage = this.safeNumber (position, 'leverage');
+        const entryPriceString = this.safeString (position, 'avgEntryPrice');
+        const rawSide = this.safeString (position, 'side');
+        const side = (rawSide === 'Buy') ? 'long' : 'short';
+        let priceDiff = undefined;
+        const currency = this.safeString (position, 'currency');
+        if (currency === 'USD') {
+            if (side === 'long') {
+                priceDiff = Precise.stringSub (markPriceString, entryPriceString);
+            } else {
+                priceDiff = Precise.stringSub (entryPriceString, markPriceString);
+            }
+        } else {
+            // inverse
+            if (side === 'long') {
+                priceDiff = Precise.stringSub (Precise.stringDiv ('1', entryPriceString), Precise.stringDiv ('1', markPriceString));
+            } else {
+                priceDiff = Precise.stringSub (Precise.stringDiv ('1', markPriceString), Precise.stringDiv ('1', entryPriceString));
+            }
+        }
+        const unrealizedPnl = Precise.stringMul (Precise.stringMul (priceDiff, contracts), contractSizeString);
+        const percentage = Precise.stringMul (Precise.stringDiv (unrealizedPnl, initialMarginString), '100');
+        const marginRatio = Precise.stringDiv (maintenanceMarginString, collateral);
+        return {
+            'info': position,
+            'symbol': symbol,
+            'contracts': this.parseNumber (contracts),
+            'contractSize': contractSize,
+            'unrealizedPnl': this.parseNumber (unrealizedPnl),
+            'leverage': leverage,
+            'liquidationPrice': liquidationPrice,
+            'collateral': this.parseNumber (collateral),
+            'notional': this.parseNumber (notionalString),
+            'markPrice': this.parseNumber (markPriceString), // markPrice lags a bit ¯\_(ツ)_/¯
+            'entryPrice': this.parseNumber (entryPriceString),
+            'timestamp': undefined,
+            'initialMargin': this.parseNumber (initialMarginString),
+            'initialMarginPercentage': this.parseNumber (initialMarginPercentageString),
+            'maintenanceMargin': this.parseNumber (maintenanceMarginString),
+            'maintenanceMarginPercentage': this.parseNumber (maintenanceMarginPercentageString),
+            'marginRatio': this.parseNumber (marginRatio),
+            'datetime': undefined,
+            'marginType': undefined,
+            'side': side,
+            'hedged': false,
+            'percentage': this.parseNumber (percentage),
+        };
     }
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
@@ -155026,7 +155369,7 @@ module.exports = class wavesexchange extends Exchange {
         return this.deepExtend (super.describe (), {
             'id': 'wavesexchange',
             'name': 'Waves.Exchange',
-            'countries': ['CH'], // Switzerland
+            'countries': [ 'CH' ], // Switzerland
             'rateLimit': 500,
             'certified': true,
             'pro': false,
@@ -155444,13 +155787,11 @@ module.exports = class wavesexchange extends Exchange {
                 'spot': true,
                 'margin': false,
                 'swap': false,
-                'futures': false,
+                'future': false,
                 'option': false,
                 'contract': false,
                 'linear': undefined,
                 'inverse': undefined,
-                'taker': undefined,
-                'maker': undefined,
                 'contractSize': undefined,
                 'active': undefined,
                 'expiry': undefined,
@@ -155520,7 +155861,7 @@ module.exports = class wavesexchange extends Exchange {
             if ((limit !== undefined) && (i > limit)) {
                 break;
             }
-            result.push ([price, amount]);
+            result.push ([ price, amount ]);
         }
         return result;
     }
@@ -155574,7 +155915,7 @@ module.exports = class wavesexchange extends Exchange {
                 headers['content-type'] = 'application/x-www-form-urlencoded';
             }
             if (isCancelOrder) {
-                body = this.json ([query['orderId']]);
+                body = this.json ([ query['orderId'] ]);
                 queryString = '';
             }
             if (queryString.length > 0) {
@@ -156816,7 +157157,7 @@ module.exports = class wavesexchange extends Exchange {
             }
         }
         await this.loadMarkets ();
-        const hexChars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+        const hexChars = [ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' ];
         const set = {};
         for (let i = 0; i < hexChars.length; i++) {
             const key = hexChars[i];
@@ -161483,13 +161824,11 @@ module.exports = class zb extends Exchange {
                 'spot': true,
                 'margin': false,
                 'swap': false,
-                'futures': false,
+                'future': false,
                 'option': false,
                 'contract': false,
                 'linear': undefined,
                 'inverse': undefined,
-                'taker': undefined,
-                'maker': undefined,
                 'contractSize': undefined,
                 'active': true,
                 'expiry': undefined,

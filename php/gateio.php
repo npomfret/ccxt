@@ -736,7 +736,7 @@ class gateio extends Exchange {
                         'inverse' => $inverse,
                         'taker' => $taker,
                         'maker' => $maker,
-                        'contractSize' => $this->safe_string($market, 'quanto_multiplier'),
+                        'contractSize' => $this->safe_number($market, 'quanto_multiplier'),
                         'expiry' => $expiry,
                         'expiryDatetime' => $this->iso8601($expiry),
                         'strike' => null,
@@ -885,7 +885,7 @@ class gateio extends Exchange {
     public function get_settlement_currencies($type, $method) {
         $options = $this->safe_value($this->options, $type, array()); // array( 'BTC', 'USDT' ) unified codes
         $fetchMarketsContractOptions = $this->safe_value($options, $method, array());
-        $defaultSettle = ($type === 'swap') ? ['usdt'] : ['btc'];
+        $defaultSettle = ($type === 'swap') ? array( 'usdt' ) : array( 'btc' );
         return $this->safe_value($fetchMarketsContractOptions, 'settlementCurrencies', $defaultSettle);
     }
 
@@ -1538,7 +1538,7 @@ class gateio extends Exchange {
             $defaultSettle = $swap ? 'usdt' : 'btc';
             $request['settle'] = $this->safe_string_lower($params, 'settle', $defaultSettle);
             $response_item = $this->$method (array_merge($request, $params));
-            $response = [$response_item];
+            $response = array( $response_item );
         } else {
             $response = $this->$method (array_merge($request, $params));
         }
@@ -1683,7 +1683,9 @@ class gateio extends Exchange {
         if ($since !== null) {
             $duration = $this->parse_timeframe($timeframe);
             $request['from'] = intval($since / 1000);
-            $request['to'] = $this->sum($request['from'], $limit * $duration - 1);
+            $toTimestamp = $this->sum($request['from'], $limit * $duration - 1);
+            $currentTimestamp = $this->seconds();
+            $request['to'] = min ($toTimestamp, $currentTimestamp);
         }
         $response = $this->$method (array_merge($request, $params));
         return $this->parse_ohlcvs($response, $market, $timeframe, $since, $limit);
@@ -2956,7 +2958,7 @@ class gateio extends Exchange {
             'leverage' => $this->safe_number($position, 'leverage'),
             'unrealizedPnl' => $this->parse_number($unrealisedPnl),
             'contracts' => $this->parse_number($size),
-            'contractSize' => $this->safe_number($market, 'contractSize'),
+            'contractSize' => $this->safe_value($market, 'contractSize'),
             //     realisedPnl => $position['realised_pnl'],
             'marginRatio' => null,
             'liquidationPrice' => $this->safe_number($position, 'liq_price'),

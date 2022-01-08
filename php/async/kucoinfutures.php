@@ -16,7 +16,7 @@ class kucoinfutures extends kucoin {
     public function describe() {
         return $this->deep_extend(parent::describe (), array(
             'id' => 'kucoinfutures',
-            'name' => 'Kucoin Futures',
+            'name' => 'KuCoin Futures',
             'countries' => array( 'SC' ),
             'rateLimit' => 75,
             'version' => 'v1',
@@ -25,6 +25,11 @@ class kucoinfutures extends kucoin {
             'comment' => 'Platform 2.0',
             'quoteJsonNumbers' => false,
             'has' => array(
+                'spot' => false,
+                'margin' => false,
+                'swap' => true,
+                'future' => true,
+                'option' => false,
                 'cancelAllOrders' => true,
                 'cancelOrder' => true,
                 'CORS' => null,
@@ -62,7 +67,6 @@ class kucoinfutures extends kucoin {
                 'fetchTime' => true,
                 'fetchTrades' => true,
                 'fetchWithdrawals' => null,
-                'loadTimeDifference' => true,
                 'setMarginMode' => false,
                 'transfer' => true,
                 'transferOut' => true,
@@ -291,14 +295,6 @@ class kucoinfutures extends kucoin {
         throw new BadRequest($this->id . ' has no method fetchAccounts');
     }
 
-    public function load_time_difference($params = array ()) {
-        $response = yield $this->futuresPublicGetTimestamp ($params);
-        $after = $this->milliseconds();
-        $kucoinTime = $this->safe_integer($response, 'data');
-        $this->options['timeDifference'] = intval($after - $kucoinTime);
-        return $this->options['timeDifference'];
-    }
-
     public function fetch_status($params = array ()) {
         $response = yield $this->futuresPublicGetStatus ($params);
         //
@@ -443,7 +439,7 @@ class kucoinfutures extends kucoin {
                 'inverse' => $inverse,
                 'taker' => $this->safe_number($market, 'takerFeeRate'),
                 'maker' => $this->safe_number($market, 'makerFeeRate'),
-                'contractSize' => Precise::string_abs($this->safe_string($market, 'multiplier')),
+                'contractSize' => $this->parse_number(Precise::string_abs($this->safe_string($market, 'multiplier'))),
                 'expiry' => $expiry,
                 'expiryDatetime' => $this->iso8601($expiry),
                 'precision' => array(
@@ -912,7 +908,7 @@ class kucoinfutures extends kucoin {
             'leverage' => $this->safe_number($position, 'realLeverage'),
             'unrealizedPnl' => $this->parse_number($unrealisedPnl),
             'contracts' => $this->parse_number(Precise::string_abs($size)),
-            'contractSize' => $this->safe_number($market, 'contractSize'),
+            'contractSize' => $this->safe_value($market, 'contractSize'),
             //     realisedPnl => $position['realised_pnl'],
             'marginRatio' => null,
             'liquidationPrice' => $this->safe_number($position, 'liquidationPrice'),

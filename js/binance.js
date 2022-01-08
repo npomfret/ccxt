@@ -94,18 +94,17 @@ module.exports = class binance extends Exchange {
                 'fetchTradingLimits': undefined,
                 'fetchTransactions': false,
                 'fetchTransfers': true,
-                'fetchWithdrawAddress': undefined,
-                'fetchWithdrawAddressesByNetwork': undefined,
-                'fetchWithdrawal': undefined,
+                'fetchWithdrawAddress': false,
+                'fetchWithdrawAddressesByNetwork': false,
+                'fetchWithdrawal': false,
                 'fetchWithdrawals': true,
-                'fetchWithdrawalWhitelist': undefined,
-                'loadLeverageBrackets': undefined,
-                'loadTimeDifference': undefined,
+                'fetchWithdrawalWhitelist': false,
+                'loadLeverageBrackets': true,
                 'reduceMargin': true,
                 'setLeverage': true,
                 'setMarginMode': true,
                 'setPositionMode': true,
-                'signIn': undefined,
+                'signIn': false,
                 'transfer': true,
                 'transferOut': false,
                 'withdraw': true,
@@ -1156,13 +1155,6 @@ module.exports = class binance extends Exchange {
         return this.safeInteger (response, 'serverTime');
     }
 
-    async loadTimeDifference (params = {}) {
-        const serverTime = await this.fetchTime (params);
-        const after = this.milliseconds ();
-        this.options['timeDifference'] = after - serverTime;
-        return this.options['timeDifference'];
-    }
-
     async fetchCurrencies (params = {}) {
         const fetchCurrenciesEnabled = this.safeValue (this.options, 'fetchCurrencies');
         if (!fetchCurrenciesEnabled) {
@@ -1504,7 +1496,7 @@ module.exports = class binance extends Exchange {
             let contractSize = undefined;
             let fees = this.fees;
             if (future || delivery) {
-                contractSize = this.safeString (market, 'contractSize', '1');
+                contractSize = this.safeNumber (market, 'contractSize', this.parseNumber ('1'));
                 fees = this.fees[type];
             }
             const maker = fees['trading']['maker'];
@@ -4427,6 +4419,8 @@ module.exports = class binance extends Exchange {
         let percentage = undefined;
         let liquidationPriceStringRaw = undefined;
         let liquidationPrice = undefined;
+        const contractSize = this.safeValue (market, 'contractSize');
+        const contractSizeString = this.numberToString (contractSize);
         if (notionalFloat === 0.0) {
             entryPrice = undefined;
         } else {
@@ -4465,7 +4459,7 @@ module.exports = class binance extends Exchange {
                     onePlusMaintenanceMarginPercentageString = Precise.stringSub ('-1', maintenanceMarginPercentageString);
                     entryPriceSignString = Precise.stringMul ('-1', entryPriceSignString);
                 }
-                const size = Precise.stringMul (contractsStringAbs, market['contractSize']);
+                const size = Precise.stringMul (contractsStringAbs, contractSizeString);
                 const leftSide = Precise.stringMul (size, onePlusMaintenanceMarginPercentageString);
                 const rightSide = Precise.stringSub (Precise.stringMul (Precise.stringDiv ('1', entryPriceSignString), size), walletBalance);
                 liquidationPriceStringRaw = Precise.stringDiv (leftSide, rightSide);
@@ -4501,7 +4495,7 @@ module.exports = class binance extends Exchange {
             'leverage': this.parseNumber (leverageString),
             'unrealizedPnl': unrealizedPnl,
             'contracts': contracts,
-            'contractSize': this.parseNumber (market['contractSize']),
+            'contractSize': contractSize,
             'marginRatio': marginRatio,
             'liquidationPrice': liquidationPrice,
             'markPrice': undefined,
@@ -4588,6 +4582,8 @@ module.exports = class binance extends Exchange {
         }
         const entryPriceString = this.safeString (position, 'entryPrice');
         const entryPrice = this.parseNumber (entryPriceString);
+        const contractSize = this.safeValue (market, 'contractSize');
+        const contractSizeString = this.numberToString (contractSize);
         // as oppose to notionalValue
         const linear = ('notional' in position);
         if (marginType === 'cross') {
@@ -4615,7 +4611,7 @@ module.exports = class binance extends Exchange {
                     onePlusMaintenanceMarginPercentageString = Precise.stringSub ('-1', maintenanceMarginPercentageString);
                     entryPriceSignString = Precise.stringMul ('-1', entryPriceSignString);
                 }
-                const leftSide = Precise.stringMul (contractsAbs, market['contractSize']);
+                const leftSide = Precise.stringMul (contractsAbs, contractSizeString);
                 const rightSide = Precise.stringSub (Precise.stringDiv ('1', entryPriceSignString), Precise.stringDiv (onePlusMaintenanceMarginPercentageString, liquidationPriceString));
                 collateralString = Precise.stringDiv (Precise.stringMul (leftSide, rightSide), '1', market['precision']['base']);
             }
@@ -4652,7 +4648,7 @@ module.exports = class binance extends Exchange {
             'info': position,
             'symbol': symbol,
             'contracts': contracts,
-            'contractSize': this.parseNumber (market['contractSize']),
+            'contractSize': contractSize,
             'unrealizedPnl': unrealizedPnl,
             'leverage': this.parseNumber (leverageString),
             'liquidationPrice': liquidationPrice,

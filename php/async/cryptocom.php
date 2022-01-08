@@ -405,7 +405,7 @@ class cryptocom extends Exchange {
                 $type = 'future';
                 $symbol = $symbol . '-' . $this->yymmdd($expiry);
             }
-            $contractSize = $this->safe_string($market, 'contract_size');
+            $contractSize = $this->safe_number($market, 'contract_size');
             $marketId = $this->safe_string($market, 'symbol');
             $maxLeverage = $this->safe_number($market, 'max_leverage');
             $active = $this->safe_value($market, 'tradable');
@@ -972,20 +972,15 @@ class cryptocom extends Exchange {
     public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
         yield $this->load_markets();
         $market = null;
+        $request = array();
         if ($symbol !== null) {
             $market = $this->market($symbol);
+            $request['instrument_name'] = $market['id'];
         }
-        $request = array();
         if ($limit !== null) {
             $request['page_size'] = $limit;
         }
         list($marketType, $query) = $this->handle_market_type_and_params('fetchOpenOrders', $market, $params);
-        if ($marketType === 'spot') {
-            if ($symbol === null) {
-                throw new ArgumentsRequired($this->id . ' fetchOpenOrders() requires a $symbol argument for ' . $marketType . ' orders');
-            }
-            $request['instrument_name'] = $market['id'];
-        }
         $method = $this->get_supported_mapping($marketType, array(
             'spot' => 'spotPrivatePostPrivateGetOpenOrders',
             'future' => 'derivativesPrivatePostPrivateGetOpenOrders',

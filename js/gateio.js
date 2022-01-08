@@ -731,7 +731,7 @@ module.exports = class gateio extends Exchange {
                         'inverse': inverse,
                         'taker': taker,
                         'maker': maker,
-                        'contractSize': this.safeString (market, 'quanto_multiplier'),
+                        'contractSize': this.safeNumber (market, 'quanto_multiplier'),
                         'expiry': expiry,
                         'expiryDatetime': this.iso8601 (expiry),
                         'strike': undefined,
@@ -880,7 +880,7 @@ module.exports = class gateio extends Exchange {
     getSettlementCurrencies (type, method) {
         const options = this.safeValue (this.options, type, {}); // [ 'BTC', 'USDT' ] unified codes
         const fetchMarketsContractOptions = this.safeValue (options, method, {});
-        const defaultSettle = (type === 'swap') ? ['usdt'] : ['btc'];
+        const defaultSettle = (type === 'swap') ? [ 'usdt' ] : [ 'btc' ];
         return this.safeValue (fetchMarketsContractOptions, 'settlementCurrencies', defaultSettle);
     }
 
@@ -1533,7 +1533,7 @@ module.exports = class gateio extends Exchange {
             const defaultSettle = swap ? 'usdt' : 'btc';
             request['settle'] = this.safeStringLower (params, 'settle', defaultSettle);
             const response_item = await this[method] (this.extend (request, params));
-            response = [response_item];
+            response = [ response_item ];
         } else {
             response = await this[method] (this.extend (request, params));
         }
@@ -1678,7 +1678,9 @@ module.exports = class gateio extends Exchange {
         if (since !== undefined) {
             const duration = this.parseTimeframe (timeframe);
             request['from'] = parseInt (since / 1000);
-            request['to'] = this.sum (request['from'], limit * duration - 1);
+            const toTimestamp = this.sum (request['from'], limit * duration - 1);
+            const currentTimestamp = this.seconds ();
+            request['to'] = Math.min (toTimestamp, currentTimestamp);
         }
         const response = await this[method] (this.extend (request, params));
         return this.parseOHLCVs (response, market, timeframe, since, limit);
@@ -2951,7 +2953,7 @@ module.exports = class gateio extends Exchange {
             'leverage': this.safeNumber (position, 'leverage'),
             'unrealizedPnl': this.parseNumber (unrealisedPnl),
             'contracts': this.parseNumber (size),
-            'contractSize': this.safeNumber (market, 'contractSize'),
+            'contractSize': this.safeValue (market, 'contractSize'),
             //     realisedPnl: position['realised_pnl'],
             'marginRatio': undefined,
             'liquidationPrice': this.safeNumber (position, 'liq_price'),

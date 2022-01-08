@@ -13,7 +13,7 @@ module.exports = class kucoinfutures extends kucoin {
     describe () {
         return this.deepExtend (super.describe (), {
             'id': 'kucoinfutures',
-            'name': 'Kucoin Futures',
+            'name': 'KuCoin Futures',
             'countries': [ 'SC' ],
             'rateLimit': 75,
             'version': 'v1',
@@ -22,6 +22,11 @@ module.exports = class kucoinfutures extends kucoin {
             'comment': 'Platform 2.0',
             'quoteJsonNumbers': false,
             'has': {
+                'spot': false,
+                'margin': false,
+                'swap': true,
+                'future': true,
+                'option': false,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
                 'CORS': undefined,
@@ -59,7 +64,6 @@ module.exports = class kucoinfutures extends kucoin {
                 'fetchTime': true,
                 'fetchTrades': true,
                 'fetchWithdrawals': undefined,
-                'loadTimeDifference': true,
                 'setMarginMode': false,
                 'transfer': true,
                 'transferOut': true,
@@ -288,14 +292,6 @@ module.exports = class kucoinfutures extends kucoin {
         throw new BadRequest (this.id + ' has no method fetchAccounts');
     }
 
-    async loadTimeDifference (params = {}) {
-        const response = await this.futuresPublicGetTimestamp (params);
-        const after = this.milliseconds ();
-        const kucoinTime = this.safeInteger (response, 'data');
-        this.options['timeDifference'] = parseInt (after - kucoinTime);
-        return this.options['timeDifference'];
-    }
-
     async fetchStatus (params = {}) {
         const response = await this.futuresPublicGetStatus (params);
         //
@@ -440,7 +436,7 @@ module.exports = class kucoinfutures extends kucoin {
                 'inverse': inverse,
                 'taker': this.safeNumber (market, 'takerFeeRate'),
                 'maker': this.safeNumber (market, 'makerFeeRate'),
-                'contractSize': Precise.stringAbs (this.safeString (market, 'multiplier')),
+                'contractSize': this.parseNumber (Precise.stringAbs (this.safeString (market, 'multiplier'))),
                 'expiry': expiry,
                 'expiryDatetime': this.iso8601 (expiry),
                 'precision': {
@@ -909,7 +905,7 @@ module.exports = class kucoinfutures extends kucoin {
             'leverage': this.safeNumber (position, 'realLeverage'),
             'unrealizedPnl': this.parseNumber (unrealisedPnl),
             'contracts': this.parseNumber (Precise.stringAbs (size)),
-            'contractSize': this.safeNumber (market, 'contractSize'),
+            'contractSize': this.safeValue (market, 'contractSize'),
             //     realisedPnl: position['realised_pnl'],
             'marginRatio': undefined,
             'liquidationPrice': this.safeNumber (position, 'liquidationPrice'),

@@ -101,18 +101,17 @@ class binance extends Exchange {
                 'fetchTradingLimits' => null,
                 'fetchTransactions' => false,
                 'fetchTransfers' => true,
-                'fetchWithdrawAddress' => null,
-                'fetchWithdrawAddressesByNetwork' => null,
-                'fetchWithdrawal' => null,
+                'fetchWithdrawAddress' => false,
+                'fetchWithdrawAddressesByNetwork' => false,
+                'fetchWithdrawal' => false,
                 'fetchWithdrawals' => true,
-                'fetchWithdrawalWhitelist' => null,
-                'loadLeverageBrackets' => null,
-                'loadTimeDifference' => null,
+                'fetchWithdrawalWhitelist' => false,
+                'loadLeverageBrackets' => true,
                 'reduceMargin' => true,
                 'setLeverage' => true,
                 'setMarginMode' => true,
                 'setPositionMode' => true,
-                'signIn' => null,
+                'signIn' => false,
                 'transfer' => true,
                 'transferOut' => false,
                 'withdraw' => true,
@@ -1163,13 +1162,6 @@ class binance extends Exchange {
         return $this->safe_integer($response, 'serverTime');
     }
 
-    public function load_time_difference($params = array ()) {
-        $serverTime = yield $this->fetch_time($params);
-        $after = $this->milliseconds();
-        $this->options['timeDifference'] = $after - $serverTime;
-        return $this->options['timeDifference'];
-    }
-
     public function fetch_currencies($params = array ()) {
         $fetchCurrenciesEnabled = $this->safe_value($this->options, 'fetchCurrencies');
         if (!$fetchCurrenciesEnabled) {
@@ -1511,7 +1503,7 @@ class binance extends Exchange {
             $contractSize = null;
             $fees = $this->fees;
             if ($future || $delivery) {
-                $contractSize = $this->safe_string($market, 'contractSize', '1');
+                $contractSize = $this->safe_number($market, 'contractSize', $this->parse_number('1'));
                 $fees = $this->fees[$type];
             }
             $maker = $fees['trading']['maker'];
@@ -4434,6 +4426,8 @@ class binance extends Exchange {
         $percentage = null;
         $liquidationPriceStringRaw = null;
         $liquidationPrice = null;
+        $contractSize = $this->safe_value($market, 'contractSize');
+        $contractSizeString = $this->number_to_string($contractSize);
         if ($notionalFloat === 0.0) {
             $entryPrice = null;
         } else {
@@ -4462,7 +4456,7 @@ class binance extends Exchange {
             } else {
                 // calculate liquidation price
                 //
-                // $liquidationPrice = ($contracts * contractSize(±1 - mmp)) / (±1/entryPrice * $contracts * contractSize - $walletBalance)
+                // $liquidationPrice = ($contracts * $contractSize(±1 - mmp)) / (±1/entryPrice * $contracts * $contractSize - $walletBalance)
                 //
                 $onePlusMaintenanceMarginPercentageString = null;
                 $entryPriceSignString = $entryPriceString;
@@ -4472,7 +4466,7 @@ class binance extends Exchange {
                     $onePlusMaintenanceMarginPercentageString = Precise::string_sub('-1', $maintenanceMarginPercentageString);
                     $entryPriceSignString = Precise::string_mul('-1', $entryPriceSignString);
                 }
-                $size = Precise::string_mul($contractsStringAbs, $market['contractSize']);
+                $size = Precise::string_mul($contractsStringAbs, $contractSizeString);
                 $leftSide = Precise::string_mul($size, $onePlusMaintenanceMarginPercentageString);
                 $rightSide = Precise::string_sub(Precise::string_mul(Precise::string_div('1', $entryPriceSignString), $size), $walletBalance);
                 $liquidationPriceStringRaw = Precise::string_div($leftSide, $rightSide);
@@ -4508,7 +4502,7 @@ class binance extends Exchange {
             'leverage' => $this->parse_number($leverageString),
             'unrealizedPnl' => $unrealizedPnl,
             'contracts' => $contracts,
-            'contractSize' => $this->parse_number($market['contractSize']),
+            'contractSize' => $contractSize,
             'marginRatio' => $marginRatio,
             'liquidationPrice' => $liquidationPrice,
             'markPrice' => null,
@@ -4595,6 +4589,8 @@ class binance extends Exchange {
         }
         $entryPriceString = $this->safe_string($position, 'entryPrice');
         $entryPrice = $this->parse_number($entryPriceString);
+        $contractSize = $this->safe_value($market, 'contractSize');
+        $contractSizeString = $this->number_to_string($contractSize);
         // as oppose to notionalValue
         $linear = (is_array($position) && array_key_exists('notional', $position));
         if ($marginType === 'cross') {
@@ -4613,7 +4609,7 @@ class binance extends Exchange {
                 $leftSide = Precise::string_add($inner, $entryPriceSignString);
                 $collateralString = Precise::string_div(Precise::string_mul($leftSide, $contractsAbs), '1', $market['precision']['quote']);
             } else {
-                // walletBalance = ($contracts * contractSize) * (±1/entryPrice - (±1 - mmp) / $liquidationPrice)
+                // walletBalance = ($contracts * $contractSize) * (±1/entryPrice - (±1 - mmp) / $liquidationPrice)
                 $onePlusMaintenanceMarginPercentageString = null;
                 $entryPriceSignString = $entryPriceString;
                 if ($side === 'short') {
@@ -4622,7 +4618,7 @@ class binance extends Exchange {
                     $onePlusMaintenanceMarginPercentageString = Precise::string_sub('-1', $maintenanceMarginPercentageString);
                     $entryPriceSignString = Precise::string_mul('-1', $entryPriceSignString);
                 }
-                $leftSide = Precise::string_mul($contractsAbs, $market['contractSize']);
+                $leftSide = Precise::string_mul($contractsAbs, $contractSizeString);
                 $rightSide = Precise::string_sub(Precise::string_div('1', $entryPriceSignString), Precise::string_div($onePlusMaintenanceMarginPercentageString, $liquidationPriceString));
                 $collateralString = Precise::string_div(Precise::string_mul($leftSide, $rightSide), '1', $market['precision']['base']);
             }
@@ -4659,7 +4655,7 @@ class binance extends Exchange {
             'info' => $position,
             'symbol' => $symbol,
             'contracts' => $contracts,
-            'contractSize' => $this->parse_number($market['contractSize']),
+            'contractSize' => $contractSize,
             'unrealizedPnl' => $unrealizedPnl,
             'leverage' => $this->parse_number($leverageString),
             'liquidationPrice' => $liquidationPrice,

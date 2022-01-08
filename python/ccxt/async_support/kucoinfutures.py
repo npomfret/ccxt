@@ -24,7 +24,7 @@ class kucoinfutures(kucoin):
     def describe(self):
         return self.deep_extend(super(kucoinfutures, self).describe(), {
             'id': 'kucoinfutures',
-            'name': 'Kucoin Futures',
+            'name': 'KuCoin Futures',
             'countries': ['SC'],
             'rateLimit': 75,
             'version': 'v1',
@@ -33,6 +33,11 @@ class kucoinfutures(kucoin):
             'comment': 'Platform 2.0',
             'quoteJsonNumbers': False,
             'has': {
+                'spot': False,
+                'margin': False,
+                'swap': True,
+                'future': True,
+                'option': False,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
                 'CORS': None,
@@ -70,7 +75,6 @@ class kucoinfutures(kucoin):
                 'fetchTime': True,
                 'fetchTrades': True,
                 'fetchWithdrawals': None,
-                'loadTimeDifference': True,
                 'setMarginMode': False,
                 'transfer': True,
                 'transferOut': True,
@@ -297,13 +301,6 @@ class kucoinfutures(kucoin):
     async def fetch_accounts(self, params={}):
         raise BadRequest(self.id + ' has no method fetchAccounts')
 
-    async def load_time_difference(self, params={}):
-        response = await self.futuresPublicGetTimestamp(params)
-        after = self.milliseconds()
-        kucoinTime = self.safe_integer(response, 'data')
-        self.options['timeDifference'] = int(after - kucoinTime)
-        return self.options['timeDifference']
-
     async def fetch_status(self, params={}):
         response = await self.futuresPublicGetStatus(params)
         #
@@ -445,7 +442,7 @@ class kucoinfutures(kucoin):
                 'inverse': inverse,
                 'taker': self.safe_number(market, 'takerFeeRate'),
                 'maker': self.safe_number(market, 'makerFeeRate'),
-                'contractSize': Precise.string_abs(self.safe_string(market, 'multiplier')),
+                'contractSize': self.parse_number(Precise.string_abs(self.safe_string(market, 'multiplier'))),
                 'expiry': expiry,
                 'expiryDatetime': self.iso8601(expiry),
                 'precision': {
@@ -888,7 +885,7 @@ class kucoinfutures(kucoin):
             'leverage': self.safe_number(position, 'realLeverage'),
             'unrealizedPnl': self.parse_number(unrealisedPnl),
             'contracts': self.parse_number(Precise.string_abs(size)),
-            'contractSize': self.safe_number(market, 'contractSize'),
+            'contractSize': self.safe_value(market, 'contractSize'),
             #     realisedPnl: position['realised_pnl'],
             'marginRatio': None,
             'liquidationPrice': self.safe_number(position, 'liquidationPrice'),

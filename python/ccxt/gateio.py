@@ -743,7 +743,7 @@ class gateio(Exchange):
                         'inverse': inverse,
                         'taker': taker,
                         'maker': maker,
-                        'contractSize': self.safe_string(market, 'quanto_multiplier'),
+                        'contractSize': self.safe_number(market, 'quanto_multiplier'),
                         'expiry': expiry,
                         'expiryDatetime': self.iso8601(expiry),
                         'strike': None,
@@ -1645,7 +1645,9 @@ class gateio(Exchange):
         if since is not None:
             duration = self.parse_timeframe(timeframe)
             request['from'] = int(since / 1000)
-            request['to'] = self.sum(request['from'], limit * duration - 1)
+            toTimestamp = self.sum(request['from'], limit * duration - 1)
+            currentTimestamp = self.seconds()
+            request['to'] = min(toTimestamp, currentTimestamp)
         response = getattr(self, method)(self.extend(request, params))
         return self.parse_ohlcvs(response, market, timeframe, since, limit)
 
@@ -2828,7 +2830,7 @@ class gateio(Exchange):
             'leverage': self.safe_number(position, 'leverage'),
             'unrealizedPnl': self.parse_number(unrealisedPnl),
             'contracts': self.parse_number(size),
-            'contractSize': self.safe_number(market, 'contractSize'),
+            'contractSize': self.safe_value(market, 'contractSize'),
             #     realisedPnl: position['realised_pnl'],
             'marginRatio': None,
             'liquidationPrice': self.safe_number(position, 'liq_price'),
