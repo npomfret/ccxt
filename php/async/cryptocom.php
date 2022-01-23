@@ -257,6 +257,7 @@ class cryptocom extends Exchange {
                     '40005' => '\\ccxt\\BadRequest',
                     '40006' => '\\ccxt\\BadRequest',
                     '40007' => '\\ccxt\\BadRequest',
+                    '40101' => '\\ccxt\\AuthenticationError',
                     '50001' => '\\ccxt\\BadRequest',
                 ),
             ),
@@ -328,8 +329,12 @@ class cryptocom extends Exchange {
                 'margin' => $margin,
                 'future' => false,
                 'swap' => false,
+                'option' => false,
+                'optionType' => null,
+                'strike' => null,
                 'expiry' => null,
                 'expiryDatetime' => null,
+                'contract' => false,
                 'contractSize' => null,
                 'active' => null,
                 'precision' => $precision,
@@ -428,8 +433,12 @@ class cryptocom extends Exchange {
                 'margin' => false,
                 'future' => $future,
                 'swap' => $swap,
+                'option' => false,
+                'optionType' => null,
+                'strike' => null,
                 'expiry' => $expiry,
                 'expiryDatetime' => $this->iso8601($expiry),
+                'contract' => true,
                 'contractSize' => $contractSize,
                 'active' => $active,
                 'precision' => array(
@@ -1047,6 +1056,8 @@ class cryptocom extends Exchange {
         if ($since !== null) {
             // maximum date range is one day
             $request['start_ts'] = $since;
+            $endTimestamp = $this->sum($since, 24 * 60 * 60 * 1000);
+            $request['end_ts'] = $endTimestamp;
         }
         if ($limit !== null) {
             $request['page_size'] = $limit;
@@ -1424,17 +1435,17 @@ class cryptocom extends Exchange {
         $marketId = $this->safe_string($ticker, 'i');
         $market = $this->safe_market($marketId, $market, '_');
         $symbol = $market['symbol'];
-        $last = $this->safe_number($ticker, 'a');
-        $relativeChange = $this->safe_number($ticker, 'c');
+        $last = $this->safe_string($ticker, 'a');
+        $relativeChange = $this->safe_string($ticker, 'c');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_number($ticker, 'h'),
-            'low' => $this->safe_number($ticker, 'l'),
-            'bid' => $this->safe_number($ticker, 'b'),
+            'high' => $this->safe_string($ticker, 'h'),
+            'low' => $this->safe_string($ticker, 'l'),
+            'bid' => $this->safe_string($ticker, 'b'),
             'bidVolume' => null,
-            'ask' => $this->safe_number($ticker, 'k'),
+            'ask' => $this->safe_string($ticker, 'k'),
             'askVolume' => null,
             'vwap' => null,
             'open' => null,
@@ -1442,12 +1453,12 @@ class cryptocom extends Exchange {
             'last' => $last,
             'previousClose' => null,
             'change' => null,
-            'percentage' => $relativeChange * 100,
+            'percentage' => $relativeChange,
             'average' => null,
-            'baseVolume' => $this->safe_number($ticker, 'v'),
+            'baseVolume' => $this->safe_string($ticker, 'v'),
             'quoteVolume' => null,
             'info' => $ticker,
-        ), $market);
+        ), $market, false);
     }
 
     public function parse_trade($trade, $market = null) {
@@ -1739,6 +1750,7 @@ class cryptocom extends Exchange {
             'txid' => $txId,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
+            'network' => null,
             'address' => $address,
             'addressTo' => $address,
             'addressFrom' => null,
@@ -1779,6 +1791,7 @@ class cryptocom extends Exchange {
             }
             $payload = $path . $nonce . $this->apiKey . $strSortKey . $nonce;
             $signature = $this->hmac($this->encode($payload), $this->encode($this->secret));
+            $paramsKeysLength = is_array($paramsKeys) ? count($paramsKeys) : 0;
             $body = $this->json(array(
                 'id' => $nonce,
                 'method' => $path,
@@ -1787,6 +1800,16 @@ class cryptocom extends Exchange {
                 'sig' => $signature,
                 'nonce' => $nonce,
             ));
+            // fix issue https://github.com/ccxt/ccxt/issues/11179
+            // php always encodes dictionaries as arrays
+            // if an array is empty, php will put it in square brackets
+            // python and js will put it in curly brackets
+            // the code below checks and replaces those brackets in empty requests
+            if ($paramsKeysLength === 0) {
+                $paramsString = '{}';
+                $arrayString = '[]';
+                $body = str_replace($arrayString, $paramsString, $body);
+            }
             $headers = array(
                 'Content-Type' => 'application/json',
             );
@@ -1796,13 +1819,10 @@ class cryptocom extends Exchange {
 
     public function handle_errors($code, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
         $errorCode = $this->safe_string($response, 'code');
-        $message = $this->safe_string($response, 'message');
-        if (is_array($this->exceptions['exact']) && array_key_exists($errorCode, $this->exceptions['exact'])) {
-            $Exception = $this->exceptions['exact'][$errorCode];
-            throw new $Exception($this->id . ' ' . $message);
-        }
         if ($errorCode !== '0') {
-            throw new ExchangeError($this->id . ' ' . $message);
+            $feedback = $this->id . ' ' . $body;
+            $this->throw_exactly_matched_exception($this->exceptions['exact'], $errorCode, $feedback);
+            throw new ExchangeError($this->id . ' ' . $body);
         }
     }
 }

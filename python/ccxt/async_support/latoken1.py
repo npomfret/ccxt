@@ -38,9 +38,8 @@ class latoken1(Exchange):
                 'fetchCurrencies': True,
                 'fetchMyTrades': True,
                 'fetchOpenOrders': True,
-                'fetchOrder': None,
+                'fetchOrder': True,
                 'fetchOrderBook': True,
-                'fetchOrdersByStatus': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTime': True,
@@ -239,6 +238,8 @@ class latoken1(Exchange):
                 'info': currency,
                 'name': code,
                 'active': active,
+                'deposit': None,
+                'withdraw': None,
                 'fee': fee,
                 'precision': precision,
                 'limits': {
@@ -330,36 +331,31 @@ class latoken1(Exchange):
         #     }
         #
         marketId = self.safe_string(ticker, 'symbol')
-        symbol = self.safe_symbol(marketId, market)
-        open = self.safe_number(ticker, 'open')
-        close = self.safe_number(ticker, 'close')
-        change = None
-        if open is not None and close is not None:
-            change = close - open
-        percentage = self.safe_number(ticker, 'priceChange')
-        timestamp = self.nonce()
-        return {
-            'symbol': symbol,
+        market = self.safe_market(marketId, market)
+        close = self.safe_string(ticker, 'close')
+        timestamp = self.milliseconds()
+        return self.safe_ticker({
+            'symbol': market['symbol'],
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'low': self.safe_number(ticker, 'low'),
-            'high': self.safe_number(ticker, 'high'),
+            'low': self.safe_string(ticker, 'low'),
+            'high': self.safe_string(ticker, 'high'),
             'bid': None,
             'bidVolume': None,
             'ask': None,
             'askVolume': None,
             'vwap': None,
-            'open': open,
+            'open': self.safe_string(ticker, 'open'),
             'close': close,
             'last': close,
             'previousClose': None,
-            'change': change,
-            'percentage': percentage,
+            'change': None,
+            'percentage': self.safe_string(ticker, 'priceChange'),
             'average': None,
             'baseVolume': None,
-            'quoteVolume': self.safe_number(ticker, 'volume'),
+            'quoteVolume': self.safe_string(ticker, 'volume'),
             'info': ticker,
-        }
+        }, market, False)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()

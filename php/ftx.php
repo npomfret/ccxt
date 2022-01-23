@@ -18,7 +18,11 @@ class ftx extends Exchange {
             'id' => 'ftx',
             'name' => 'FTX',
             'countries' => array( 'BS' ), // Bahamas
-            'rateLimit' => 100,
+            // hard limit of 6 requests per 200ms => 30 requests per 1000ms => 1000ms / 30 = 33.3333 ms between requests
+            // 10 withdrawal requests per 30 seconds = (1000ms / rateLimit) / (1/3) = 90.1
+            // cancels do not count towards rateLimit
+            // only 'order-making' requests count towards ratelimit
+            'rateLimit' => 33.34,
             'certified' => true,
             'pro' => true,
             'hostname' => 'ftx.com', // or ftx.us
@@ -97,177 +101,177 @@ class ftx extends Exchange {
             'api' => array(
                 'public' => array(
                     'get' => array(
-                        'coins',
+                        'coins' => 1,
                         // markets
-                        'markets',
-                        'markets/{market_name}',
-                        'markets/{market_name}/orderbook', // ?depth={depth}
-                        'markets/{market_name}/trades', // ?limit={limit}&start_time={start_time}&end_time={end_time}
-                        'markets/{market_name}/candles', // ?resolution={resolution}&limit={limit}&start_time={start_time}&end_time={end_time}
+                        'markets' => 1,
+                        'markets/{market_name}' => 1,
+                        'markets/{market_name}/orderbook' => 1, // ?depth={depth}
+                        'markets/{market_name}/trades' => 1, // ?limit={limit}&start_time={start_time}&end_time={end_time}
+                        'markets/{market_name}/candles' => 1, // ?resolution={resolution}&limit={limit}&start_time={start_time}&end_time={end_time}
                         // futures
-                        'futures',
-                        'futures/{future_name}',
-                        'futures/{future_name}/stats',
-                        'funding_rates',
-                        'indexes/{index_name}/weights',
-                        'expired_futures',
-                        'indexes/{market_name}/candles', // ?resolution={resolution}&limit={limit}&start_time={start_time}&end_time={end_time}
+                        'futures' => 1,
+                        'futures/{future_name}' => 1,
+                        'futures/{future_name}/stats' => 1,
+                        'funding_rates' => 1,
+                        'indexes/{index_name}/weights' => 1,
+                        'expired_futures' => 1,
+                        'indexes/{market_name}/candles' => 1, // ?resolution={resolution}&limit={limit}&start_time={start_time}&end_time={end_time}
                         // wallet
-                        'wallet/coins',
+                        'wallet/coins' => 1,
                         // leverage tokens
-                        'lt/tokens',
-                        'lt/{token_name}',
+                        'lt/tokens' => 1,
+                        'lt/{token_name}' => 1,
                         // etfs
-                        'etfs/rebalance_info',
+                        'etfs/rebalance_info' => 1,
                         // options
-                        'options/requests',
-                        'options/trades',
-                        'options/historical_volumes/BTC',
-                        'stats/24h_options_volume',
-                        'options/open_interest/BTC',
-                        'options/historical_open_interest/BTC',
+                        'options/requests' => 1,
+                        'options/trades' => 1,
+                        'options/historical_volumes/BTC' => 1,
+                        'stats/24h_options_volume' => 1,
+                        'options/open_interest/BTC' => 1,
+                        'options/historical_open_interest/BTC' => 1,
                         // spot margin
-                        'spot_margin/history',
-                        'spot_margin/borrow_summary',
+                        'spot_margin/history' => 1,
+                        'spot_margin/borrow_summary' => 1,
                         // nfts
-                        'nft/nfts',
-                        'nft/{nft_id}',
-                        'nft/{nft_id}/trades',
-                        'nft/all_trades',
-                        'nft/{nft_id}/account_info',
-                        'nft/collections',
+                        'nft/nfts' => 1,
+                        'nft/{nft_id}' => 1,
+                        'nft/{nft_id}/trades' => 1,
+                        'nft/all_trades' => 1,
+                        'nft/{nft_id}/account_info' => 1,
+                        'nft/collections' => 1,
                         // ftx pay
-                        'ftxpay/apps/{user_specific_id}/details',
+                        'ftxpay/apps/{user_specific_id}/details' => 1,
                     ),
                     'post' => array(
-                        'ftxpay/apps/{user_specific_id}/orders',
+                        'ftxpay/apps/{user_specific_id}/orders' => 1,
                     ),
                 ),
                 'private' => array(
                     'get' => array(
                         // subaccounts
-                        'subaccounts',
-                        'subaccounts/{nickname}/balances',
+                        'subaccounts' => 1,
+                        'subaccounts/{nickname}/balances' => 1,
                         // account
-                        'account',
-                        'positions',
+                        'account' => 1,
+                        'positions' => 1,
                         // wallet
-                        'wallet/balances',
-                        'wallet/all_balances',
-                        'wallet/deposit_address/{coin}', // ?method={method}
-                        'wallet/deposits',
-                        'wallet/withdrawals',
-                        'wallet/airdrops',
-                        'wallet/withdrawal_fee',
-                        'wallet/saved_addresses',
+                        'wallet/balances' => 1,
+                        'wallet/all_balances' => 1,
+                        'wallet/deposit_address/{coin}' => 1, // ?method={method}
+                        'wallet/deposits' => 1,
+                        'wallet/withdrawals' => 1,
+                        'wallet/airdrops' => 1,
+                        'wallet/withdrawal_fee' => 1,
+                        'wallet/saved_addresses' => 1,
                         // orders
-                        'orders', // ?market={market}
-                        'orders/history', // ?market={market}
-                        'orders/{order_id}',
-                        'orders/by_client_id/{client_order_id}',
+                        'orders' => 1, // ?market={market}
+                        'orders/history' => 1, // ?market={market}
+                        'orders/{order_id}' => 1,
+                        'orders/by_client_id/{client_order_id}' => 1,
                         // conditional orders
-                        'conditional_orders', // ?market={market}
-                        'conditional_orders/{conditional_order_id}/triggers',
-                        'conditional_orders/history', // ?market={market}
-                        'fills', // ?market={market}
-                        'funding_payments',
+                        'conditional_orders' => 1, // ?market={market}
+                        'conditional_orders/{conditional_order_id}/triggers' => 1,
+                        'conditional_orders/history' => 1, // ?market={market}
+                        'fills' => 1, // ?market={market}
+                        'funding_payments' => 1,
                         // leverage tokens
-                        'lt/balances',
-                        'lt/creations',
-                        'lt/redemptions',
+                        'lt/balances' => 1,
+                        'lt/creations' => 1,
+                        'lt/redemptions' => 1,
                         // options
-                        'options/my_requests',
-                        'options/requests/{request_id}/quotes',
-                        'options/my_quotes',
-                        'options/account_info',
-                        'options/positions',
-                        'options/fills',
+                        'options/my_requests' => 1,
+                        'options/requests/{request_id}/quotes' => 1,
+                        'options/my_quotes' => 1,
+                        'options/account_info' => 1,
+                        'options/positions' => 1,
+                        'options/fills' => 1,
                         // staking
-                        'staking/stakes',
-                        'staking/unstake_requests',
-                        'staking/balances',
-                        'staking/staking_rewards',
+                        'staking/stakes' => 1,
+                        'staking/unstake_requests' => 1,
+                        'staking/balances' => 1,
+                        'staking/staking_rewards' => 1,
                         // otc
-                        'otc/quotes/{quoteId}',
+                        'otc/quotes/{quoteId}' => 1,
                         // spot margin
-                        'spot_margin/borrow_rates',
-                        'spot_margin/lending_rates',
-                        'spot_margin/market_info', // ?market={market}
-                        'spot_margin/borrow_history',
-                        'spot_margin/lending_history',
-                        'spot_margin/offers',
-                        'spot_margin/lending_info',
+                        'spot_margin/borrow_rates' => 1,
+                        'spot_margin/lending_rates' => 1,
+                        'spot_margin/market_info' => 1, // ?market={market}
+                        'spot_margin/borrow_history' => 1,
+                        'spot_margin/lending_history' => 1,
+                        'spot_margin/offers' => 1,
+                        'spot_margin/lending_info' => 1,
                         // nfts
-                        'nft/balances',
-                        'nft/bids',
-                        'nft/deposits',
-                        'nft/withdrawals',
-                        'nft/fills',
-                        'nft/gallery/{gallery_id}',
-                        'nft/gallery_settings',
+                        'nft/balances' => 1,
+                        'nft/bids' => 1,
+                        'nft/deposits' => 1,
+                        'nft/withdrawals' => 1,
+                        'nft/fills' => 1,
+                        'nft/gallery/{gallery_id}' => 1,
+                        'nft/gallery_settings' => 1,
                         // latency statistics
-                        'stats/latency_stats',
+                        'stats/latency_stats' => 1,
                         // pnl
-                        'pnl/historical_changes',
+                        'pnl/historical_changes' => 1,
                     ),
                     'post' => array(
                         // subaccounts
-                        'subaccounts',
-                        'subaccounts/update_name',
-                        'subaccounts/transfer',
+                        'subaccounts' => 1,
+                        'subaccounts/update_name' => 1,
+                        'subaccounts/transfer' => 1,
                         // account
-                        'account/leverage',
+                        'account/leverage' => 1,
                         // wallet
-                        'wallet/withdrawals',
-                        'wallet/saved_addresses',
+                        'wallet/withdrawals' => 90,
+                        'wallet/saved_addresses' => 1,
                         // orders
-                        'orders',
-                        'conditional_orders',
-                        'orders/{order_id}/modify',
-                        'orders/by_client_id/{client_order_id}/modify',
-                        'conditional_orders/{order_id}/modify',
+                        'orders' => 1,
+                        'conditional_orders' => 1,
+                        'orders/{order_id}/modify' => 1,
+                        'orders/by_client_id/{client_order_id}/modify' => 1,
+                        'conditional_orders/{order_id}/modify' => 1,
                         // leverage tokens
-                        'lt/{token_name}/create',
-                        'lt/{token_name}/redeem',
+                        'lt/{token_name}/create' => 1,
+                        'lt/{token_name}/redeem' => 1,
                         // options
-                        'options/requests',
-                        'options/requests/{request_id}/quotes',
-                        'options/quotes/{quote_id}/accept',
+                        'options/requests' => 1,
+                        'options/requests/{request_id}/quotes' => 1,
+                        'options/quotes/{quote_id}/accept' => 1,
                         // staking
-                        'staking/unstake_requests',
-                        'srm_stakes/stakes',
+                        'staking/unstake_requests' => 1,
+                        'srm_stakes/stakes' => 1,
                         // otc
-                        'otc/quotes/{quote_id}/accept',
-                        'otc/quotes',
+                        'otc/quotes/{quote_id}/accept' => 1,
+                        'otc/quotes' => 1,
                         // spot margin
-                        'spot_margin/offers',
+                        'spot_margin/offers' => 1,
                         // nfts
-                        'nft/offer',
-                        'nft/buy',
-                        'nft/auction',
-                        'nft/edit_auction',
-                        'nft/cancel_auction',
-                        'nft/bids',
-                        'nft/redeem',
-                        'nft/gallery_settings',
+                        'nft/offer' => 1,
+                        'nft/buy' => 1,
+                        'nft/auction' => 1,
+                        'nft/edit_auction' => 1,
+                        'nft/cancel_auction' => 1,
+                        'nft/bids' => 1,
+                        'nft/redeem' => 1,
+                        'nft/gallery_settings' => 1,
                         // ftx pay
-                        'ftxpay/apps/{user_specific_id}/orders',
+                        'ftxpay/apps/{user_specific_id}/orders' => 1,
                     ),
                     'delete' => array(
                         // subaccounts
-                        'subaccounts',
+                        'subaccounts' => 1,
                         // wallet
-                        'wallet/saved_addresses/{saved_address_id}',
+                        'wallet/saved_addresses/{saved_address_id}' => 1,
                         // orders
-                        'orders/{order_id}',
-                        'orders/by_client_id/{client_order_id}',
-                        'orders',
-                        'conditional_orders/{order_id}',
+                        'orders/{order_id}' => 1,
+                        'orders/by_client_id/{client_order_id}' => 1,
+                        'orders' => 1,
+                        'conditional_orders/{order_id}' => 1,
                         // options
-                        'options/requests/{request_id}',
-                        'options/quotes/{quote_id}',
+                        'options/requests/{request_id}' => 1,
+                        'options/quotes/{quote_id}' => 1,
                         // staking
-                        'staking/unstake_requests/{request_id}',
+                        'staking/unstake_requests/{request_id}' => 1,
                     ),
                 ),
             ),
@@ -302,7 +306,7 @@ class ftx extends Exchange {
             ),
             'exceptions' => array(
                 'exact' => array(
-                    'Please slow down' => '\\ccxt\\RateLimitExceeded', // array("error":"Please slow down","success":false)
+                    'Slow down' => '\\ccxt\\RateLimitExceeded', // array("error":"Slow down","success":false)
                     'Size too small for provide' => '\\ccxt\\InvalidOrder', // array("error":"Size too small for provide","success":false)
                     'Not enough balances' => '\\ccxt\\InsufficientFunds', // array("error":"Not enough balances","success":false)
                     'InvalidPrice' => '\\ccxt\\InvalidOrder', // array("error":"Invalid price","success":false)
@@ -372,6 +376,9 @@ class ftx extends Exchange {
                     'BSC' => 'bsc',
                 ),
             ),
+            'commonCurrencies' => array(
+                'STARS' => 'StarLaunch',
+            ),
         ));
     }
 
@@ -402,6 +409,8 @@ class ftx extends Exchange {
                 'type' => null,
                 'name' => $name,
                 'active' => null,
+                'deposit' => null,
+                'withdraw' => null,
                 'fee' => null,
                 'precision' => null,
                 'limits' => array(
@@ -548,7 +557,7 @@ class ftx extends Exchange {
             $settle = $this->safe_currency_code($settleId);
             $spot = !$contract;
             $margin = !$contract;
-            $perpetual = $this->safe_value($future, 'perpetual');
+            $perpetual = $this->safe_value($future, 'perpetual', false);
             $swap = $perpetual;
             $option = false;
             $isFuture = $contract && !$swap;
@@ -661,22 +670,22 @@ class ftx extends Exchange {
             $market = $this->markets_by_id[$marketId];
         }
         $symbol = $this->safe_symbol($marketId, $market);
-        $last = $this->safe_number($ticker, 'last');
+        $last = $this->safe_string($ticker, 'last');
         $timestamp = $this->safe_timestamp($ticker, 'time', $this->milliseconds());
-        $percentage = $this->safe_number($ticker, 'change24h');
+        $percentage = $this->safe_string($ticker, 'change24h');
         if ($percentage !== null) {
-            $percentage *= 100;
+            $percentage = Precise::string_mul($percentage, '100');
         }
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_number($ticker, 'high'),
-            'low' => $this->safe_number($ticker, 'low'),
-            'bid' => $this->safe_number($ticker, 'bid'),
-            'bidVolume' => $this->safe_number($ticker, 'bidSize'),
-            'ask' => $this->safe_number($ticker, 'ask'),
-            'askVolume' => $this->safe_number($ticker, 'askSize'),
+            'high' => $this->safe_string($ticker, 'high'),
+            'low' => $this->safe_string($ticker, 'low'),
+            'bid' => $this->safe_string($ticker, 'bid'),
+            'bidVolume' => $this->safe_string($ticker, 'bidSize'),
+            'ask' => $this->safe_string($ticker, 'ask'),
+            'askVolume' => $this->safe_string($ticker, 'askSize'),
             'vwap' => null,
             'open' => null,
             'close' => $last,
@@ -686,9 +695,9 @@ class ftx extends Exchange {
             'percentage' => $percentage,
             'average' => null,
             'baseVolume' => null,
-            'quoteVolume' => $this->safe_number($ticker, 'quoteVolume24h'),
+            'quoteVolume' => $this->safe_string($ticker, 'quoteVolume24h'),
             'info' => $ticker,
-        ), $market);
+        ), $market, false);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {
@@ -984,10 +993,18 @@ class ftx extends Exchange {
         //         "baseCurrency" => "BCHA",
         //         "quoteCurrency" => "USD"
         //     }
+        //
         $id = $this->safe_string($trade, 'id');
         $takerOrMaker = $this->safe_string($trade, 'liquidity');
-        $marketId = $this->safe_string($trade, 'market');
-        $market = $this->safe_market($marketId, $market);
+        // a workaround for the OTC trades, they don't have a $symbol
+        $baseId = $this->safe_string($trade, 'baseCurrency');
+        $quoteId = $this->safe_string($trade, 'quoteCurrency');
+        $defaultMarketId = null;
+        if (($baseId !== null) && ($quoteId !== null)) {
+            $defaultMarketId = $baseId . '/' . $quoteId;
+        }
+        $marketId = $this->safe_string($trade, 'market', $defaultMarketId);
+        $market = $this->safe_market($marketId, $market, '/');
         $symbol = $market['symbol'];
         $timestamp = $this->parse8601($this->safe_string($trade, 'time'));
         $priceString = $this->safe_string($trade, 'price');
@@ -1029,6 +1046,11 @@ class ftx extends Exchange {
             'market_name' => $marketId,
         );
         if ($since !== null) {
+            // the exchange aligns results to end_time returning 5000 trades max
+            // the user must set the end_time (in seconds) close enough to start_time
+            // for a proper pagination, fetch the most recent trades first
+            // then set the end_time parameter to the timestamp of the last trade
+            // start_time and end_time must be in seconds, divided by a thousand
             $request['start_time'] = intval($since / 1000);
             // start_time doesn't work without end_time
             $request['end_time'] = $this->seconds();
@@ -2126,6 +2148,7 @@ class ftx extends Exchange {
             'txid' => $txid,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
+            'network' => null,
             'addressFrom' => null,
             'address' => $address,
             'addressTo' => $address,
@@ -2304,7 +2327,7 @@ class ftx extends Exchange {
         $result = array();
         for ($i = 0; $i < count($incomes); $i++) {
             $entry = $incomes[$i];
-            $parsed = $this->parse_income ($entry, $market);
+            $parsed = $this->parse_income($entry, $market);
             $result[] = $parsed;
         }
         $sorted = $this->sort_by($result, 'timestamp');
@@ -2324,7 +2347,7 @@ class ftx extends Exchange {
         }
         $response = $this->privateGetFundingPayments (array_merge($request, $params));
         $result = $this->safe_value($response, 'result', array());
-        return $this->parse_incomes ($result, $market, $since, $limit);
+        return $this->parse_incomes($result, $market, $since, $limit);
     }
 
     public function parse_funding_rate($fundingRate, $market = null) {
@@ -2344,9 +2367,8 @@ class ftx extends Exchange {
         //       "openInterest" => "48307.96"
         //     }
         //
-        $nextFundingRate = $this->safe_number($fundingRate, 'nextFundingRate');
-        $nextFundingRateDatetimeRaw = $this->safe_string($fundingRate, 'nextFundingTime');
-        $nextFundingRateTimestamp = $this->parse8601($nextFundingRateDatetimeRaw);
+        $fundingRateDatetimeRaw = $this->safe_string($fundingRate, 'nextFundingTime');
+        $fundingRateTimestamp = $this->parse8601($fundingRateDatetimeRaw);
         $estimatedSettlePrice = $this->safe_number($fundingRate, 'predictedExpirationPrice');
         return array(
             'info' => $fundingRate,
@@ -2357,12 +2379,15 @@ class ftx extends Exchange {
             'estimatedSettlePrice' => $estimatedSettlePrice,
             'timestamp' => null,
             'datetime' => null,
+            'fundingRate' => $this->safe_number($fundingRate, 'nextFundingRate'),
+            'fundingTimestamp' => $fundingRateTimestamp,
+            'fundingDatetime' => $this->iso8601($fundingRateTimestamp),
+            'nextFundingRate' => null,
+            'nextFundingTimestamp' => null,
+            'nextFundingDatetime' => null,
             'previousFundingRate' => null,
-            'nextFundingRate' => $nextFundingRate,
             'previousFundingTimestamp' => null,
-            'nextFundingTimestamp' => $nextFundingRateTimestamp,
             'previousFundingDatetime' => null,
-            'nextFundingDatetime' => $this->iso8601($nextFundingRateTimestamp),
         );
     }
 

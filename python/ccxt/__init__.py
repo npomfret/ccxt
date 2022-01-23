@@ -22,7 +22,7 @@
 
 # ----------------------------------------------------------------------------
 
-__version__ = '1.66.52'
+__version__ = '1.70.5'
 
 # ----------------------------------------------------------------------------
 
@@ -130,6 +130,7 @@ from ccxt.eqonex import eqonex                              # noqa: F401
 from ccxt.equos import equos                                # noqa: F401
 from ccxt.exmo import exmo                                  # noqa: F401
 from ccxt.flowbtc import flowbtc                            # noqa: F401
+from ccxt.fmfwio import fmfwio                              # noqa: F401
 from ccxt.ftx import ftx                                    # noqa: F401
 from ccxt.ftxus import ftxus                                # noqa: F401
 from ccxt.gateio import gateio                              # noqa: F401
@@ -177,6 +178,7 @@ from ccxt.timex import timex                                # noqa: F401
 from ccxt.upbit import upbit                                # noqa: F401
 from ccxt.vcc import vcc                                    # noqa: F401
 from ccxt.wavesexchange import wavesexchange                # noqa: F401
+from ccxt.wazirx import wazirx                              # noqa: F401
 from ccxt.whitebit import whitebit                          # noqa: F401
 from ccxt.xena import xena                                  # noqa: F401
 from ccxt.yobit import yobit                                # noqa: F401
@@ -247,6 +249,7 @@ exchanges = [
     'equos',
     'exmo',
     'flowbtc',
+    'fmfwio',
     'ftx',
     'ftxus',
     'gateio',
@@ -294,6 +297,7 @@ exchanges = [
     'upbit',
     'vcc',
     'wavesexchange',
+    'wazirx',
     'whitebit',
     'xena',
     'yobit',

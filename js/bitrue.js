@@ -502,6 +502,8 @@ module.exports = class bitrue extends Exchange {
                 'precision': precision,
                 'info': currency,
                 'active': active,
+                'deposit': enableDeposit,
+                'withdraw': enableWithdraw,
                 'networks': networks,
                 'fee': this.safeNumber (currency, 'withdrawFee'),
                 // 'fees': fees,
@@ -595,15 +597,21 @@ module.exports = class bitrue extends Exchange {
                 'spot': true,
                 'type': 'spot',
                 'margin': false,
+                'linear': undefined,
+                'inverse': undefined,
                 'future': false,
-                'delivery': false,
-                'linear': false,
-                'inverse': false,
+                'swap': false,
+                'option': false,
+                'contract': false,
+                'contractSize': undefined,
+                'optionType': undefined,
+                'strike': undefined,
+                'settle': undefined,
+                'settleId': undefined,
                 'expiry': undefined,
                 'expiryDatetime': undefined,
                 'active': active,
                 'precision': precision,
-                'contractSize': undefined,
                 'limits': {
                     'amount': {
                         'min': undefined,
@@ -732,16 +740,16 @@ module.exports = class bitrue extends Exchange {
         //     }
         //
         const symbol = this.safeSymbol (undefined, market);
-        const last = this.safeNumber (ticker, 'last');
+        const last = this.safeString (ticker, 'last');
         return this.safeTicker ({
             'symbol': symbol,
             'timestamp': undefined,
             'datetime': undefined,
-            'high': this.safeNumber (ticker, 'high24hr'),
-            'low': this.safeNumber (ticker, 'low24hr'),
-            'bid': this.safeNumber (ticker, 'highestBid'),
+            'high': this.safeString (ticker, 'high24hr'),
+            'low': this.safeString (ticker, 'low24hr'),
+            'bid': this.safeString (ticker, 'highestBid'),
             'bidVolume': undefined,
-            'ask': this.safeNumber (ticker, 'lowestAsk'),
+            'ask': this.safeString (ticker, 'lowestAsk'),
             'askVolume': undefined,
             'vwap': undefined,
             'open': undefined,
@@ -749,12 +757,12 @@ module.exports = class bitrue extends Exchange {
             'last': last,
             'previousClose': undefined,
             'change': undefined,
-            'percentage': this.safeNumber (ticker, 'percentChange'),
+            'percentage': this.safeString (ticker, 'percentChange'),
             'average': undefined,
-            'baseVolume': this.safeNumber (ticker, 'baseVolume'),
-            'quoteVolume': this.safeNumber (ticker, 'quoteVolume'),
+            'baseVolume': this.safeString (ticker, 'baseVolume'),
+            'quoteVolume': this.safeString (ticker, 'quoteVolume'),
             'info': ticker,
-        }, market);
+        }, market, false);
     }
 
     async fetchTicker (symbol, params = {}) {

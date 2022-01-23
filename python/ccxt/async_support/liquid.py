@@ -267,7 +267,9 @@ class liquid(Exchange):
             id = self.safe_string(currency, 'currency')
             code = self.safe_currency_code(id)
             name = self.safe_string(currency, 'name')
-            active = currency['depositable'] and currency['withdrawable']
+            depositable = self.safe_value(currency, 'depositable')
+            withdrawable = self.safe_value(currency, 'withdrawable')
+            active = depositable and withdrawable
             amountPrecision = self.safe_integer(currency, 'assets_precision')
             result[code] = {
                 'id': id,
@@ -275,6 +277,8 @@ class liquid(Exchange):
                 'info': currency,
                 'name': name,
                 'active': active,
+                'deposit': depositable,
+                'withdraw': withdrawable,
                 'fee': self.safe_number(currency, 'withdrawal_fee'),
                 'precision': amountPrecision,
                 'limits': {
@@ -539,7 +543,7 @@ class liquid(Exchange):
             if ticker['last_traded_price']:
                 length = len(ticker['last_traded_price'])
                 if length > 0:
-                    last = self.safe_number(ticker, 'last_traded_price')
+                    last = self.safe_string(ticker, 'last_traded_price')
         symbol = None
         if market is None:
             marketId = self.safe_string(ticker, 'id')
@@ -554,16 +558,16 @@ class liquid(Exchange):
                     symbol = self.safe_currency_code(baseId) + '/' + self.safe_currency_code(quoteId)
         if market is not None:
             symbol = market['symbol']
-        open = self.safe_number(ticker, 'last_price_24h')
+        open = self.safe_string(ticker, 'last_price_24h')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high_market_ask'),
-            'low': self.safe_number(ticker, 'low_market_bid'),
-            'bid': self.safe_number(ticker, 'market_bid'),
+            'high': self.safe_string(ticker, 'high_market_ask'),
+            'low': self.safe_string(ticker, 'low_market_bid'),
+            'bid': self.safe_string(ticker, 'market_bid'),
             'bidVolume': None,
-            'ask': self.safe_number(ticker, 'market_ask'),
+            'ask': self.safe_string(ticker, 'market_ask'),
             'askVolume': None,
             'vwap': None,
             'open': open,
@@ -573,10 +577,10 @@ class liquid(Exchange):
             'change': None,
             'percentage': None,
             'average': None,
-            'baseVolume': self.safe_number(ticker, 'volume_24h'),
+            'baseVolume': self.safe_string(ticker, 'volume_24h'),
             'quoteVolume': None,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
@@ -1090,14 +1094,20 @@ class liquid(Exchange):
         amountString = self.safe_string(transaction, 'amount')
         feeCostString = self.safe_string(transaction, 'withdrawal_fee')
         amount = self.parse_number(Precise.string_sub(amountString, feeCostString))
+        network = self.safe_string(transaction, 'chain_name')
         return {
             'info': transaction,
             'id': id,
             'txid': txid,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
+            'network': network,
             'address': address,
+            'addressTo': None,
+            'addressFrom': None,
             'tag': tag,
+            'tagTo': None,
+            'tagFrom': None,
             'type': type,
             'amount': amount,
             'currency': code,

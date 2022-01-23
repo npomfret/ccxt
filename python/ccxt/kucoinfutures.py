@@ -41,9 +41,9 @@ class kucoinfutures(kucoin):
                 'cancelAllOrders': True,
                 'cancelOrder': True,
                 'CORS': None,
-                'createDepositAddress': False,
+                'createDepositAddress': True,
                 'createOrder': True,
-                'fetchAccounts': False,
+                'fetchAccounts': True,
                 'fetchBalance': True,
                 'fetchBorrowRate': False,
                 'fetchBorrowRates': False,
@@ -51,14 +51,14 @@ class kucoinfutures(kucoin):
                 'fetchClosedOrders': True,
                 'fetchCurrencies': False,
                 'fetchDepositAddress': True,
-                'fetchDeposits': None,
-                'fetchFundingFee': False,
+                'fetchDeposits': True,
+                'fetchFundingFee': True,
                 'fetchFundingHistory': True,
                 'fetchFundingRate': True,
                 'fetchFundingRateHistory': False,
                 'fetchIndexOHLCV': False,
-                'fetchL3OrderBook': False,
-                'fetchLedger': False,
+                'fetchL3OrderBook': True,
+                'fetchLedger': True,
                 'fetchMarkets': True,
                 'fetchMarkOHLCV': False,
                 'fetchMyTrades': True,
@@ -66,7 +66,6 @@ class kucoinfutures(kucoin):
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
-                'fetchOrdersByStatus': True,
                 'fetchPositions': True,
                 'fetchPremiumIndexOHLCV': False,
                 'fetchStatus': True,
@@ -74,10 +73,9 @@ class kucoinfutures(kucoin):
                 'fetchTickers': False,
                 'fetchTime': True,
                 'fetchTrades': True,
-                'fetchWithdrawals': None,
+                'fetchWithdrawals': True,
                 'setMarginMode': False,
                 'transfer': True,
-                'transferOut': True,
                 'withdraw': None,
                 'addMargin': True,
             },
@@ -658,7 +656,7 @@ class kucoinfutures(kucoin):
         #          }
         #     }
         #
-        last = self.safe_number(ticker, 'price')
+        last = self.safe_string(ticker, 'price')
         marketId = self.safe_string(ticker, 'symbol')
         market = self.safe_market(marketId, market, '-')
         timestamp = Precise.string_div(self.safe_string(ticker, 'ts'), '1000000')
@@ -668,10 +666,10 @@ class kucoinfutures(kucoin):
             'datetime': self.iso8601(timestamp),
             'high': None,
             'low': None,
-            'bid': self.safe_number(ticker, 'bestBidPrice'),
-            'bidVolume': self.safe_number(ticker, 'bestBidSize'),
-            'ask': self.safe_number(ticker, 'bestAskPrice'),
-            'askVolume': self.safe_number(ticker, 'bestAskSize'),
+            'bid': self.safe_string(ticker, 'bestBidPrice'),
+            'bidVolume': self.safe_string(ticker, 'bestBidSize'),
+            'ask': self.safe_string(ticker, 'bestAskPrice'),
+            'askVolume': self.safe_string(ticker, 'bestAskSize'),
             'vwap': None,
             'open': None,
             'close': last,
@@ -683,7 +681,7 @@ class kucoinfutures(kucoin):
             'baseVolume': None,
             'quoteVolume': None,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     def fetch_funding_history(self, symbol=None, since=None, limit=None, params={}):
         #
@@ -902,11 +900,8 @@ class kucoinfutures(kucoin):
         # required param, cannot be used twice
         clientOrderId = self.safe_string_2(params, 'clientOid', 'clientOrderId', self.uuid())
         params = self.omit(params, ['clientOid', 'clientOrderId'])
-        leverage = self.safe_number(params, 'leverage')
-        if not leverage:
-            raise ArgumentsRequired(self.id + ' createOrder requires params.leverage')
         if amount < 1:
-            raise InvalidOrder('Minimum contract order size using ' + self.id + ' is 1')
+            raise InvalidOrder(self.id + ' createOrder() minimum contract order amount is 1')
         preciseAmount = int(self.amount_to_precision(symbol, amount))
         request = {
             'clientOid': clientOrderId,
@@ -914,6 +909,7 @@ class kucoinfutures(kucoin):
             'symbol': market['id'],
             'type': type,  # limit or market
             'size': preciseAmount,
+            'leverage': 1,
             # 'remark': '',  # optional remark for the order, length cannot exceed 100 utf8 characters
             # 'tradeType': 'TRADE',  # TRADE, MARGIN_TRADE  # not used with margin orders
             # limit orders ---------------------------------------------------
@@ -942,12 +938,12 @@ class kucoinfutures(kucoin):
             request['stop'] = 'down' if (side == 'buy') else 'up'
             stopPriceType = self.safe_string(params, 'stopPriceType')
             if not stopPriceType:
-                raise ArgumentsRequired(self.id + ' trigger orders require params.stopPriceType to be set to TP, IP or MP(Trade Price, Index Price or Mark Price)')
+                raise ArgumentsRequired(self.id + ' createOrder() trigger orders require a stopPriceType parameter to be set to TP, IP or MP(Trade Price, Index Price or Mark Price)')
         uppercaseType = type.upper()
         timeInForce = self.safe_string(params, 'timeInForce')
         if uppercaseType == 'LIMIT':
             if price is None:
-                raise ArgumentsRequired(self.id + ' limit orders require the price argument')
+                raise ArgumentsRequired(self.id + ' createOrder() requires a price argument for limit orders')
             else:
                 request['price'] = self.price_to_precision(symbol, price)
             if timeInForce is not None:
@@ -956,12 +952,12 @@ class kucoinfutures(kucoin):
         postOnly = self.safe_value(params, 'postOnly', False)
         hidden = self.safe_value(params, 'hidden')
         if postOnly and hidden is not None:
-            raise BadRequest(self.id + ' createOrder cannot contain both params.postOnly and params.hidden')
+            raise BadRequest(self.id + ' createOrder() does not support the postOnly parameter together with a hidden parameter')
         iceberg = self.safe_value(params, 'iceberg')
         if iceberg:
             visibleSize = self.safe_value(params, 'visibleSize')
             if visibleSize is None:
-                raise ArgumentsRequired(self.id + ' requires params.visibleSize for iceberg orders')
+                raise ArgumentsRequired(self.id + ' createOrder() requires a visibleSize parameter for iceberg orders')
         params = self.omit(params, 'timeInForce')  # Time in force only valid for limit orders, exchange error when gtc for market orders
         response = self.futuresPrivatePostOrders(self.extend(request, params))
         #
@@ -1162,7 +1158,7 @@ class kucoinfutures(kucoin):
         #    }
         #
         data = self.safe_value(response, 'data')
-        timestamp = self.safe_number(data, 'timePoint')
+        fundingTimestamp = self.safe_number(data, 'timePoint')
         return {
             'info': data,
             'symbol': symbol,
@@ -1172,12 +1168,15 @@ class kucoinfutures(kucoin):
             'estimatedSettlePrice': None,
             'timestamp': None,
             'datetime': None,
-            'previousFundingRate': self.safe_number(data, 'value'),
+            'fundingRate': self.safe_number(data, 'value'),
+            'fundingTimestamp': fundingTimestamp,
+            'fundingDatetime': self.iso8601(fundingTimestamp),
             'nextFundingRate': self.safe_number(data, 'predictedValue'),
-            'previousFundingTimestamp': timestamp,
             'nextFundingTimestamp': None,
-            'previousFundingDatetime': self.iso8601(timestamp),
             'nextFundingDatetime': None,
+            'previousFundingRate': None,
+            'previousFundingTimestamp': None,
+            'previousFundingDatetime': None,
         }
 
     def parse_balance(self, response):
@@ -1200,7 +1199,7 @@ class kucoinfutures(kucoin):
         # only fetches one balance at a time
         # by default it will only fetch the BTC balance of the futures account
         # you can send 'currency' in params to fetch other currencies
-        # fetchBalance({'type': 'futures', 'currency': 'USDT'})
+        # fetchBalance({'type': 'future', 'currency': 'USDT'})
         response = self.futuresPrivateGetAccountOverview(params)
         #
         #     {
@@ -1220,8 +1219,8 @@ class kucoinfutures(kucoin):
         return self.parse_balance(response)
 
     def transfer(self, code, amount, fromAccount, toAccount, params={}):
-        if (toAccount != 'spot' and toAccount != 'trade' and toAccount != 'trading') or (fromAccount != 'futures' and fromAccount != 'contract'):
-            raise BadRequest(self.id + ' only supports transfers from contract(futures) account to trade(spot) account')
+        if (toAccount != 'main' and toAccount != 'funding') or (fromAccount != 'futures' and fromAccount != 'future' and fromAccount != 'contract'):
+            raise BadRequest(self.id + ' only supports transfers from contract(future) account to main(funding) account')
         return self.transfer_out(code, amount, params)
 
     def transfer_out(self, code, amount, params={}):
@@ -1250,7 +1249,7 @@ class kucoinfutures(kucoin):
             'datetime': self.iso8601(timestamp),
             'currency': code,
             'amount': amount,
-            'fromAccount': 'futures',
+            'fromAccount': 'future',
             'toAccount': 'spot',
             'status': self.safe_string(data, 'status'),
         }

@@ -148,6 +148,27 @@ module.exports = class buda extends Exchange {
     async fetchCurrencyInfo (currency, currencies = undefined) {
         if (!currencies) {
             const response = await this.publicGetCurrencies ();
+            //
+            //     {
+            //         "currencies":[
+            //             {
+            //                 "id":"BTC",
+            //                 "symbol":"฿",
+            //                 "managed":true,
+            //                 "input_decimals":8,
+            //                 "display_decimals":8,
+            //                 "timezone":"UTC",
+            //                 "deposit_minimum":["0.0","BTC"],
+            //                 "withdrawal_minimum":["0.00001","BTC"],
+            //                 "max_digits_for_decimals":6,
+            //                 "crypto":true,
+            //                 "address_explorer":"https://blockchair.com/bitcoin/address/",
+            //                 "tx_explorer":"https://blockchair.com/bitcoin/transaction/",
+            //                 "amount_to_micro_multiplier":1000000000000
+            //             }
+            //         ]
+            //     }
+            //
             currencies = this.safeValue (response, 'currencies');
         }
         for (let i = 0; i < currencies.length; i++) {
@@ -216,23 +237,51 @@ module.exports = class buda extends Exchange {
 
     async fetchCurrencies (params = {}) {
         const response = await this.publicGetCurrencies ();
+        //
+        //     {
+        //         "currencies":[
+        //             {
+        //                 "id":"BTC",
+        //                 "symbol":"฿",
+        //                 "managed":true,
+        //                 "input_decimals":8,
+        //                 "display_decimals":8,
+        //                 "timezone":"UTC",
+        //                 "deposit_minimum":["0.0","BTC"],
+        //                 "withdrawal_minimum":["0.00001","BTC"],
+        //                 "max_digits_for_decimals":6,
+        //                 "crypto":true,
+        //                 "address_explorer":"https://blockchair.com/bitcoin/address/",
+        //                 "tx_explorer":"https://blockchair.com/bitcoin/transaction/",
+        //                 "amount_to_micro_multiplier":1000000000000
+        //             }
+        //         ]
+        //     }
+        //
         const currencies = response['currencies'];
         const result = {};
         for (let i = 0; i < currencies.length; i++) {
             const currency = currencies[i];
-            if (!currency['managed']) {
+            const managed = this.safeValue (currency, 'managed', false);
+            if (!managed) {
                 continue;
             }
             const id = this.safeString (currency, 'id');
             const code = this.safeCurrencyCode (id);
             const precision = this.safeNumber (currency, 'input_decimals');
             const minimum = Math.pow (10, -precision);
+            const depositMinimum = this.safeValue (currency, 'deposit_minimum', []);
+            const withdrawalMinimum = this.safeValue (currency, 'withdrawal_minimum', []);
+            const minDeposit = this.safeNumber (depositMinimum, 0);
+            const minWithdraw = this.safeNumber (withdrawalMinimum, 0);
             result[code] = {
                 'id': id,
                 'code': code,
                 'info': currency,
                 'name': undefined,
                 'active': true,
+                'deposit': undefined,
+                'withdraw': undefined,
                 'fee': undefined,
                 'precision': precision,
                 'limits': {
@@ -241,11 +290,11 @@ module.exports = class buda extends Exchange {
                         'max': undefined,
                     },
                     'deposit': {
-                        'min': parseFloat (currency['deposit_minimum'][0]),
+                        'min': minDeposit,
                         'max': undefined,
                     },
                     'withdraw': {
-                        'min': parseFloat (currency['withdrawal_minimum'][0]),
+                        'min': minWithdraw,
                     },
                 },
             };
@@ -305,43 +354,68 @@ module.exports = class buda extends Exchange {
             'market': market['id'],
         };
         const response = await this.publicGetMarketsMarketTicker (this.extend (request, params));
+        //
+        //     {
+        //         "ticker":{
+        //             "market_id":"ETH-BTC",
+        //             "last_price":["0.07300001","BTC"],
+        //             "min_ask":["0.07716895","BTC"],
+        //             "max_bid":["0.0754966","BTC"],
+        //             "volume":["0.168965697","ETH"],
+        //             "price_variation_24h":"-0.046",
+        //             "price_variation_7d":"-0.085"
+        //         }
+        //     }
+        //
         const ticker = this.safeValue (response, 'ticker');
         return this.parseTicker (ticker, market);
     }
 
     parseTicker (ticker, market = undefined) {
+        //
+        // fetchTicker
+        //
+        //     {
+        //         "market_id":"ETH-BTC",
+        //         "last_price":["0.07300001","BTC"],
+        //         "min_ask":["0.07716895","BTC"],
+        //         "max_bid":["0.0754966","BTC"],
+        //         "volume":["0.168965697","ETH"],
+        //         "price_variation_24h":"-0.046",
+        //         "price_variation_7d":"-0.085"
+        //     }
+        //
         const timestamp = this.milliseconds ();
-        let symbol = undefined;
-        if (market !== undefined) {
-            symbol = market['symbol'];
-        }
-        const last = parseFloat (ticker['last_price'][0]);
-        const percentage = parseFloat (ticker['price_variation_24h']);
-        const open = parseFloat (this.priceToPrecision (symbol, last / (percentage + 1)));
-        const change = last - open;
-        const average = this.sum (last, open) / 2;
-        return {
+        const marketId = this.safeString (ticker, 'market_id');
+        const symbol = this.safeSymbol (marketId, market, '-');
+        const lastPrice = this.safeValue (ticker, 'last_price', []);
+        const last = this.safeNumber (lastPrice, 0);
+        const percentage = this.safeNumber (ticker, 'price_variation_24h');
+        const maxBid = this.safeValue (ticker, 'max_bid', []);
+        const minAsk = this.safeValue (ticker, 'min_ask', []);
+        const baseVolume = this.safeValue (ticker, 'volume', []);
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'high': undefined,
             'low': undefined,
-            'bid': parseFloat (ticker['max_bid'][0]),
+            'bid': this.safeNumber (maxBid, 0),
             'bidVolume': undefined,
-            'ask': parseFloat (ticker['min_ask'][0]),
+            'ask': this.safeNumber (minAsk, 0),
             'askVolume': undefined,
             'vwap': undefined,
-            'open': open,
+            'open': undefined,
             'close': last,
             'last': last,
-            'previousClose': open,
-            'change': change,
+            'previousClose': undefined,
+            'change': undefined,
             'percentage': percentage * 100,
-            'average': average,
-            'baseVolume': parseFloat (ticker['volume'][0]),
+            'average': undefined,
+            'baseVolume': this.safeNumber (baseVolume, 0),
             'quoteVolume': undefined,
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchTrades (symbol, since = undefined, limit = undefined, params = {}) {
@@ -709,7 +783,13 @@ module.exports = class buda extends Exchange {
             'txid': txid,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
+            'network': undefined,
             'address': address,
+            'addressTo': undefined,
+            'addressFrom': undefined,
+            'tag': undefined,
+            'tagTo': undefined,
+            'tagFrom': undefined,
             'type': type,
             'amount': amount,
             'currency': code,

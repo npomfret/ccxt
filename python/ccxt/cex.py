@@ -259,6 +259,8 @@ class cex(Exchange):
                 'code': code,
                 'name': id,
                 'active': active,
+                'deposit': None,
+                'withdraw': None,
                 'precision': precision,
                 'fee': None,
                 'limits': {
@@ -345,6 +347,20 @@ class cex(Exchange):
                 'quoteId': quoteId,
                 'type': 'spot',
                 'spot': True,
+                'margin': False,
+                'future': False,
+                'swap': False,
+                'option': False,
+                'optionType': None,
+                'strike': None,
+                'linear': None,
+                'inverse': None,
+                'contract': False,
+                'contractSize': None,
+                'settle': None,
+                'settleId': None,
+                'expiry': None,
+                'expiryDatetime': None,
                 'active': None,
                 'precision': precision,
                 'limits': {
@@ -452,10 +468,8 @@ class cex(Exchange):
         bid = self.safe_number(ticker, 'bid')
         ask = self.safe_number(ticker, 'ask')
         last = self.safe_number(ticker, 'last')
-        symbol = None
-        if market:
-            symbol = market['symbol']
-        return {
+        symbol = self.safe_symbol(None, market)
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -476,7 +490,7 @@ class cex(Exchange):
             'baseVolume': volume,
             'quoteVolume': None,
             'info': ticker,
-        }
+        }, market)
 
     def fetch_tickers(self, symbols=None, params={}):
         self.load_markets()

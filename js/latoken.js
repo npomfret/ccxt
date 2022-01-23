@@ -119,10 +119,20 @@ module.exports = class latoken extends Exchange {
                 },
             },
             'commonCurrencies': {
+                'BUX': 'Buxcoin',
+                'CBT': 'Community Business Token',
+                'CTC': 'CyberTronchain',
+                'DMD': 'Diamond Coin',
+                'FREN': 'Frenchie',
+                'GDX': 'GoldenX',
+                'GEM': 'NFTmall',
+                'IMC': 'IMCoin',
                 'MT': 'Monarch',
                 'TPAY': 'Tetra Pay',
                 'TRADE': 'Smart Trade Coin',
                 'TSL': 'Treasure SL',
+                'UNO': 'Unobtanium',
+                'WAR': 'Warrior Token',
             },
             'exceptions': {
                 'exact': {
@@ -369,6 +379,8 @@ module.exports = class latoken extends Exchange {
                 'name': name,
                 'type': type,
                 'active': active,
+                'deposit': undefined,
+                'withdraw': undefined,
                 'fee': fee,
                 'precision': precision,
                 'limits': {
@@ -490,15 +502,15 @@ module.exports = class latoken extends Exchange {
         //
         const marketId = this.safeString (ticker, 'symbol');
         const symbol = this.safeSymbol (marketId, market);
-        const last = this.safeNumber (ticker, 'lastPrice');
-        const change = this.safeNumber (ticker, 'change24h');
+        const last = this.safeString (ticker, 'lastPrice');
+        const change = this.safeString (ticker, 'change24h');
         const timestamp = this.nonce ();
         return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'low': this.safeNumber (ticker, 'low'),
-            'high': this.safeNumber (ticker, 'high'),
+            'low': this.safeString (ticker, 'low'),
+            'high': this.safeString (ticker, 'high'),
             'bid': undefined,
             'bidVolume': undefined,
             'ask': undefined,
@@ -512,9 +524,9 @@ module.exports = class latoken extends Exchange {
             'percentage': undefined,
             'average': undefined,
             'baseVolume': undefined,
-            'quoteVolume': this.safeNumber (ticker, 'volume24h'),
+            'quoteVolume': this.safeString (ticker, 'volume24h'),
             'info': ticker,
-        });
+        }, market, false);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -1119,6 +1131,7 @@ module.exports = class latoken extends Exchange {
             'txid': txid,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
+            'network': undefined,
             'addressFrom': addressFrom,
             'addressTo': addressTo,
             'address': addressTo,

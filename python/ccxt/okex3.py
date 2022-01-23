@@ -47,6 +47,8 @@ class okex3(Exchange):
             'rateLimit': 1000,  # up to 3000 requests per 5 minutes ≈ 600 requests per minute ≈ 10 requests per second ≈ 100 ms
             'pro': True,
             'has': {
+                'fetchPositions': True,
+                'fetchPosition': True,
                 'cancelOrder': True,
                 'CORS': None,
                 'createOrder': True,
@@ -1025,6 +1027,8 @@ class okex3(Exchange):
                 name = self.safe_string(currency, 'name')
                 canDeposit = self.safe_integer(currency, 'can_deposit')
                 canWithdraw = self.safe_integer(currency, 'can_withdraw')
+                depositEnabled = (canDeposit == 1)
+                withdrawEnabled = (canWithdraw == 1)
                 active = True if (canDeposit and canWithdraw) else False
                 result[code] = {
                     'id': id,
@@ -1033,6 +1037,8 @@ class okex3(Exchange):
                     'type': None,
                     'name': name,
                     'active': active,
+                    'deposit': depositEnabled,
+                    'withdraw': withdrawEnabled,
                     'fee': None,  # todo: redesign
                     'precision': precision,
                     'limits': {
@@ -1103,35 +1109,21 @@ class okex3(Exchange):
         #       quote_volume_24h: "15094.86831261"            }
         #
         timestamp = self.parse8601(self.safe_string(ticker, 'timestamp'))
-        symbol = None
         marketId = self.safe_string(ticker, 'instrument_id')
-        if marketId in self.markets_by_id:
-            market = self.markets_by_id[marketId]
-            symbol = market['symbol']
-        elif marketId is not None:
-            parts = marketId.split('-')
-            numParts = len(parts)
-            if numParts == 2:
-                baseId, quoteId = parts
-                base = self.safe_currency_code(baseId)
-                quote = self.safe_currency_code(quoteId)
-                symbol = base + '/' + quote
-            else:
-                symbol = marketId
-        if (symbol is None) and (market is not None):
-            symbol = market['symbol']
-        last = self.safe_number(ticker, 'last')
-        open = self.safe_number(ticker, 'open_24h')
-        return {
+        market = self.safe_market(marketId, market, '-')
+        symbol = market['symbol']
+        last = self.safe_string(ticker, 'last')
+        open = self.safe_string(ticker, 'open_24h')
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high_24h'),
-            'low': self.safe_number(ticker, 'low_24h'),
-            'bid': self.safe_number(ticker, 'best_bid'),
-            'bidVolume': self.safe_number(ticker, 'best_bid_size'),
-            'ask': self.safe_number(ticker, 'best_ask'),
-            'askVolume': self.safe_number(ticker, 'best_ask_size'),
+            'high': self.safe_string(ticker, 'high_24h'),
+            'low': self.safe_string(ticker, 'low_24h'),
+            'bid': self.safe_string(ticker, 'best_bid'),
+            'bidVolume': self.safe_string(ticker, 'best_bid_size'),
+            'ask': self.safe_string(ticker, 'best_ask'),
+            'askVolume': self.safe_string(ticker, 'best_ask_size'),
             'vwap': None,
             'open': open,
             'close': last,
@@ -1140,10 +1132,10 @@ class okex3(Exchange):
             'change': None,
             'percentage': None,
             'average': None,
-            'baseVolume': self.safe_number(ticker, 'base_volume_24h'),
-            'quoteVolume': self.safe_number(ticker, 'quote_volume_24h'),
+            'baseVolume': self.safe_string(ticker, 'base_volume_24h'),
+            'quoteVolume': self.safe_string(ticker, 'quote_volume_24h'),
             'info': ticker,
-        }
+        }, market, False)
 
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
@@ -2599,6 +2591,7 @@ class okex3(Exchange):
             'id': id,
             'currency': code,
             'amount': amount,
+            'network': None,
             'addressFrom': addressFrom,
             'addressTo': addressTo,
             'address': address,

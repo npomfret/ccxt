@@ -30,6 +30,7 @@ class vcc(Exchange):
             'rateLimit': 1000,
             'version': 'v3',
             'has': {
+                'fetchTradingFee': True,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
                 'createOrder': True,
@@ -255,14 +256,18 @@ class vcc(Exchange):
             id = self.safe_string_lower(ids, i)
             currency = self.safe_value(data, ids[i])
             code = self.safe_currency_code(id)
-            canDeposit = self.safe_value(currency, 'can_deposit')
-            canWithdraw = self.safe_value(currency, 'can_withdraw')
+            canDeposit = self.safe_integer(currency, 'can_deposit')
+            canWithdraw = self.safe_integer(currency, 'can_withdraw')
             active = (canDeposit and canWithdraw)
+            depositEnabled = (canDeposit == 1)
+            withdrawEnabled = (canWithdraw == 1)
             result[code] = {
                 'id': id,
                 'code': code,
                 'name': self.safe_string(currency, 'name'),
                 'active': active,
+                'deposit': depositEnabled,
+                'withdraw': withdrawEnabled,
                 'fee': self.safe_number(currency, 'withdrawal_fee'),
                 'precision': self.safe_integer(currency, 'decimal'),
                 'limits': {
@@ -429,23 +434,22 @@ class vcc(Exchange):
         #     }
         #
         timestamp = self.milliseconds()
-        baseVolume = self.safe_number(ticker, 'base_volume')
-        quoteVolume = self.safe_number(ticker, 'quote_volume')
-        open = self.safe_number(ticker, 'open_price')
-        last = self.safe_number(ticker, 'last_price')
-        vwap = self.vwap(baseVolume, quoteVolume)
+        baseVolume = self.safe_string(ticker, 'base_volume')
+        quoteVolume = self.safe_string(ticker, 'quote_volume')
+        open = self.safe_string(ticker, 'open_price')
+        last = self.safe_string(ticker, 'last_price')
         symbol = self.safe_symbol(None, market)
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'max_price'),
-            'low': self.safe_number(ticker, 'min_price'),
-            'bid': self.safe_number(ticker, 'bid'),
+            'high': self.safe_string(ticker, 'max_price'),
+            'low': self.safe_string(ticker, 'min_price'),
+            'bid': self.safe_string(ticker, 'bid'),
             'bidVolume': None,
-            'ask': self.safe_number(ticker, 'ask'),
+            'ask': self.safe_string(ticker, 'ask'),
             'askVolume': None,
-            'vwap': vwap,
+            'vwap': None,
             'open': open,
             'close': last,
             'last': last,
@@ -456,7 +460,7 @@ class vcc(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     def fetch_tickers(self, symbols=None, params={}):
         self.load_markets()
@@ -723,12 +727,14 @@ class vcc(Exchange):
                 'currency': code,
             }
         type = 'deposit' if (amount > 0) else 'withdrawal'
+        network = self.safe_string(transaction, 'network')
         return {
             'info': transaction,
             'id': id,
             'txid': txid,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
+            'network': network,
             'address': address,
             'addressTo': address,
             'addressFrom': None,

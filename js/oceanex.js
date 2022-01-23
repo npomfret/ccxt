@@ -152,7 +152,21 @@ module.exports = class oceanex extends Exchange {
                 'quoteId': quoteId,
                 'type': 'spot',
                 'spot': true,
-                'active': true,
+                'margin': false,
+                'future': false,
+                'swap': false,
+                'option': false,
+                'optionType': undefined,
+                'strike': undefined,
+                'linear': undefined,
+                'inverse': undefined,
+                'contract': false,
+                'contractSize': undefined,
+                'settle': undefined,
+                'settleId': undefined,
+                'expiry': undefined,
+                'expiryDatetime': undefined,
+                'active': undefined,
                 'info': market,
                 'precision': {
                     'amount': this.safeInteger (market, 'amount_precision'),
@@ -260,8 +274,9 @@ module.exports = class oceanex extends Exchange {
         //
         const ticker = this.safeValue (data, 'ticker', {});
         const timestamp = this.safeTimestamp (data, 'at');
-        return {
-            'symbol': market['symbol'],
+        const symbol = this.safeSymbol (undefined, market);
+        return this.safeTicker ({
+            'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'high': this.safeNumber (ticker, 'high'),
@@ -281,7 +296,7 @@ module.exports = class oceanex extends Exchange {
             'baseVolume': this.safeNumber (ticker, 'volume'),
             'quoteVolume': undefined,
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {

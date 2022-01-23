@@ -223,6 +223,20 @@ class novadax extends Exchange {
                 'quoteId' => $quoteId,
                 'type' => 'spot',
                 'spot' => true,
+                'margin' => false,
+                'future' => false,
+                'swap' => false,
+                'option' => false,
+                'optionType' => null,
+                'strike' => null,
+                'linear' => null,
+                'inverse' => null,
+                'contract' => false,
+                'contractSize' => null,
+                'settle' => null,
+                'settleId' => null,
+                'expiry' => null,
+                'expiryDatetime' => null,
                 'active' => $active,
                 'precision' => $precision,
                 'limits' => $limits,
@@ -1082,11 +1096,13 @@ class novadax extends Exchange {
         $currencyId = $this->safe_string($transaction, 'currency');
         $code = $this->safe_currency_code($currencyId, $currency);
         $status = $this->parse_transaction_status($this->safe_string($transaction, 'state'));
+        $network = $this->safe_string($transaction, 'chain');
         return array(
             'info' => $transaction,
             'id' => $id,
             'currency' => $code,
             'amount' => $amount,
+            'network' => $network,
             'address' => $address,
             'addressTo' => $address,
             'addressFrom' => null,

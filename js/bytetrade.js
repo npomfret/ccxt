@@ -14,7 +14,8 @@ module.exports = class bytetrade extends Exchange {
             'id': 'bytetrade',
             'name': 'ByteTrade',
             'countries': [ 'HK' ],
-            'rateLimit': 500,
+            // 10 requests per second => ( 1000ms / 10 ) = 100
+            'rateLimit': 100,
             'requiresWeb3': true,
             'certified': false,
             // new metainfo interface
@@ -68,34 +69,34 @@ module.exports = class bytetrade extends Exchange {
             },
             'api': {
                 'market': {
-                    'get': [
-                        'klines',        // Kline of a symbol
-                        'depth',         // Market Depth of a symbol
-                        'trades',        // Trade records of a symbol
-                        'tickers',
-                    ],
+                    'get': {
+                        'klines': 1,        // Kline of a symbol
+                        'depth': 1,         // Market Depth of a symbol
+                        'trades': 1,        // Trade records of a symbol
+                        'tickers': 1,
+                    },
                 },
                 'public': {
-                    'get': [
-                        'symbols',        // Reference information of trading instrument, including base currency, quote precision, etc.
-                        'currencies',     // The list of currencies available
-                        'balance',        // Get the balance of an account
-                        'orders/open',    // Get the open orders of an account
-                        'orders/closed',  // Get the closed orders of an account
-                        'orders/all',     // Get the open and closed orders of an account
-                        'orders',         // Get the details of an order of an account
-                        'orders/trades',  // Get detail match results
-                        'depositaddress', // Get deposit address
-                        'withdrawals',    // Get withdrawals info
-                        'deposits',       // Get deposit info
-                        'transfers',      // Get transfer info
-                    ],
-                    'post': [
-                        'transaction/createorder',    // Post create order transaction to blockchain
-                        'transaction/cancelorder',    // Post cancel order transaction to blockchain
-                        'transaction/withdraw',       // Post withdraw transaction to blockchain
-                        'transaction/transfer',       // Post transfer transaction to blockchain
-                    ],
+                    'get': {
+                        'symbols': 1,        // Reference information of trading instrument, including base currency, quote precision, etc.
+                        'currencies': 1,     // The list of currencies available
+                        'balance': 1,        // Get the balance of an account
+                        'orders/open': 1,    // Get the open orders of an account
+                        'orders/closed': 1,  // Get the closed orders of an account
+                        'orders/all': 1,     // Get the open and closed orders of an account
+                        'orders': 1,         // Get the details of an order of an account
+                        'orders/trades': 1,  // Get detail match results
+                        'depositaddress': 1, // Get deposit address
+                        'withdrawals': 1,    // Get withdrawals info
+                        'deposits': 1,       // Get deposit info
+                        'transfers': 1,      // Get transfer info
+                    },
+                    'post': {
+                        'transaction/createorder': 1,    // Post create order transaction to blockchain
+                        'transaction/cancelorder': 1,    // Post cancel order transaction to blockchain
+                        'transaction/withdraw': 1,       // Post withdraw transaction to blockchain
+                        'transaction/transfer': 1,       // Post transfer transaction to blockchain
+                    },
                 },
             },
             'fees': {
@@ -205,6 +206,8 @@ module.exports = class bytetrade extends Exchange {
                 'code': code,
                 'name': name,
                 'active': active,
+                'deposit': undefined,
+                'withdraw': undefined,
                 'precision': amountPrecision,
                 'fee': undefined,
                 'limits': {
@@ -352,44 +355,31 @@ module.exports = class bytetrade extends Exchange {
         //         }
         //     ]
         //
-        let symbol = undefined;
         const marketId = this.safeString (ticker, 'symbol');
-        if (marketId in this.markets_by_id) {
-            market = this.markets_by_id[marketId];
-        } else {
-            const baseId = this.safeString (ticker, 'base');
-            const quoteId = this.safeString (ticker, 'quote');
-            if ((baseId !== undefined) && (quoteId !== undefined)) {
-                const base = this.safeCurrencyCode (baseId);
-                const quote = this.safeCurrencyCode (quoteId);
-                symbol = base + '/' + quote;
-            }
-        }
-        if ((symbol === undefined) && (market !== undefined)) {
-            symbol = market['symbol'];
-        }
-        return {
+        market = this.safeMarket (marketId, market);
+        const symbol = market['symbol'];
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeNumber (ticker, 'high'),
-            'low': this.safeNumber (ticker, 'low'),
+            'high': this.safeString (ticker, 'high'),
+            'low': this.safeString (ticker, 'low'),
             'bid': undefined,
             'bidVolume': undefined,
             'ask': undefined,
             'askVolume': undefined,
-            'vwap': this.safeNumber (ticker, 'weightedAvgPrice'),
-            'open': this.safeNumber (ticker, 'open'),
-            'close': this.safeNumber (ticker, 'close'),
-            'last': this.safeNumber (ticker, 'last'),
+            'vwap': this.safeString (ticker, 'weightedAvgPrice'),
+            'open': this.safeString (ticker, 'open'),
+            'close': this.safeString (ticker, 'close'),
+            'last': this.safeString (ticker, 'last'),
             'previousClose': undefined, // previous day close
-            'change': this.safeNumber (ticker, 'change'),
-            'percentage': this.safeNumber (ticker, 'percentage'),
+            'change': this.safeString (ticker, 'change'),
+            'percentage': this.safeString (ticker, 'percentage'),
             'average': undefined,
-            'baseVolume': this.safeNumber (ticker, 'baseVolume'),
-            'quoteVolume': this.safeNumber (ticker, 'quoteVolume'),
+            'baseVolume': this.safeString (ticker, 'baseVolume'),
+            'quoteVolume': this.safeString (ticker, 'quoteVolume'),
             'info': ticker,
-        };
+        }, market, false);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -488,10 +478,46 @@ module.exports = class bytetrade extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
+        //
+        // public trades
+        //  {
+        //      "id":"d38a5bc4b651106f9d6abf9ced671961909be215",
+        //      "timestamp":1642522255864,
+        //      "symbol":"122406567940",
+        //      "side":"sell",
+        //      "price":"0.12",
+        //      "amount":"0.5747"
+        //  }
+        //
+        // private trades
+        //  {
+        //      "id":"905b6ff62b6c90eb5b8c0f7ad0f6bccf018d15e4",
+        //      "timestamp":1642525375299,
+        //      "datetime":"2022-01-18T17:02:55.299Z",
+        //      "symbol":"122406567940",
+        //      "userid":"slimmjimm@gmail.com",
+        //      "otherUserid":"nakamoto@gmail.com",
+        //      "takerOrMaker":"maker",
+        //      "side":"sell",
+        //      "txid":"036a89648352732f26a2b6680331dd7887a5c800",
+        //      "type":"market",
+        //      "order":"84749f1ca91541d97e400f628d5bb7b1e418a738",
+        //      "fee": {
+        //          "cost":"0.000611176192",
+        //          "rate":"0.0008",
+        //          "code":57,"name":"USDT"
+        //          },
+        //      "cost":"0.76397024",
+        //      "price":"0.01216",
+        //      "amount":"62.8265",
+        //      "average":"0.01216",
+        //      "name":"DOGE/USDT"
+        //  }
+        //
         const timestamp = this.safeInteger (trade, 'timestamp');
-        const price = this.safeNumber (trade, 'price');
-        const amount = this.safeNumber (trade, 'amount');
-        const cost = this.safeNumber (trade, 'cost');
+        const priceString = this.safeString (trade, 'price');
+        const amountString = this.safeString (trade, 'amount');
+        const costString = this.safeString (trade, 'cost');
         const id = this.safeString (trade, 'id');
         const type = this.safeString (trade, 'type');
         const takerOrMaker = this.safeString (trade, 'takerOrMaker');
@@ -507,16 +533,16 @@ module.exports = class bytetrade extends Exchange {
             symbol = market['symbol'];
         }
         const feeData = this.safeValue (trade, 'fee');
-        const feeCost = this.safeNumber (feeData, 'cost');
-        const feeRate = this.safeNumber (feeData, 'rate');
+        const feeCostString = this.safeString (feeData, 'cost');
+        const feeRateString = this.safeString (feeData, 'rate');
         const feeCode = this.safeString (feeData, 'code');
         const feeCurrency = this.safeCurrencyCode (feeCode);
         const fee = {
             'currency': feeCurrency,
-            'cost': feeCost,
-            'rate': feeRate,
+            'cost': feeCostString,
+            'rate': feeRateString,
         };
-        return {
+        return this.safeTrade ({
             'info': trade,
             'timestamp': timestamp,
             'datetime': datetime,
@@ -526,11 +552,11 @@ module.exports = class bytetrade extends Exchange {
             'type': type,
             'takerOrMaker': takerOrMaker,
             'side': side,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': costString,
             'fee': fee,
-        };
+        }, market);
     }
 
     async fetchTrades (symbol, since = undefined, limit = undefined, params = {}) {

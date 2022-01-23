@@ -155,6 +155,20 @@ module.exports = class luno extends Exchange {
                 'quoteId': quoteId,
                 'type': 'spot',
                 'spot': true,
+                'margin': false,
+                'future': false,
+                'swap': false,
+                'option': false,
+                'optionType': undefined,
+                'strike': undefined,
+                'linear': undefined,
+                'inverse': undefined,
+                'contract': false,
+                'contractSize': undefined,
+                'settle': undefined,
+                'settleId': undefined,
+                'expiry': undefined,
+                'expiryDatetime': undefined,
                 'active': active,
                 'precision': precision,
                 'limits': {
@@ -377,21 +391,28 @@ module.exports = class luno extends Exchange {
     }
 
     parseTicker (ticker, market = undefined) {
+        // {
+        //     "pair":"XBTAUD",
+        //     "timestamp":1642201439301,
+        //     "bid":"59972.30000000",
+        //     "ask":"59997.99000000",
+        //     "last_trade":"59997.99000000",
+        //     "rolling_24_hour_volume":"1.89510000",
+        //     "status":"ACTIVE"
+        // }
         const timestamp = this.safeInteger (ticker, 'timestamp');
-        let symbol = undefined;
-        if (market) {
-            symbol = market['symbol'];
-        }
-        const last = this.safeNumber (ticker, 'last_trade');
-        return {
+        const marketId = this.safeString (ticker, 'pair');
+        const symbol = this.safeSymbol (marketId, market);
+        const last = this.safeString (ticker, 'last_trade');
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'high': undefined,
             'low': undefined,
-            'bid': this.safeNumber (ticker, 'bid'),
+            'bid': this.safeString (ticker, 'bid'),
             'bidVolume': undefined,
-            'ask': this.safeNumber (ticker, 'ask'),
+            'ask': this.safeString (ticker, 'ask'),
             'askVolume': undefined,
             'vwap': undefined,
             'open': undefined,
@@ -401,10 +422,10 @@ module.exports = class luno extends Exchange {
             'change': undefined,
             'percentage': undefined,
             'average': undefined,
-            'baseVolume': this.safeNumber (ticker, 'rolling_24_hour_volume'),
+            'baseVolume': this.safeString (ticker, 'rolling_24_hour_volume'),
             'quoteVolume': undefined,
             'info': ticker,
-        };
+        }, market, false);
     }
 
     async fetchTickers (symbols = undefined, params = {}) {
@@ -430,6 +451,15 @@ module.exports = class luno extends Exchange {
             'pair': market['id'],
         };
         const response = await this.publicGetTicker (this.extend (request, params));
+        // {
+        //     "pair":"XBTAUD",
+        //     "timestamp":1642201439301,
+        //     "bid":"59972.30000000",
+        //     "ask":"59997.99000000",
+        //     "last_trade":"59997.99000000",
+        //     "rolling_24_hour_volume":"1.89510000",
+        //     "status":"ACTIVE"
+        // }
         return this.parseTicker (response, market);
     }
 

@@ -30,9 +30,9 @@ module.exports = class kucoinfutures extends kucoin {
                 'cancelAllOrders': true,
                 'cancelOrder': true,
                 'CORS': undefined,
-                'createDepositAddress': false,
+                'createDepositAddress': true,
                 'createOrder': true,
-                'fetchAccounts': false,
+                'fetchAccounts': true,
                 'fetchBalance': true,
                 'fetchBorrowRate': false,
                 'fetchBorrowRates': false,
@@ -40,14 +40,14 @@ module.exports = class kucoinfutures extends kucoin {
                 'fetchClosedOrders': true,
                 'fetchCurrencies': false,
                 'fetchDepositAddress': true,
-                'fetchDeposits': undefined,
-                'fetchFundingFee': false,
+                'fetchDeposits': true,
+                'fetchFundingFee': true,
                 'fetchFundingHistory': true,
                 'fetchFundingRate': true,
                 'fetchFundingRateHistory': false,
                 'fetchIndexOHLCV': false,
-                'fetchL3OrderBook': false,
-                'fetchLedger': false,
+                'fetchL3OrderBook': true,
+                'fetchLedger': true,
                 'fetchMarkets': true,
                 'fetchMarkOHLCV': false,
                 'fetchMyTrades': true,
@@ -55,7 +55,6 @@ module.exports = class kucoinfutures extends kucoin {
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
                 'fetchOrderBook': true,
-                'fetchOrdersByStatus': true,
                 'fetchPositions': true,
                 'fetchPremiumIndexOHLCV': false,
                 'fetchStatus': true,
@@ -63,10 +62,9 @@ module.exports = class kucoinfutures extends kucoin {
                 'fetchTickers': false,
                 'fetchTime': true,
                 'fetchTrades': true,
-                'fetchWithdrawals': undefined,
+                'fetchWithdrawals': true,
                 'setMarginMode': false,
                 'transfer': true,
-                'transferOut': true,
                 'withdraw': undefined,
                 'addMargin': true,
             },
@@ -668,7 +666,7 @@ module.exports = class kucoinfutures extends kucoin {
         //          }
         //     }
         //
-        const last = this.safeNumber (ticker, 'price');
+        const last = this.safeString (ticker, 'price');
         const marketId = this.safeString (ticker, 'symbol');
         market = this.safeMarket (marketId, market, '-');
         const timestamp = Precise.stringDiv (this.safeString (ticker, 'ts'), '1000000');
@@ -678,10 +676,10 @@ module.exports = class kucoinfutures extends kucoin {
             'datetime': this.iso8601 (timestamp),
             'high': undefined,
             'low': undefined,
-            'bid': this.safeNumber (ticker, 'bestBidPrice'),
-            'bidVolume': this.safeNumber (ticker, 'bestBidSize'),
-            'ask': this.safeNumber (ticker, 'bestAskPrice'),
-            'askVolume': this.safeNumber (ticker, 'bestAskSize'),
+            'bid': this.safeString (ticker, 'bestBidPrice'),
+            'bidVolume': this.safeString (ticker, 'bestBidSize'),
+            'ask': this.safeString (ticker, 'bestAskPrice'),
+            'askVolume': this.safeString (ticker, 'bestAskSize'),
             'vwap': undefined,
             'open': undefined,
             'close': last,
@@ -693,7 +691,7 @@ module.exports = class kucoinfutures extends kucoin {
             'baseVolume': undefined,
             'quoteVolume': undefined,
             'info': ticker,
-        }, market);
+        }, market, false);
     }
 
     async fetchFundingHistory (symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -923,12 +921,8 @@ module.exports = class kucoinfutures extends kucoin {
         // required param, cannot be used twice
         const clientOrderId = this.safeString2 (params, 'clientOid', 'clientOrderId', this.uuid ());
         params = this.omit (params, [ 'clientOid', 'clientOrderId' ]);
-        const leverage = this.safeNumber (params, 'leverage');
-        if (!leverage) {
-            throw new ArgumentsRequired (this.id + ' createOrder requires params.leverage');
-        }
         if (amount < 1) {
-            throw new InvalidOrder ('Minimum contract order size using ' + this.id + ' is 1');
+            throw new InvalidOrder (this.id + ' createOrder() minimum contract order amount is 1');
         }
         const preciseAmount = parseInt (this.amountToPrecision (symbol, amount));
         const request = {
@@ -937,6 +931,7 @@ module.exports = class kucoinfutures extends kucoin {
             'symbol': market['id'],
             'type': type, // limit or market
             'size': preciseAmount,
+            'leverage': 1,
             // 'remark': '', // optional remark for the order, length cannot exceed 100 utf8 characters
             // 'tradeType': 'TRADE', // TRADE, MARGIN_TRADE // not used with margin orders
             // limit orders ---------------------------------------------------
@@ -965,14 +960,14 @@ module.exports = class kucoinfutures extends kucoin {
             request['stop'] = (side === 'buy') ? 'down' : 'up';
             const stopPriceType = this.safeString (params, 'stopPriceType');
             if (!stopPriceType) {
-                throw new ArgumentsRequired (this.id + ' trigger orders require params.stopPriceType to be set to TP, IP or MP (Trade Price, Index Price or Mark Price)');
+                throw new ArgumentsRequired (this.id + ' createOrder() trigger orders require a stopPriceType parameter to be set to TP, IP or MP (Trade Price, Index Price or Mark Price)');
             }
         }
         const uppercaseType = type.toUpperCase ();
         let timeInForce = this.safeString (params, 'timeInForce');
         if (uppercaseType === 'LIMIT') {
             if (price === undefined) {
-                throw new ArgumentsRequired (this.id + ' limit orders require the price argument');
+                throw new ArgumentsRequired (this.id + ' createOrder() requires a price argument for limit orders');
             } else {
                 request['price'] = this.priceToPrecision (symbol, price);
             }
@@ -984,13 +979,13 @@ module.exports = class kucoinfutures extends kucoin {
         const postOnly = this.safeValue (params, 'postOnly', false);
         const hidden = this.safeValue (params, 'hidden');
         if (postOnly && hidden !== undefined) {
-            throw new BadRequest (this.id + ' createOrder cannot contain both params.postOnly and params.hidden');
+            throw new BadRequest (this.id + ' createOrder() does not support the postOnly parameter together with a hidden parameter');
         }
         const iceberg = this.safeValue (params, 'iceberg');
         if (iceberg) {
             const visibleSize = this.safeValue (params, 'visibleSize');
             if (visibleSize === undefined) {
-                throw new ArgumentsRequired (this.id + ' requires params.visibleSize for iceberg orders');
+                throw new ArgumentsRequired (this.id + ' createOrder() requires a visibleSize parameter for iceberg orders');
             }
         }
         params = this.omit (params, 'timeInForce'); // Time in force only valid for limit orders, exchange error when gtc for market orders
@@ -1207,7 +1202,7 @@ module.exports = class kucoinfutures extends kucoin {
         //    }
         //
         const data = this.safeValue (response, 'data');
-        const timestamp = this.safeNumber (data, 'timePoint');
+        const fundingTimestamp = this.safeNumber (data, 'timePoint');
         return {
             'info': data,
             'symbol': symbol,
@@ -1217,12 +1212,15 @@ module.exports = class kucoinfutures extends kucoin {
             'estimatedSettlePrice': undefined,
             'timestamp': undefined,
             'datetime': undefined,
-            'previousFundingRate': this.safeNumber (data, 'value'),
+            'fundingRate': this.safeNumber (data, 'value'),
+            'fundingTimestamp': fundingTimestamp,
+            'fundingDatetime': this.iso8601 (fundingTimestamp),
             'nextFundingRate': this.safeNumber (data, 'predictedValue'),
-            'previousFundingTimestamp': timestamp,
             'nextFundingTimestamp': undefined,
-            'previousFundingDatetime': this.iso8601 (timestamp),
             'nextFundingDatetime': undefined,
+            'previousFundingRate': undefined,
+            'previousFundingTimestamp': undefined,
+            'previousFundingDatetime': undefined,
         };
     }
 
@@ -1247,7 +1245,7 @@ module.exports = class kucoinfutures extends kucoin {
         // only fetches one balance at a time
         // by default it will only fetch the BTC balance of the futures account
         // you can send 'currency' in params to fetch other currencies
-        // fetchBalance ({ 'type': 'futures', 'currency': 'USDT' })
+        // fetchBalance ({ 'type': 'future', 'currency': 'USDT' })
         const response = await this.futuresPrivateGetAccountOverview (params);
         //
         //     {
@@ -1268,8 +1266,8 @@ module.exports = class kucoinfutures extends kucoin {
     }
 
     async transfer (code, amount, fromAccount, toAccount, params = {}) {
-        if ((toAccount !== 'spot' && toAccount !== 'trade' && toAccount !== 'trading') || (fromAccount !== 'futures' && fromAccount !== 'contract')) {
-            throw new BadRequest (this.id + ' only supports transfers from contract(futures) account to trade(spot) account');
+        if ((toAccount !== 'main' && toAccount !== 'funding') || (fromAccount !== 'futures' && fromAccount !== 'future' && fromAccount !== 'contract')) {
+            throw new BadRequest (this.id + ' only supports transfers from contract(future) account to main(funding) account');
         }
         return this.transferOut (code, amount, params);
     }
@@ -1300,7 +1298,7 @@ module.exports = class kucoinfutures extends kucoin {
             'datetime': this.iso8601 (timestamp),
             'currency': code,
             'amount': amount,
-            'fromAccount': 'futures',
+            'fromAccount': 'future',
             'toAccount': 'spot',
             'status': this.safeString (data, 'status'),
         };

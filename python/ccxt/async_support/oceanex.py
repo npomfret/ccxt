@@ -159,7 +159,21 @@ class oceanex(Exchange):
                 'quoteId': quoteId,
                 'type': 'spot',
                 'spot': True,
-                'active': True,
+                'margin': False,
+                'future': False,
+                'swap': False,
+                'option': False,
+                'optionType': None,
+                'strike': None,
+                'linear': None,
+                'inverse': None,
+                'contract': False,
+                'contractSize': None,
+                'settle': None,
+                'settleId': None,
+                'expiry': None,
+                'expiryDatetime': None,
+                'active': None,
                 'info': market,
                 'precision': {
                     'amount': self.safe_integer(market, 'amount_precision'),
@@ -261,8 +275,9 @@ class oceanex(Exchange):
         #
         ticker = self.safe_value(data, 'ticker', {})
         timestamp = self.safe_timestamp(data, 'at')
-        return {
-            'symbol': market['symbol'],
+        symbol = self.safe_symbol(None, market)
+        return self.safe_ticker({
+            'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'high': self.safe_number(ticker, 'high'),
@@ -282,7 +297,7 @@ class oceanex(Exchange):
             'baseVolume': self.safe_number(ticker, 'volume'),
             'quoteVolume': None,
             'info': ticker,
-        }
+        }, market)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()

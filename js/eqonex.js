@@ -16,6 +16,7 @@ module.exports = class eqonex extends Exchange {
             'countries': [ 'US', 'SG' ], // United States, Singapore
             'rateLimit': 10,
             'has': {
+                'fetchTradingLimits': true,
                 'cancelOrder': true,
                 'CORS': undefined,
                 'createOrder': true,
@@ -46,6 +47,7 @@ module.exports = class eqonex extends Exchange {
                 '6h': 5,
                 '1d': 6,
                 '7d': 7,
+                '1w': 7,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/51840849/122649755-1a076c80-d138-11eb-8f2e-9a9166a03d79.jpg',
@@ -191,36 +193,67 @@ module.exports = class eqonex extends Exchange {
         //     }
         //
         const id = this.safeString (market, 'instrumentId');
-        const uppercaseId = this.safeString (market, 'symbol');
+        const baseId = this.safeString (market, 'currency');
+        const quoteId = this.safeString (market, 'contAmtCurr');
+        const settleId = this.safeString (market, 'settlCurrency');
+        const base = this.safeCurrencyCode (baseId);
+        const quote = this.safeCurrencyCode (quoteId);
+        const settle = this.safeCurrencyCode (settleId);
         const assetType = this.safeString (market, 'assetType');
         const spot = (assetType === 'PAIR');
         const swap = (assetType === 'PERPETUAL_SWAP');
-        const type = swap ? 'swap' : 'spot';
-        const baseId = this.safeString (market, 'currency');
-        const quoteId = this.safeString (market, 'contAmtCurr');
-        const base = this.safeCurrencyCode (baseId);
-        const quote = this.safeCurrencyCode (quoteId);
-        const symbol = swap ? uppercaseId : (base + '/' + quote);
+        let symbol = base + '/' + quote;
+        const uppercaseId = this.safeString (market, 'symbol');
+        let type = 'spot';
+        let linear = undefined;
+        let inverse = undefined;
+        let contract = false;
+        if (swap) {
+            symbol = symbol + ':' + settle;
+            type = 'swap';
+            linear = quote === settle;
+            inverse = !linear;
+            contract = true;
+        } else if (!spot) {
+            symbol = uppercaseId;
+            type = assetType;
+            contract = true;
+        }
         const status = this.safeInteger (market, 'securityStatus');
-        const active = (status === 1);
-        const precision = {
-            'amount': this.safeInteger (market, 'quantity_scale'),
-            'price': this.safeInteger (market, 'price_scale'),
-        };
         return {
             'id': id,
             'uppercaseId': uppercaseId,
             'symbol': symbol,
             'base': base,
             'quote': quote,
+            'settle': settle,
             'baseId': baseId,
             'quoteId': quoteId,
+            'settleId': settleId,
             'type': type,
             'spot': spot,
+            'margin': false,
             'swap': swap,
-            'active': active,
-            'precision': precision,
+            'future': false,
+            'option': false,
+            'contract': contract,
+            'linear': linear,
+            'inverse': inverse,
+            'contractSize': this.safeNumber (market, 'contractMultiplier'),
+            'active': (status === 1),
+            'expiry': undefined,
+            'expiryDatetime': undefined,
+            'strike': undefined,
+            'optionType': undefined,
+            'precision': {
+                'amount': this.safeInteger (market, 'quantity_scale'),
+                'price': this.safeInteger (market, 'price_scale'),
+            },
             'limits': {
+                'leverage': {
+                    'min': undefined,
+                    'max': undefined,
+                },
                 'amount': {
                     'min': this.safeNumber (market, 'minTradeVol'),
                     'max': undefined,
@@ -298,6 +331,8 @@ module.exports = class eqonex extends Exchange {
             'precision': precision,
             'fee': fee,
             'active': active,
+            'deposit': undefined,
+            'withdraw': undefined,
             'limits': {
                 'amount': {
                     'min': undefined,
@@ -1124,6 +1159,7 @@ module.exports = class eqonex extends Exchange {
             'txid': txid,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
+            'network': undefined,
             'addressFrom': undefined,
             'address': address,
             'addressTo': undefined,

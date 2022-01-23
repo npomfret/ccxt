@@ -199,6 +199,20 @@ class bw extends Exchange {
                 'quoteNumericId' => $quoteNumericId,
                 'type' => 'spot',
                 'spot' => true,
+                'margin' => false,
+                'future' => false,
+                'swap' => false,
+                'option' => false,
+                'optionType' => null,
+                'strike' => null,
+                'linear' => null,
+                'inverse' => null,
+                'contract' => false,
+                'contractSize' => null,
+                'settle' => null,
+                'settleId' => null,
+                'expiry' => null,
+                'expiryDatetime' => null,
                 'active' => $active,
                 'maker' => $fee,
                 'taker' => $fee,
@@ -288,6 +302,10 @@ class bw extends Exchange {
             $id = $this->safe_string($currency, 'currencyId');
             $code = $this->safe_currency_code($this->safe_string_upper($currency, 'name'));
             $state = $this->safe_integer($currency, 'state');
+            $rechargeFlag = $this->safe_integer($currency, 'rechargeFlag');
+            $drawFlag = $this->safe_integer($currency, 'drawFlag');
+            $deposit = $rechargeFlag === 1;
+            $withdraw = $drawFlag === 1;
             $active = $state === 1;
             $result[$code] = array(
                 'id' => $id,
@@ -295,6 +313,8 @@ class bw extends Exchange {
                 'info' => $currency,
                 'name' => $code,
                 'active' => $active,
+                'deposit' => $deposit,
+                'withdraw' => $withdraw,
                 'fee' => $this->safe_number($currency, 'drawFee'),
                 'precision' => null,
                 'limits' => array(
@@ -329,12 +349,13 @@ class bw extends Exchange {
         //     ]
         //
         $marketId = $this->safe_string($ticker, 0);
-        $symbol = $this->safe_symbol($marketId, $market);
+        $market = $this->safe_market($marketId, $market);
+        $symbol = $market['symbol'];
         $timestamp = $this->milliseconds();
         $close = $this->safe_number($ticker, 1);
         $bid = $this->safe_value($ticker, 'bid', array());
         $ask = $this->safe_value($ticker, 'ask', array());
-        return array(
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -355,7 +376,7 @@ class bw extends Exchange {
             'baseVolume' => $this->safe_number($ticker, 4),
             'quoteVolume' => $this->safe_number($ticker, 9),
             'info' => $ticker,
-        );
+        ), $market);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {
@@ -1069,6 +1090,7 @@ class bw extends Exchange {
             'txid' => $txid,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
+            'network' => null,
             'addressFrom' => null,
             'address' => $address,
             'addressTo' => null,

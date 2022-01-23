@@ -13,6 +13,9 @@ module.exports = class hitbtc3 extends Exchange {
             'version': '3',
             'pro': true,
             'has': {
+                'fetchTradingFees': true,
+                'fetchOrderBooks': true,
+                'cancelAllOrders': true,
                 'cancelOrder': true,
                 'CORS': false,
                 'createOrder': true,
@@ -21,7 +24,7 @@ module.exports = class hitbtc3 extends Exchange {
                 'fetchClosedOrders': true,
                 'fetchCurrencies': true,
                 'fetchDepositAddress': true,
-                'fetchDeposits': false,
+                'fetchDeposits': true,
                 'fetchFundingRateHistory': true,
                 'fetchMarkets': true,
                 'fetchMyTrades': true,
@@ -37,7 +40,7 @@ module.exports = class hitbtc3 extends Exchange {
                 'fetchTrades': true,
                 'fetchTradingFee': true,
                 'fetchTransactions': true,
-                'fetchWithdrawals': false,
+                'fetchWithdrawals': true,
                 'withdraw': true,
                 'transfer': true,
             },
@@ -452,6 +455,8 @@ module.exports = class hitbtc3 extends Exchange {
             const rawNetworks = this.safeValue (entry, 'networks', []);
             const networks = {};
             let fee = undefined;
+            let depositEnabled = undefined;
+            let withdrawEnabled = undefined;
             for (let j = 0; j < rawNetworks.length; j++) {
                 const rawNetwork = rawNetworks[j];
                 let networkId = this.safeString (rawNetwork, 'protocol');
@@ -465,12 +470,24 @@ module.exports = class hitbtc3 extends Exchange {
                 const payoutEnabledNetwork = this.safeValue (entry, 'payout_enabled', false);
                 const transferEnabledNetwork = this.safeValue (entry, 'transfer_enabled', false);
                 const active = payinEnabledNetwork && payoutEnabledNetwork && transferEnabledNetwork;
+                if (payinEnabledNetwork && !depositEnabled) {
+                    depositEnabled = true;
+                } else if (!payinEnabledNetwork) {
+                    depositEnabled = false;
+                }
+                if (payoutEnabledNetwork && !withdrawEnabled) {
+                    withdrawEnabled = true;
+                } else if (!payoutEnabledNetwork) {
+                    withdrawEnabled = false;
+                }
                 networks[network] = {
                     'info': rawNetwork,
                     'id': networkId,
                     'network': network,
                     'fee': fee,
                     'active': active,
+                    'deposit': payinEnabledNetwork,
+                    'withdraw': payoutEnabledNetwork,
                     'precision': precision,
                     'limits': {
                         'withdraw': {
@@ -489,6 +506,8 @@ module.exports = class hitbtc3 extends Exchange {
                 'precision': precision,
                 'name': name,
                 'active': active,
+                'deposit': depositEnabled,
+                'withdraw': withdrawEnabled,
                 'networks': networks,
                 'fee': (networksLength <= 1) ? fee : undefined,
                 'limits': {
@@ -644,22 +663,21 @@ module.exports = class hitbtc3 extends Exchange {
         //
         const timestamp = this.parse8601 (ticker['timestamp']);
         const symbol = this.safeSymbol (undefined, market);
-        const baseVolume = this.safeNumber (ticker, 'volume');
-        const quoteVolume = this.safeNumber (ticker, 'volume_quote');
-        const open = this.safeNumber (ticker, 'open');
-        const last = this.safeNumber (ticker, 'last');
-        const vwap = this.vwap (baseVolume, quoteVolume);
+        const baseVolume = this.safeString (ticker, 'volume');
+        const quoteVolume = this.safeString (ticker, 'volume_quote');
+        const open = this.safeString (ticker, 'open');
+        const last = this.safeString (ticker, 'last');
         return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeNumber (ticker, 'high'),
-            'low': this.safeNumber (ticker, 'low'),
-            'bid': this.safeNumber (ticker, 'bid'),
+            'high': this.safeString (ticker, 'high'),
+            'low': this.safeString (ticker, 'low'),
+            'bid': this.safeString (ticker, 'bid'),
             'bidVolume': undefined,
-            'ask': this.safeNumber (ticker, 'ask'),
+            'ask': this.safeString (ticker, 'ask'),
             'askVolume': undefined,
-            'vwap': vwap,
+            'vwap': undefined,
             'open': open,
             'close': last,
             'last': last,
@@ -670,7 +688,7 @@ module.exports = class hitbtc3 extends Exchange {
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market);
+        }, market, false);
     }
 
     async fetchTrades (symbol, since = undefined, limit = undefined, params = {}) {
@@ -930,6 +948,7 @@ module.exports = class hitbtc3 extends Exchange {
             'txid': txhash,
             'code': code,
             'amount': amount,
+            'network': undefined,
             'address': address,
             'addressFrom': addressFrom,
             'addressTo': addressTo,

@@ -351,6 +351,8 @@ class exmo(Exchange):
                 },
             }
             fee = None
+            depositEnabled = None
+            withdrawEnabled = None
             if providers is None:
                 active = True
                 type = 'fiat'
@@ -363,6 +365,16 @@ class exmo(Exchange):
                     if maxValue == 0.0:
                         maxValue = None
                     activeProvider = self.safe_value(provider, 'enabled')
+                    if type == 'deposit':
+                        if activeProvider and not depositEnabled:
+                            depositEnabled = True
+                        elif not activeProvider:
+                            depositEnabled = False
+                    elif type == 'withdraw':
+                        if activeProvider and not withdrawEnabled:
+                            withdrawEnabled = True
+                        elif not activeProvider:
+                            withdrawEnabled = False
                     if activeProvider:
                         active = True
                         if (limits[type]['min'] is None) or (minValue < limits[type]['min']):
@@ -378,6 +390,8 @@ class exmo(Exchange):
                 'name': name,
                 'type': type,
                 'active': active,
+                'deposit': depositEnabled,
+                'withdraw': withdrawEnabled,
                 'fee': fee,
                 'precision': 8,
                 'limits': limits,
@@ -424,6 +438,20 @@ class exmo(Exchange):
                 'quoteId': quoteId,
                 'type': 'spot',
                 'spot': True,
+                'margin': False,
+                'future': False,
+                'swap': False,
+                'option': False,
+                'optionType': None,
+                'strike': None,
+                'linear': None,
+                'inverse': None,
+                'contract': False,
+                'contractSize': None,
+                'settle': None,
+                'settleId': None,
+                'expiry': None,
+                'expiryDatetime': None,
                 'active': True,
                 'taker': taker,
                 'maker': maker,
@@ -585,20 +613,31 @@ class exmo(Exchange):
         return result
 
     def parse_ticker(self, ticker, market=None):
+        #
+        #     {
+        #         "buy_price":"0.00002996",
+        #         "sell_price":"0.00003002",
+        #         "last_trade":"0.00002992",
+        #         "high":"0.00003028",
+        #         "low":"0.00002935",
+        #         "avg":"0.00002963",
+        #         "vol":"1196546.3163222",
+        #         "vol_curr":"35.80066578",
+        #         "updated":1642291733
+        #     }
+        #
         timestamp = self.safe_timestamp(ticker, 'updated')
-        symbol = None
-        if market is not None:
-            symbol = market['symbol']
-        last = self.safe_number(ticker, 'last_trade')
-        return {
-            'symbol': symbol,
+        market = self.safe_market(None, market)
+        last = self.safe_string(ticker, 'last_trade')
+        return self.safe_ticker({
+            'symbol': market['symbol'],
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high'),
-            'low': self.safe_number(ticker, 'low'),
-            'bid': self.safe_number(ticker, 'buy_price'),
+            'high': self.safe_string(ticker, 'high'),
+            'low': self.safe_string(ticker, 'low'),
+            'bid': self.safe_string(ticker, 'buy_price'),
             'bidVolume': None,
-            'ask': self.safe_number(ticker, 'sell_price'),
+            'ask': self.safe_string(ticker, 'sell_price'),
             'askVolume': None,
             'vwap': None,
             'open': None,
@@ -607,22 +646,37 @@ class exmo(Exchange):
             'previousClose': None,
             'change': None,
             'percentage': None,
-            'average': self.safe_number(ticker, 'avg'),
-            'baseVolume': self.safe_number(ticker, 'vol'),
-            'quoteVolume': self.safe_number(ticker, 'vol_curr'),
+            'average': self.safe_string(ticker, 'avg'),
+            'baseVolume': self.safe_string(ticker, 'vol'),
+            'quoteVolume': self.safe_string(ticker, 'vol_curr'),
             'info': ticker,
-        }
+        }, market, False)
 
     def fetch_tickers(self, symbols=None, params={}):
         self.load_markets()
         response = self.publicGetTicker(params)
+        #
+        #     {
+        #         "ADA_BTC":{
+        #             "buy_price":"0.00002996",
+        #             "sell_price":"0.00003002",
+        #             "last_trade":"0.00002992",
+        #             "high":"0.00003028",
+        #             "low":"0.00002935",
+        #             "avg":"0.00002963",
+        #             "vol":"1196546.3163222",
+        #             "vol_curr":"35.80066578",
+        #             "updated":1642291733
+        #         }
+        #     }
+        #
         result = {}
-        ids = list(response.keys())
-        for i in range(0, len(ids)):
-            id = ids[i]
-            market = self.markets_by_id[id]
+        marketIds = list(response.keys())
+        for i in range(0, len(marketIds)):
+            marketId = marketIds[i]
+            market = self.safe_market(marketId, None, '_')
             symbol = market['symbol']
-            ticker = response[id]
+            ticker = self.safe_value(response, marketId)
             result[symbol] = self.parse_ticker(ticker, market)
         return self.filter_by_array(result, 'symbol', symbols)
 
@@ -1223,6 +1277,7 @@ class exmo(Exchange):
                     'currency': code,
                     'rate': None,
                 }
+        network = self.safe_string(transaction, 'provider')
         return {
             'info': transaction,
             'id': id,
@@ -1230,6 +1285,7 @@ class exmo(Exchange):
             'datetime': self.iso8601(timestamp),
             'currency': code,
             'amount': amount,
+            'network': network,
             'address': address,
             'addressTo': address,
             'addressFrom': None,

@@ -62,12 +62,10 @@ module.exports = class okex extends Exchange {
                 'fetchLedgerEntry': undefined,
                 'fetchLeverage': true,
                 'fetchMarkets': true,
-                'fetchMarketsByType': true,
                 'fetchMarkOHLCV': true,
                 'fetchMyBuys': undefined,
                 'fetchMySells': undefined,
                 'fetchMyTrades': true,
-                'fetchNetworkDepositAddress': undefined,
                 'fetchOHLCV': true,
                 'fetchOpenOrder': undefined,
                 'fetchOpenOrders': true,
@@ -75,10 +73,7 @@ module.exports = class okex extends Exchange {
                 'fetchOrderBook': true,
                 'fetchOrderBooks': undefined,
                 'fetchOrders': undefined,
-                'fetchOrdersByState': undefined,
-                'fetchOrdersByStatus': undefined,
                 'fetchOrderTrades': true,
-                'fetchPartiallyFilledOrders': undefined,
                 'fetchPosition': true,
                 'fetchPositions': true,
                 'fetchPositionsRisk': undefined,
@@ -86,7 +81,6 @@ module.exports = class okex extends Exchange {
                 'fetchStatus': true,
                 'fetchTicker': true,
                 'fetchTickers': true,
-                'fetchTickersByType': true,
                 'fetchTime': true,
                 'fetchTrades': true,
                 'fetchTradingFee': true,
@@ -94,8 +88,6 @@ module.exports = class okex extends Exchange {
                 'fetchTradingLimits': undefined,
                 'fetchTransactions': undefined,
                 'fetchTransfers': undefined,
-                'fetchWithdrawAddress': undefined,
-                'fetchWithdrawAddressesByNetwork': undefined,
                 'fetchWithdrawal': undefined,
                 'fetchWithdrawals': true,
                 'fetchWithdrawalWhitelist': undefined,
@@ -106,7 +98,6 @@ module.exports = class okex extends Exchange {
                 'setPositionMode': true,
                 'signIn': undefined,
                 'transfer': true,
-                'transferOut': false,
                 'withdraw': true,
             },
             'timeframes': {
@@ -186,6 +177,9 @@ module.exports = class okex extends Exchange {
                         'rubik/stat/option/open-interest-volume-strike': 4,
                         'rubik/stat/option/taker-block-volume': 4,
                         'system/status': 100,
+                        'asset/lending-rate-summary': 5 / 3,
+                        'asset/lending-rate-history': 5 / 3,
+                        'market/exchange-rate': 20,
                     },
                 },
                 'private': {
@@ -204,6 +198,9 @@ module.exports = class okex extends Exchange {
                         'account/interest-accrued': 4,
                         'account/interest-rate': 4,
                         'account/max-withdrawal': 1,
+                        'account/risk-state': 2,
+                        'account/borrow-repay-history': 4,
+                        'account/interest-limits': 4,
                         'asset/asset-valuation': 1 / 5,
                         'asset/deposit-address': 5 / 3,
                         'asset/balances': 5 / 3,
@@ -214,6 +211,8 @@ module.exports = class okex extends Exchange {
                         'asset/bills': 5 / 3,
                         'asset/piggy-balance': 5 / 3,
                         'asset/deposit-lightning': 5,
+                        'asset/lending-history': 5 / 3,
+                        'asset/saving-balance': 5 / 3,
                         'trade/order': 1 / 3,
                         'trade/orders-pending': 1,
                         'trade/orders-history': 0.5,
@@ -226,16 +225,26 @@ module.exports = class okex extends Exchange {
                         'asset/subaccount/bills': 5 / 3,
                         'users/subaccount/list': 10,
                         'users/subaccount/apikey': 10,
+                        // broker
+                        'broker/nd/info': 10,
+                        'broker/nd/subaccount-info': 10,
+                        'asset/broker/nd/subaccount-deposit-address': 4,
+                        'asset/broker/nd/subaccount-deposit-history': 4,
+                        'broker/nd/rebate-daily': 1,
                     },
                     'post': {
                         'account/set-position-mode': 4,
                         'account/set-leverage': 1,
                         'account/position/margin-balance': 1,
                         'account/set-greeks': 4,
+                        'account/set-isolated-mode': 4,
+                        'account/simulated_margin': 10,
+                        'account/borrow-repay': 5 / 3,
                         'asset/transfer': 10,
                         'asset/withdrawal': 5 / 3,
                         'asset/purchase_redempt': 5 / 3,
                         'asset/withdrawal-lightning': 5,
+                        'asset/set-lending-rate': 5 / 3,
                         'trade/order': 1 / 3,
                         'trade/batch-orders': 1 / 15,
                         'trade/cancel-order': 1 / 3,
@@ -250,6 +259,12 @@ module.exports = class okex extends Exchange {
                         'users/subaccount/modify-apikey': 10,
                         'users/subaccount/apikey': 10,
                         'asset/subaccount/transfer': 10,
+                        // broker
+                        'broker/nd/create-subaccount': 10,
+                        'broker/nd/delete-subaccount': 10,
+                        'broker/nd/set-subaccount-level': 4,
+                        'broker/nd/set-subaccount-fee-rate': 4,
+                        'asset/broker/nd/subaccount-deposit-address': 4,
                     },
                 },
             },
@@ -340,8 +355,8 @@ module.exports = class okex extends Exchange {
                     '51009': AccountSuspended, // Order placement function is blocked by the platform
                     '51010': InsufficientFunds, // Account level too low
                     '51011': InvalidOrder, // Duplicated order ID
-                    '51012': ExchangeError, // Token does not exist
-                    '51014': ExchangeError, // Index does not exist
+                    '51012': BadSymbol, // Token does not exist
+                    '51014': BadSymbol, // Index does not exist
                     '51015': BadSymbol, // Instrument ID does not match instrument type
                     '51016': InvalidOrder, // Duplicated client order ID
                     '51017': ExchangeError, // Borrow amount exceeds the limit
@@ -761,8 +776,8 @@ module.exports = class okex extends Exchange {
             baseId = this.safeString (parts, 0);
             quoteId = this.safeString (parts, 1);
         }
-        const inverse = baseId === settleCurrency;
-        const linear = quoteId === settleCurrency;
+        const inverse = contract ? (baseId === settleCurrency) : undefined;
+        const linear = contract ? (quoteId === settleCurrency) : undefined;
         const base = this.safeCurrencyCode (baseId);
         const quote = this.safeCurrencyCode (quoteId);
         let symbol = base + '/' + quote;
@@ -945,6 +960,8 @@ module.exports = class okex extends Exchange {
             const chains = dataByCurrencyId[currencyId];
             const networks = {};
             let currencyActive = false;
+            let depositEnabled = undefined;
+            let withdrawEnabled = undefined;
             for (let j = 0; j < chains.length; j++) {
                 const chain = chains[j];
                 const canDeposit = this.safeValue (chain, 'canDep');
@@ -953,6 +970,16 @@ module.exports = class okex extends Exchange {
                 const active = (canDeposit && canWithdraw && canInternal) ? true : false;
                 currencyActive = (currencyActive === undefined) ? active : currencyActive;
                 const networkId = this.safeString (chain, 'chain');
+                if (canDeposit && !depositEnabled) {
+                    depositEnabled = true;
+                } else if (!canDeposit) {
+                    depositEnabled = false;
+                }
+                if (canWithdraw && !withdrawEnabled) {
+                    withdrawEnabled = true;
+                } else if (!canWithdraw) {
+                    withdrawEnabled = false;
+                }
                 if (networkId.indexOf ('-') >= 0) {
                     const parts = networkId.split ('-');
                     const chainPart = this.safeString (parts, 1, networkId);
@@ -971,6 +998,8 @@ module.exports = class okex extends Exchange {
                         'id': networkId,
                         'network': network,
                         'active': active,
+                        'deposit': canDeposit,
+                        'withdraw': canWithdraw,
                         'fee': this.safeNumber (chain, 'minFee'),
                         'precision': undefined,
                         'limits': {
@@ -988,6 +1017,8 @@ module.exports = class okex extends Exchange {
                 'id': currencyId,
                 'name': undefined,
                 'active': currencyActive,
+                'deposit': depositEnabled,
+                'withdraw': withdrawEnabled,
                 'fee': undefined,
                 'precision': precision,
                 'limits': {
@@ -1070,7 +1101,7 @@ module.exports = class okex extends Exchange {
         const quoteVolume = this.safeNumber (ticker, 'volCcy24h');
         const baseVolume = this.safeNumber (ticker, 'vol24h');
         const vwap = this.vwap (baseVolume, quoteVolume);
-        return {
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -1091,7 +1122,7 @@ module.exports = class okex extends Exchange {
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -1544,13 +1575,9 @@ module.exports = class okex extends Exchange {
 
     async fetchBalance (params = {}) {
         await this.loadMarkets ();
-        const defaultType = this.safeString (this.options, 'defaultType');
-        const options = this.safeValue (this.options, 'fetchBalance', {});
-        let type = this.safeString (options, 'type', defaultType);
-        type = this.safeString (params, 'type', type);
-        params = this.omit (params, 'type');
+        const [ marketType, query ] = this.handleMarketTypeAndParams ('fetchBalance', undefined, params);
         let method = undefined;
-        if (type === 'funding') {
+        if (marketType === 'funding') {
             method = 'privateGetAssetBalances';
         } else {
             method = 'privateGetAccountBalance';
@@ -1558,7 +1585,7 @@ module.exports = class okex extends Exchange {
         const request = {
             // 'ccy': 'BTC,ETH', // comma-separated list of currency ids
         };
-        const response = await this[method] (this.extend (request, params));
+        const response = await this[method] (this.extend (request, query));
         //
         //     {
         //         "code":"0",
@@ -1661,7 +1688,7 @@ module.exports = class okex extends Exchange {
         //         "msg":""
         //     }
         //
-        return this.parseBalanceByType (type, response);
+        return this.parseBalanceByType (marketType, response);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -2873,6 +2900,7 @@ module.exports = class okex extends Exchange {
             'id': id,
             'currency': code,
             'amount': amount,
+            'network': undefined,
             'addressFrom': addressFrom,
             'addressTo': addressTo,
             'address': address,
@@ -3321,10 +3349,11 @@ module.exports = class okex extends Exchange {
         //
         // in the response above nextFundingRate is actually two funding rates from now
         //
-        const nextFundingRateTimestamp = this.safeInteger (fundingRate, 'fundingTime');
+        const nextFundingRateTimestamp = this.safeInteger (fundingRate, 'nextFundingTime');
         const marketId = this.safeString (fundingRate, 'instId');
         const symbol = this.safeSymbol (marketId, market);
-        const nextFundingRate = this.safeNumber (fundingRate, 'fundingRate');
+        const nextFundingRate = this.safeNumber (fundingRate, 'nextFundingRate');
+        const fundingTime = this.safeInteger (fundingRate, 'fundingTime');
         // https://www.okex.com/support/hc/en-us/articles/360053909272-Ⅸ-Introduction-to-perpetual-swap-funding-fee
         // > The current interest is 0.
         return {
@@ -3336,12 +3365,15 @@ module.exports = class okex extends Exchange {
             'estimatedSettlePrice': undefined,
             'timestamp': undefined,
             'datetime': undefined,
-            'previousFundingRate': undefined,
+            'fundingRate': this.safeNumber (fundingRate, 'fundingRate'),
+            'fundingTimestamp': fundingTime,
+            'fundingDatetime': this.iso8601 (fundingTime),
             'nextFundingRate': nextFundingRate,
-            'previousFundingTimestamp': undefined,
             'nextFundingTimestamp': nextFundingRateTimestamp,
-            'previousFundingDatetime': undefined,
             'nextFundingDatetime': this.iso8601 (nextFundingRateTimestamp),
+            'previousFundingRate': undefined,
+            'previousFundingTimestamp': undefined,
+            'previousFundingDatetime': undefined,
         };
     }
 

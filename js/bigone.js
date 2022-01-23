@@ -136,6 +136,7 @@ module.exports = class bigone extends Exchange {
             'commonCurrencies': {
                 'CRE': 'Cybereits',
                 'FXT': 'FXTTOKEN',
+                'FREE': 'FreeRossDAO',
                 'MBN': 'Mobilian Coin',
                 'ONE': 'BigONE Token',
             },
@@ -200,6 +201,20 @@ module.exports = class bigone extends Exchange {
                 'quoteId': quoteId,
                 'type': 'spot',
                 'spot': true,
+                'margin': false,
+                'future': false,
+                'swap': false,
+                'option': false,
+                'linear': undefined,
+                'inverse': undefined,
+                'expiry': undefined,
+                'expiryDatetime': undefined,
+                'optionType': undefined,
+                'strike': undefined,
+                'contract': false,
+                'contractSize': undefined,
+                'settle': undefined,
+                'settleId': undefined,
                 'active': true,
                 'precision': precision,
                 'limits': {
@@ -256,31 +271,31 @@ module.exports = class bigone extends Exchange {
         const marketId = this.safeString (ticker, 'asset_pair_name');
         const symbol = this.safeSymbol (marketId, market, '-');
         const timestamp = undefined;
-        const close = this.safeNumber (ticker, 'close');
+        const close = this.safeString (ticker, 'close');
         const bid = this.safeValue (ticker, 'bid', {});
         const ask = this.safeValue (ticker, 'ask', {});
         return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeNumber (ticker, 'high'),
-            'low': this.safeNumber (ticker, 'low'),
-            'bid': this.safeNumber (bid, 'price'),
-            'bidVolume': this.safeNumber (bid, 'quantity'),
-            'ask': this.safeNumber (ask, 'price'),
-            'askVolume': this.safeNumber (ask, 'quantity'),
+            'high': this.safeString (ticker, 'high'),
+            'low': this.safeString (ticker, 'low'),
+            'bid': this.safeString (bid, 'price'),
+            'bidVolume': this.safeString (bid, 'quantity'),
+            'ask': this.safeString (ask, 'price'),
+            'askVolume': this.safeString (ask, 'quantity'),
             'vwap': undefined,
-            'open': this.safeNumber (ticker, 'open'),
+            'open': this.safeString (ticker, 'open'),
             'close': close,
             'last': close,
             'previousClose': undefined,
-            'change': this.safeNumber (ticker, 'daily_change'),
+            'change': this.safeString (ticker, 'daily_change'),
             'percentage': undefined,
             'average': undefined,
-            'baseVolume': this.safeNumber (ticker, 'volume'),
+            'baseVolume': this.safeString (ticker, 'volume'),
             'quoteVolume': undefined,
             'info': ticker,
-        }, market);
+        }, market, false);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -1107,6 +1122,7 @@ module.exports = class bigone extends Exchange {
             'txid': txid,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
+            'network': undefined,
             'addressFrom': undefined,
             'address': undefined,
             'addressTo': address,

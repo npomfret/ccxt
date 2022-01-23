@@ -19,6 +19,8 @@ module.exports = class upbit extends Exchange {
             'pro': true,
             // new metainfo interface
             'has': {
+                'fetchDepositAddresses': true,
+                'fetchCanceledOrders': true,
                 'cancelOrder': true,
                 'CORS': true,
                 'createDepositAddress': true,
@@ -392,6 +394,22 @@ module.exports = class upbit extends Exchange {
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'active': active,
+                'type': 'spot',
+                'spot': true,
+                'margin': false,
+                'future': false,
+                'swap': false,
+                'option': false,
+                'optionType': undefined,
+                'strike': undefined,
+                'linear': undefined,
+                'inverse': undefined,
+                'contract': false,
+                'contractSize': undefined,
+                'settle': undefined,
+                'settleId': undefined,
+                'expiry': undefined,
+                'expiryDatetime': undefined,
                 'info': market,
                 'precision': precision,
                 'maker': makerFee,
@@ -551,33 +569,30 @@ module.exports = class upbit extends Exchange {
         //
         const timestamp = this.safeInteger (ticker, 'trade_timestamp');
         const marketId = this.safeString2 (ticker, 'market', 'code');
-        const symbol = this.safeSymbol (marketId, market, '-');
-        const previous = this.safeNumber (ticker, 'prev_closing_price');
-        const last = this.safeNumber (ticker, 'trade_price');
-        const change = this.safeNumber (ticker, 'signed_change_price');
-        const percentage = this.safeNumber (ticker, 'signed_change_rate');
-        return {
-            'symbol': symbol,
+        market = this.safeMarket (marketId, market, '-');
+        const last = this.safeString (ticker, 'trade_price');
+        return this.safeTicker ({
+            'symbol': market['symbol'],
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeNumber (ticker, 'high_price'),
-            'low': this.safeNumber (ticker, 'low_price'),
+            'high': this.safeString (ticker, 'high_price'),
+            'low': this.safeString (ticker, 'low_price'),
             'bid': undefined,
             'bidVolume': undefined,
             'ask': undefined,
             'askVolume': undefined,
             'vwap': undefined,
-            'open': this.safeNumber (ticker, 'opening_price'),
+            'open': this.safeString (ticker, 'opening_price'),
             'close': last,
             'last': last,
-            'previousClose': previous,
-            'change': change,
-            'percentage': percentage,
+            'previousClose': this.safeString (ticker, 'prev_closing_price'),
+            'change': this.safeString (ticker, 'signed_change_price'),
+            'percentage': this.safeString (ticker, 'signed_change_rate'),
             'average': undefined,
-            'baseVolume': this.safeNumber (ticker, 'acc_trade_volume_24h'),
-            'quoteVolume': this.safeNumber (ticker, 'acc_trade_price_24h'),
+            'baseVolume': this.safeString (ticker, 'acc_trade_volume_24h'),
+            'quoteVolume': this.safeString (ticker, 'acc_trade_price_24h'),
             'info': ticker,
-        };
+        }, market, false);
     }
 
     async fetchTickers (symbols = undefined, params = {}) {
@@ -1078,8 +1093,13 @@ module.exports = class upbit extends Exchange {
             'id': id,
             'currency': code,
             'amount': amount,
+            'network': undefined,
             'address': address,
+            'addressTo': undefined,
+            'addressFrom': undefined,
             'tag': tag,
+            'tagTo': undefined,
+            'tagFrom': undefined,
             'status': status,
             'type': type,
             'updated': updated,

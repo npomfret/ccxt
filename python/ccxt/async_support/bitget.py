@@ -38,6 +38,8 @@ class bitget(Exchange):
             'version': 'v3',
             'rateLimit': 1000,  # up to 3000 requests per 5 minutes ≈ 600 requests per minute ≈ 10 requests per second ≈ 100 ms
             'has': {
+                'fetchPositions': True,
+                'fetchPosition': True,
                 'cancelOrder': True,
                 'cancelOrders': True,
                 'CORS': None,
@@ -940,6 +942,8 @@ class bitget(Exchange):
                 'type': None,
                 'name': None,
                 'active': None,
+                'deposit': None,
+                'withdraw': None,
                 'fee': None,
                 'precision': None,
                 'limits': {
@@ -1072,31 +1076,31 @@ class bitget(Exchange):
                 symbol = marketId
         if (symbol is None) and (market is not None):
             symbol = market['symbol']
-        last = self.safe_number_2(ticker, 'last', 'close')
-        open = self.safe_number(ticker, 'open')
+        last = self.safe_string_2(ticker, 'last', 'close')
+        open = self.safe_string(ticker, 'open')
         bidVolume = None
         askVolume = None
         bid = self.safe_value(ticker, 'bid')
         if bid is None:
-            bid = self.safe_number(ticker, 'best_bid')
+            bid = self.safe_string(ticker, 'best_bid')
         else:
-            bidVolume = self.safe_number(bid, 1)
-            bid = self.safe_number(bid, 0)
+            bidVolume = self.safe_string(bid, 1)
+            bid = self.safe_string(bid, 0)
         ask = self.safe_value(ticker, 'ask')
         if ask is None:
-            ask = self.safe_number(ticker, 'best_ask')
+            ask = self.safe_string(ticker, 'best_ask')
         else:
-            askVolume = self.safe_number(ask, 1)
-            ask = self.safe_number(ask, 0)
-        baseVolume = self.safe_number_2(ticker, 'amount', 'volume_24h')
-        quoteVolume = self.safe_number(ticker, 'vol')
+            askVolume = self.safe_string(ask, 1)
+            ask = self.safe_string(ask, 0)
+        baseVolume = self.safe_string_2(ticker, 'amount', 'volume_24h')
+        quoteVolume = self.safe_string(ticker, 'vol')
         vwap = self.vwap(baseVolume, quoteVolume)
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number_2(ticker, 'high', 'high_24h'),
-            'low': self.safe_number_2(ticker, 'low', 'low_24h'),
+            'high': self.safe_string_2(ticker, 'high', 'high_24h'),
+            'low': self.safe_string_2(ticker, 'low', 'low_24h'),
             'bid': bid,
             'bidVolume': bidVolume,
             'ask': ask,
@@ -1112,7 +1116,7 @@ class bitget(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
@@ -1655,19 +1659,15 @@ class bitget(Exchange):
     async def fetch_balance(self, params={}):
         await self.load_markets()
         await self.load_accounts()
-        defaultType = self.safe_string_2(self.options, 'fetchBalance', 'defaultType')
-        type = self.safe_string(params, 'type', defaultType)
-        if type is None:
-            raise ArgumentsRequired(self.id + " fetchBalance() requires a 'type' parameter, one of 'spot', 'swap'")
-        method = None
-        query = self.omit(params, 'type')
-        if type == 'spot':
-            accountId = await self.get_account_id(params)
-            method = 'apiGetAccountsAccountIdBalance'
+        marketType, query = self.handle_market_type_and_params('fetchBalance', None, params)
+        method = self.get_supported_mapping(marketType, {
+            'spot': 'apiGetAccountsAccountIdBalance',
+            'swap': 'swapGetAccountAccounts',
+        })
+        if marketType == 'spot':
+            accountId = await self.get_account_id(query)
             query['account_id'] = accountId
             query['method'] = 'balance'
-        elif type == 'swap':
-            method = 'swapGetAccountAccounts'
         response = await getattr(self, method)(query)
         #
         # spot
@@ -1695,7 +1695,7 @@ class bitget(Exchange):
         #         {"equity":"0","fixed_balance":"0","total_avail_balance":"0","margin":"0","realized_pnl":"0","unrealized_pnl":"0","symbol":"cmt_btcsusdt","margin_frozen":"0","timestamp":"1595673431577","margin_mode":"fixed","forwardContractFlag":true},
         #     ]
         #
-        return self.parse_balance_by_type(type, response)
+        return self.parse_balance_by_type(marketType, response)
 
     def parse_balance_by_type(self, type, response):
         if type == 'spot':
@@ -2164,26 +2164,26 @@ class bitget(Exchange):
             raise ArgumentsRequired(self.id + ' fetchOpenOrders() requires a symbol argument')
         await self.load_markets()
         market = self.market(symbol)
-        type = self.safe_string(params, 'type', market['type'])
+        marketType, query = self.handle_market_type_and_params('fetchOpenOrders', market, params)
         request = {
             'symbol': market['id'],
         }
-        method = None
-        if type == 'spot':
-            method = 'apiGetOrderOrdersOpenOrders'
+        if marketType == 'spot':
             # request['from'] = self.safe_string(params, 'from')  # order id
             # request['direct'] = 'next'  # or 'prev'
             request['method'] = 'openOrders'
             if limit is None:
                 request['size'] = limit  # default 100, max 1000
-        elif type == 'swap':
-            method = 'swapGetOrderOrders'
+        elif marketType == 'swap':
             request['status'] = '3'  # 0 Failed, 1 Partially Filled, 2 Fully Filled 3 = Open + Partially Filled, 4 Canceling
             request['from'] = '1'
             request['to'] = '1'
             if limit is None:
                 request['limit'] = 100  # default 100, max 100
-        query = self.omit(params, 'type')
+        method = self.get_supported_mapping(marketType, {
+            'spot': 'apiGetOrderOrdersOpenOrders',
+            'swap': 'swapGetOrderOrders',
+        })
         response = await getattr(self, method)(self.extend(request, query))
         #
         #  spot
@@ -2243,13 +2243,11 @@ class bitget(Exchange):
             raise ArgumentsRequired(self.id + ' fetchClosedOrders() requires a symbol argument')
         await self.load_markets()
         market = self.market(symbol)
-        type = self.safe_string(params, 'type', market['type'])
+        marketType, query = self.handle_market_type_and_params('fetchClosedOrders', market, params)
         request = {
             'symbol': market['id'],
         }
-        method = None
-        if type == 'spot':
-            method = 'apiGetOrderOrdersHistory'
+        if marketType == 'spot':
             # Value range [((end_time) – 48h),(end_time)]
             # the query window is 48 hours at most
             # the window shift range is the last 30 days
@@ -2261,14 +2259,16 @@ class bitget(Exchange):
             request['method'] = 'openOrders'
             if limit is None:
                 request['size'] = limit  # default 100, max 1000
-        elif type == 'swap':
-            method = 'swapGetOrderOrders'
+        elif marketType == 'swap':
             request['status'] = '2'  # 0 Failed, 1 Partially Filled, 2 Fully Filled 3 = Open + Partially Filled, 4 Canceling
             request['from'] = '1'
             request['to'] = '1'
             if limit is None:
                 request['limit'] = 100  # default 100, max 100
-        query = self.omit(params, 'type')
+        method = self.get_supported_mapping(marketType, {
+            'spot': 'apiGetOrderOrdersHistory',
+            'swap': 'swapGetOrderOrders',
+        })
         response = await getattr(self, method)(self.extend(request, query))
         #
         #  spot
@@ -2460,6 +2460,7 @@ class bitget(Exchange):
             'id': id,
             'currency': code,
             'amount': amount,
+            'network': None,
             'addressFrom': addressFrom,
             'addressTo': addressTo,
             'address': address,

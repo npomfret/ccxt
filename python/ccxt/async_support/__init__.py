@@ -4,7 +4,7 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '1.66.52'
+__version__ = '1.70.5'
 
 # -----------------------------------------------------------------------------
 
@@ -112,6 +112,7 @@ from ccxt.async_support.eqonex import eqonex                              # noqa
 from ccxt.async_support.equos import equos                                # noqa: F401
 from ccxt.async_support.exmo import exmo                                  # noqa: F401
 from ccxt.async_support.flowbtc import flowbtc                            # noqa: F401
+from ccxt.async_support.fmfwio import fmfwio                              # noqa: F401
 from ccxt.async_support.ftx import ftx                                    # noqa: F401
 from ccxt.async_support.ftxus import ftxus                                # noqa: F401
 from ccxt.async_support.gateio import gateio                              # noqa: F401
@@ -159,6 +160,7 @@ from ccxt.async_support.timex import timex                                # noqa
 from ccxt.async_support.upbit import upbit                                # noqa: F401
 from ccxt.async_support.vcc import vcc                                    # noqa: F401
 from ccxt.async_support.wavesexchange import wavesexchange                # noqa: F401
+from ccxt.async_support.wazirx import wazirx                              # noqa: F401
 from ccxt.async_support.whitebit import whitebit                          # noqa: F401
 from ccxt.async_support.xena import xena                                  # noqa: F401
 from ccxt.async_support.yobit import yobit                                # noqa: F401
@@ -229,6 +231,7 @@ exchanges = [
     'equos',
     'exmo',
     'flowbtc',
+    'fmfwio',
     'ftx',
     'ftxus',
     'gateio',
@@ -276,6 +279,7 @@ exchanges = [
     'upbit',
     'vcc',
     'wavesexchange',
+    'wazirx',
     'whitebit',
     'xena',
     'yobit',

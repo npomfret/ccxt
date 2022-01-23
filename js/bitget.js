@@ -18,6 +18,8 @@ module.exports = class bitget extends Exchange {
             'version': 'v3',
             'rateLimit': 1000, // up to 3000 requests per 5 minutes ≈ 600 requests per minute ≈ 10 requests per second ≈ 100 ms
             'has': {
+                'fetchPositions': true,
+                'fetchPosition': true,
                 'cancelOrder': true,
                 'cancelOrders': true,
                 'CORS': undefined,
@@ -933,6 +935,8 @@ module.exports = class bitget extends Exchange {
                 'type': undefined,
                 'name': undefined,
                 'active': undefined,
+                'deposit': undefined,
+                'withdraw': undefined,
                 'fee': undefined,
                 'precision': undefined,
                 'limits': {
@@ -1072,33 +1076,33 @@ module.exports = class bitget extends Exchange {
         if ((symbol === undefined) && (market !== undefined)) {
             symbol = market['symbol'];
         }
-        const last = this.safeNumber2 (ticker, 'last', 'close');
-        const open = this.safeNumber (ticker, 'open');
+        const last = this.safeString2 (ticker, 'last', 'close');
+        const open = this.safeString (ticker, 'open');
         let bidVolume = undefined;
         let askVolume = undefined;
         let bid = this.safeValue (ticker, 'bid');
         if (bid === undefined) {
-            bid = this.safeNumber (ticker, 'best_bid');
+            bid = this.safeString (ticker, 'best_bid');
         } else {
-            bidVolume = this.safeNumber (bid, 1);
-            bid = this.safeNumber (bid, 0);
+            bidVolume = this.safeString (bid, 1);
+            bid = this.safeString (bid, 0);
         }
         let ask = this.safeValue (ticker, 'ask');
         if (ask === undefined) {
-            ask = this.safeNumber (ticker, 'best_ask');
+            ask = this.safeString (ticker, 'best_ask');
         } else {
-            askVolume = this.safeNumber (ask, 1);
-            ask = this.safeNumber (ask, 0);
+            askVolume = this.safeString (ask, 1);
+            ask = this.safeString (ask, 0);
         }
-        const baseVolume = this.safeNumber2 (ticker, 'amount', 'volume_24h');
-        const quoteVolume = this.safeNumber (ticker, 'vol');
+        const baseVolume = this.safeString2 (ticker, 'amount', 'volume_24h');
+        const quoteVolume = this.safeString (ticker, 'vol');
         const vwap = this.vwap (baseVolume, quoteVolume);
         return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeNumber2 (ticker, 'high', 'high_24h'),
-            'low': this.safeNumber2 (ticker, 'low', 'low_24h'),
+            'high': this.safeString2 (ticker, 'high', 'high_24h'),
+            'low': this.safeString2 (ticker, 'low', 'low_24h'),
             'bid': bid,
             'bidVolume': bidVolume,
             'ask': ask,
@@ -1114,7 +1118,7 @@ module.exports = class bitget extends Exchange {
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market);
+        }, market, false);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -1703,20 +1707,15 @@ module.exports = class bitget extends Exchange {
     async fetchBalance (params = {}) {
         await this.loadMarkets ();
         await this.loadAccounts ();
-        const defaultType = this.safeString2 (this.options, 'fetchBalance', 'defaultType');
-        const type = this.safeString (params, 'type', defaultType);
-        if (type === undefined) {
-            throw new ArgumentsRequired (this.id + " fetchBalance() requires a 'type' parameter, one of 'spot', 'swap'");
-        }
-        let method = undefined;
-        const query = this.omit (params, 'type');
-        if (type === 'spot') {
-            const accountId = await this.getAccountId (params);
-            method = 'apiGetAccountsAccountIdBalance';
+        const [ marketType, query ] = this.handleMarketTypeAndParams ('fetchBalance', undefined, params);
+        const method = this.getSupportedMapping (marketType, {
+            'spot': 'apiGetAccountsAccountIdBalance',
+            'swap': 'swapGetAccountAccounts',
+        });
+        if (marketType === 'spot') {
+            const accountId = await this.getAccountId (query);
             query['account_id'] = accountId;
             query['method'] = 'balance';
-        } else if (type === 'swap') {
-            method = 'swapGetAccountAccounts';
         }
         const response = await this[method] (query);
         //
@@ -1745,7 +1744,7 @@ module.exports = class bitget extends Exchange {
         //         {"equity":"0","fixed_balance":"0","total_avail_balance":"0","margin":"0","realized_pnl":"0","unrealized_pnl":"0","symbol":"cmt_btcsusdt","margin_frozen":"0","timestamp":"1595673431577","margin_mode":"fixed","forwardContractFlag":true},
         //     ]
         //
-        return this.parseBalanceByType (type, response);
+        return this.parseBalanceByType (marketType, response);
     }
 
     parseBalanceByType (type, response) {
@@ -2249,21 +2248,18 @@ module.exports = class bitget extends Exchange {
         }
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const type = this.safeString (params, 'type', market['type']);
+        const [ marketType, query ] = this.handleMarketTypeAndParams ('fetchOpenOrders', market, params);
         const request = {
             'symbol': market['id'],
         };
-        let method = undefined;
-        if (type === 'spot') {
-            method = 'apiGetOrderOrdersOpenOrders';
+        if (marketType === 'spot') {
             // request['from'] = this.safeString (params, 'from'); // order id
             // request['direct'] = 'next'; // or 'prev'
             request['method'] = 'openOrders';
             if (limit === undefined) {
                 request['size'] = limit; // default 100, max 1000
             }
-        } else if (type === 'swap') {
-            method = 'swapGetOrderOrders';
+        } else if (marketType === 'swap') {
             request['status'] = '3'; // 0 Failed, 1 Partially Filled, 2 Fully Filled 3 = Open + Partially Filled, 4 Canceling
             request['from'] = '1';
             request['to'] = '1';
@@ -2271,7 +2267,10 @@ module.exports = class bitget extends Exchange {
                 request['limit'] = 100; // default 100, max 100
             }
         }
-        const query = this.omit (params, 'type');
+        const method = this.getSupportedMapping (marketType, {
+            'spot': 'apiGetOrderOrdersOpenOrders',
+            'swap': 'swapGetOrderOrders',
+        });
         const response = await this[method] (this.extend (request, query));
         //
         //  spot
@@ -2334,13 +2333,11 @@ module.exports = class bitget extends Exchange {
         }
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const type = this.safeString (params, 'type', market['type']);
+        const [ marketType, query ] = this.handleMarketTypeAndParams ('fetchClosedOrders', market, params);
         const request = {
             'symbol': market['id'],
         };
-        let method = undefined;
-        if (type === 'spot') {
-            method = 'apiGetOrderOrdersHistory';
+        if (marketType === 'spot') {
             // Value range [((end_time) – 48h), (end_time)]
             // the query window is 48 hours at most
             // the window shift range is the last 30 days
@@ -2354,8 +2351,7 @@ module.exports = class bitget extends Exchange {
             if (limit === undefined) {
                 request['size'] = limit; // default 100, max 1000
             }
-        } else if (type === 'swap') {
-            method = 'swapGetOrderOrders';
+        } else if (marketType === 'swap') {
             request['status'] = '2'; // 0 Failed, 1 Partially Filled, 2 Fully Filled 3 = Open + Partially Filled, 4 Canceling
             request['from'] = '1';
             request['to'] = '1';
@@ -2363,7 +2359,10 @@ module.exports = class bitget extends Exchange {
                 request['limit'] = 100; // default 100, max 100
             }
         }
-        const query = this.omit (params, 'type');
+        const method = this.getSupportedMapping (marketType, {
+            'spot': 'apiGetOrderOrdersHistory',
+            'swap': 'swapGetOrderOrders',
+        });
         const response = await this[method] (this.extend (request, query));
         //
         //  spot
@@ -2564,6 +2563,7 @@ module.exports = class bitget extends Exchange {
             'id': id,
             'currency': code,
             'amount': amount,
+            'network': undefined,
             'addressFrom': addressFrom,
             'addressTo': addressTo,
             'address': address,

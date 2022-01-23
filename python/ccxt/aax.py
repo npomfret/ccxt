@@ -84,12 +84,10 @@ class aax(Exchange):
                 'fetchLedgerEntry': None,
                 'fetchLeverage': None,
                 'fetchMarkets': True,
-                'fetchMarketsByType': None,
                 'fetchMarkOHLCV': False,
                 'fetchMyBuys': None,
                 'fetchMySells': None,
                 'fetchMyTrades': True,
-                'fetchNetworkDepositAddress': None,
                 'fetchOHLCV': True,
                 'fetchOpenOrder': None,
                 'fetchOpenOrders': True,
@@ -97,10 +95,7 @@ class aax(Exchange):
                 'fetchOrderBook': True,
                 'fetchOrderBooks': None,
                 'fetchOrders': True,
-                'fetchOrdersByState': None,
-                'fetchOrdersByStatus': None,
                 'fetchOrderTrades': None,
-                'fetchPartiallyFilledOrders': None,
                 'fetchPosition': None,
                 'fetchPositions': None,
                 'fetchPositionsRisk': None,
@@ -108,7 +103,6 @@ class aax(Exchange):
                 'fetchStatus': True,
                 'fetchTicker': 'emulated',
                 'fetchTickers': True,
-                'fetchTickersByType': None,
                 'fetchTime': True,
                 'fetchTrades': True,
                 'fetchTradingFee': None,
@@ -116,10 +110,8 @@ class aax(Exchange):
                 'fetchTradingLimits': None,
                 'fetchTransactions': None,
                 'fetchTransfers': None,
-                'fetchWithdrawAddress': None,
-                'fetchWithdrawAddressesByNetwork': None,
                 'fetchWithdrawal': None,
-                'fetchWithdrawals': None,
+                'fetchWithdrawals': True,
                 'fetchWithdrawalWhitelist': None,
                 'loadLeverageBrackets': None,
                 'reduceMargin': None,
@@ -128,7 +120,6 @@ class aax(Exchange):
                 'setPositionMode': None,
                 'signIn': None,
                 'transfer': None,
-                'transferOut': False,
                 'withdraw': None,
             },
             'timeframes': {
@@ -202,6 +193,7 @@ class aax(Exchange):
                         'account/balances',  # Get Account Balances
                         'account/deposit/address',  # undocumented
                         'account/deposits',  # Get account deposits history
+                        'account/withdraws',  # Get account withdrawals history
                         'spot/trades',  # Retrieve trades details for a spot order
                         'spot/openOrders',  # Retrieve spot open orders
                         'spot/orders',  # Retrieve historical spot orders
@@ -588,6 +580,8 @@ class aax(Exchange):
             fee = self.safe_number(currency, 'withdrawFee')
             visible = self.safe_value(currency, 'visible')
             active = (enableWithdraw and enableDeposit and visible)
+            deposit = (enableDeposit and visible)
+            withdraw = (enableWithdraw and visible)
             network = self.safe_string(currency, 'network')
             result[code] = {
                 'id': id,
@@ -596,6 +590,8 @@ class aax(Exchange):
                 'precision': precision,
                 'info': currency,
                 'active': active,
+                'deposit': deposit,
+                'withdraw': withdraw,
                 'fee': fee,
                 'network': network,
                 'limits': {
@@ -628,15 +624,15 @@ class aax(Exchange):
         timestamp = self.safe_integer(ticker, 't')
         marketId = self.safe_string(ticker, 's')
         symbol = self.safe_symbol(marketId, market)
-        last = self.safe_number(ticker, 'c')
-        open = self.safe_number(ticker, 'o')
-        quoteVolume = self.safe_number(ticker, 'v')
+        last = self.safe_string(ticker, 'c')
+        open = self.safe_string(ticker, 'o')
+        quoteVolume = self.safe_string(ticker, 'v')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': None,
-            'high': self.safe_number(ticker, 'h'),
-            'low': self.safe_number(ticker, 'l'),
+            'high': self.safe_string(ticker, 'h'),
+            'low': self.safe_string(ticker, 'l'),
             'bid': None,
             'bidVolume': None,
             'ask': None,
@@ -652,7 +648,7 @@ class aax(Exchange):
             'baseVolume': None,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     def fetch_tickers(self, symbols=None, params={}):
         self.load_markets()
@@ -979,7 +975,7 @@ class aax(Exchange):
         method = None
         if market['spot']:
             method = 'privatePostSpotOrders'
-        elif market['futures']:
+        elif market['contract']:
             method = 'privatePostFuturesOrders'
         response = getattr(self, method)(self.extend(request, params))
         #
@@ -1085,7 +1081,7 @@ class aax(Exchange):
         method = None
         if market['spot']:
             method = 'privatePutSpotOrders'
-        elif market['futures']:
+        elif market['contract']:
             method = 'privatePutFuturesOrders'
         response = getattr(self, method)(self.extend(request, params))
         #
@@ -1186,7 +1182,7 @@ class aax(Exchange):
             type = market['type']
         if type == 'spot':
             method = 'privateDeleteSpotOrdersCancelOrderID'
-        elif type == 'futures':
+        elif type == 'swap' or type == 'future' or type == 'futures':  # type == 'futures' deprecated, use type == 'swap'
             method = 'privateDeleteFuturesOrdersCancelOrderID'
         response = getattr(self, method)(self.extend(request, params))
         #
@@ -1282,7 +1278,7 @@ class aax(Exchange):
         method = None
         if market['spot']:
             method = 'privateDeleteSpotOrdersCancelAll'
-        elif market['futures']:
+        elif market['contract']:
             method = 'privateDeleteFuturesOrdersCancelAll'
         response = getattr(self, method)(self.extend(request, params))
         #
@@ -1328,26 +1324,23 @@ class aax(Exchange):
             # 'side': 'None',  # BUY, SELL
             # 'clOrdID': clientOrderId,
         }
-        defaultType = self.safe_string_2(self.options, 'fetchOpenOrders', 'defaultType', 'spot')
-        type = self.safe_string(params, 'type', defaultType)
-        params = self.omit(params, 'type')
         market = None
         if symbol is not None:
             market = self.market(symbol)
             request['symbol'] = market['id']
-            type = market['type']
+        marketType, query = self.handle_market_type_and_params('fetchOpenOrders', market, params)
+        method = self.get_supported_mapping(marketType, {
+            'spot': 'privateGetSpotOpenOrders',
+            'swap': 'privateGetFuturesOpenOrders',
+            'future': 'privateGetFuturesOpenOrders',
+        })
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         if clientOrderId is not None:
             request['clOrdID'] = clientOrderId
             params = self.omit(params, ['clOrdID', 'clientOrderId'])
-        method = None
-        if type == 'spot':
-            method = 'privateGetSpotOpenOrders'
-        elif type == 'futures':
-            method = 'privateGetFuturesOpenOrders'
         if limit is not None:
             request['pageSize'] = limit  # default 10
-        response = getattr(self, method)(self.extend(request, params))
+        response = getattr(self, method)(self.extend(request, query))
         #
         # spot
         #
@@ -1473,19 +1466,16 @@ class aax(Exchange):
             # 'side': 'None',  # BUY, SELL
             # 'clOrdID': clientOrderId,
         }
-        method = None
-        defaultType = self.safe_string_2(self.options, 'fetchOrders', 'defaultType', 'spot')
-        type = self.safe_string(params, 'type', defaultType)
-        params = self.omit(params, 'type')
         market = None
         if symbol is not None:
             market = self.market(symbol)
             request['symbol'] = market['id']
-            type = market['type']
-        if type == 'spot':
-            method = 'privateGetSpotOrders'
-        elif type == 'futures':
-            method = 'privateGetFuturesOrders'
+        marketType, query = self.handle_market_type_and_params('fetchOrders', market, params)
+        method = self.get_supported_mapping(marketType, {
+            'spot': 'privateGetSpotOrders',
+            'swap': 'privateGetFuturesOrders',
+            'future': 'privateGetFuturesOrders',
+        })
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         if clientOrderId is not None:
             request['clOrdID'] = clientOrderId
@@ -1494,7 +1484,7 @@ class aax(Exchange):
             request['pageSize'] = limit  # default 10
         if since is not None:
             request['startDate'] = self.yyyymmdd(since)
-        response = getattr(self, method)(self.extend(request, params))
+        response = getattr(self, method)(self.extend(request, query))
         #
         # spot
         #
@@ -1743,24 +1733,21 @@ class aax(Exchange):
             # 'orderType': None,  # MARKET, LIMIT, STOP, STOP-LIMIT
             # 'side': 'None',  # BUY, SELL
         }
-        method = None
-        defaultType = self.safe_string_2(self.options, 'fetchMyTrades', 'defaultType', 'spot')
-        type = self.safe_string(params, 'type', defaultType)
-        params = self.omit(params, 'type')
         market = None
         if symbol is not None:
             market = self.market(symbol)
             request['symbol'] = market['id']
-            type = market['type']
-        if type == 'spot':
-            method = 'privateGetSpotTrades'
-        elif type == 'futures':
-            method = 'privateGetFuturesTrades'
+        marketType, query = self.handle_market_type_and_params('fetchMyTrades', market, params)
+        method = self.get_supported_mapping(marketType, {
+            'spot': 'privateGetSpotTrades',
+            'swap': 'privateGetFuturesTrades',
+            'future': 'privateGetFuturesTrades',
+        })
         if limit is not None:
             request['pageSize'] = limit  # default 10
         if since is not None:
             request['startDate'] = self.yyyymmdd(since)
-        response = getattr(self, method)(self.extend(request, params))
+        response = getattr(self, method)(self.extend(request, query))
         #
         #     {
         #         "code":1,
@@ -1868,16 +1855,80 @@ class aax(Exchange):
         #     "message": "success",
         #     "ts": 1573561743499
         # }
-        deposits = self.safe_value(response, 'data', [])
-        return self.parse_transactions(deposits, code, since, limit)
+        data = self.safe_value(response, 'data', [])
+        return self.parse_transactions(data, code, since, limit)
 
-    def parse_transaction_status(self, status):
-        statuses = {
-            '1': 'pending',
-            '2': 'ok',
-            '3': 'failed',
+    def fetch_withdrawals(self, code=None, since=None, limit=None, params={}):
+        self.load_markets()
+        request = {
+            # status Not required : "0: Under Review, 1: Manual Review, 2: On Chain, 3: Review Failed, 4: On Chain, 5: Completed, 6: Failed"
+            # currency: Not required -  String Currency
+            # startTime Not required Integer Default: 30 days from current timestamp.
+            # endTime Not required Integer Default: present timestamp.
+            # Note difference between endTime and startTime must be 90 days or less
         }
-        return self.safe_string(statuses, status, status)
+        currency = None
+        if code is not None:
+            currency = self.currency(code)
+            request['currency'] = currency['id']
+        if since is not None:
+            startTime = int(since / 1000)
+            request['startTime'] = startTime
+            request['endTime'] = self.sum(startTime, 90 * 24 * 60 * 60)  # Only allows a 90 day window between start and end
+        response = self.privateGetAccountWithdraws(self.extend(request, params))
+        # {
+        #     "code":1,
+        #     "data": [
+        #       {
+        #            "currency":"USDT",
+        #            "network":"USDT",
+        #            "quantity":"19.000000000000",
+        #            "fee":"0.10000"
+        #            "txHash":"75eb2e5f037b025c535664c49a0f7cc8f601dae218a5f4fe82290ff652c43f3d",
+        #            "address":"1GkB7Taf7uttcguKEb2DmmyRTnihskJ9Le",
+        #            "addressTag": "",
+        #            "status":"2",
+        #            "createdTime":"2021-01-08T19:45:01.354Z",
+        #            "updatedTime":"2021-01-08T20:03:05.000Z",
+        #       }
+        #  ]
+        #     "message":"success",
+        #     "ts":1573561743499
+        #  }
+        data = self.safe_value(response, 'data', [])
+        return self.parse_transactions(data, code, since, limit)
+
+    def parse_transaction_status_by_type(self, status, type=None):
+        statuses = {
+            'deposit': {
+                '1': 'pending',
+                '2': 'ok',
+                '3': 'failed',
+            },
+            'withdrawal': {
+                '0': 'pending',  # under review
+                '1': 'pending',  # manual review
+                '2': 'pending',  # on chain
+                '3': 'failed',  # failed
+                '4': 'pending',  # on chain
+                '5': 'ok',      # completed
+                '6': 'failed',  # failed
+            },
+        }
+        return self.safe_string(self.safe_value(statuses, type, {}), status, status)
+
+    def parse_address_by_type(self, address, tag, type=None):
+        addressFrom = None
+        addressTo = None
+        tagFrom = None
+        tagTo = None
+        if type == 'deposit':
+            addressFrom = address
+            tagFrom = tag
+        elif type == 'withdrawal':
+            addressTo = address
+            tagTo = tag
+        return [addressFrom, tagFrom, addressTo, tagTo]
 
     def parse_transaction(self, transaction, currency=None):
         #
@@ -1894,34 +1945,55 @@ class aax(Exchange):
         #         "updatedTime": "2021-01-08T20:03:05.000Z",
         #     }
         #
+        # fetchWithdrawals
+        #
+        #     {
+        #         "currency":"USDT",
+        #         "network":"USDT",
+        #         "quantity":"19.000000000000",
+        #         "fee":"0.10000"
+        #         "txHash":"75eb2e5f037b025c535664c49a0f7cc8f601dae218a5f4fe82290ff652c43f3d",
+        #         "address":"1GkB7Taf7uttcguKEb2DmmyRTnihskJ9Le",
+        #         "addressTag": "",
+        #         "status":"2",
+        #         "createdTime":"2021-01-08T19:45:01.354Z",
+        #         "updatedTime":"2021-01-08T20:03:05.000Z",
+        #      }
+        #
+        fee = self.safe_string(transaction, 'fee')
+        type = 'withdrawal'
+        if fee is None:
+            type = 'deposit'
         code = self.safe_currency_code(self.safe_string(transaction, 'currency'))
         txid = self.safe_string(transaction, 'txHash')
         address = self.safe_string(transaction, 'address')
-        type = 'deposit'
+        tag = self.safe_string(transaction, 'addressTag')  # withdrawals only
+        addressFrom, tagFrom, addressTo, tagTo = self.parse_address_by_type(address, tag, type)
         amountString = self.safe_string(transaction, 'quantity')
         timestamp = self.parse8601(self.safe_string(transaction, 'createdTime'))
         updated = self.parse8601(self.safe_string(transaction, 'updatedTime'))
-        status = self.parse_transaction_status(self.safe_string(transaction, 'status'))
-        tag = self.safe_string(transaction, 'addressTag')  # withdrawals only
+        status = self.parse_transaction_status_by_type(self.safe_string(transaction, 'status'), type)
+        network = self.safe_string(transaction, 'network')
         return {
             'id': None,
             'info': transaction,
             'txid': txid,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'addressFrom': address,
+            'network': network,
+            'addressFrom': addressFrom,
             'address': address,
-            'addressTo': None,
+            'addressTo': addressTo,
             'amount': self.parse_number(amountString),
             'type': type,
             'currency': code,
             'status': status,
             'updated': updated,
-            'tagFrom': tag,
+            'tagFrom': tagFrom,
             'tag': tag,
-            'tagTo': None,
+            'tagTo': tagTo,
             'comment': None,
-            'fee': None,
+            'fee': fee,
         }
 
     def fetch_funding_rate(self, symbol, params={}):
@@ -1964,7 +2036,7 @@ class aax(Exchange):
         symbol = self.safe_symbol(marketId, market)
         markPrice = self.safe_number(contract, 'markPrice')
         fundingRate = self.safe_number(contract, 'fundingRate')
-        prevFundingDatetime = self.safe_string(contract, 'fundingTime')
+        fundingDatetime = self.safe_string(contract, 'fundingTime')
         nextFundingDatetime = self.safe_string(contract, 'nextFundingTime')
         return {
             'info': contract,
@@ -1975,12 +2047,15 @@ class aax(Exchange):
             'estimatedSettlePrice': None,
             'timestamp': None,
             'datetime': None,
-            'previousFundingRate': fundingRate,
+            'fundingRate': fundingRate,
+            'fundingTimestamp': self.parse8601(fundingDatetime),
+            'fundingDatetime': fundingDatetime,
             'nextFundingRate': None,
-            'previousFundingTimestamp': self.parse8601(prevFundingDatetime),
             'nextFundingTimestamp': self.parse8601(nextFundingDatetime),
-            'previousFundingDatetime': prevFundingDatetime,
             'nextFundingDatetime': nextFundingDatetime,
+            'previousFundingRate': None,
+            'previousFundingTimestamp': None,
+            'previousFundingDatetime': None,
         }
 
     def parse_deposit_address(self, depositAddress, currency=None):

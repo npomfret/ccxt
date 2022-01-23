@@ -21,6 +21,7 @@ class vcc extends Exchange {
             'rateLimit' => 1000,
             'version' => 'v3',
             'has' => array(
+                'fetchTradingFee' => true,
                 'cancelAllOrders' => true,
                 'cancelOrder' => true,
                 'createOrder' => true,
@@ -249,14 +250,18 @@ class vcc extends Exchange {
             $id = $this->safe_string_lower($ids, $i);
             $currency = $this->safe_value($data, $ids[$i]);
             $code = $this->safe_currency_code($id);
-            $canDeposit = $this->safe_value($currency, 'can_deposit');
-            $canWithdraw = $this->safe_value($currency, 'can_withdraw');
+            $canDeposit = $this->safe_integer($currency, 'can_deposit');
+            $canWithdraw = $this->safe_integer($currency, 'can_withdraw');
             $active = ($canDeposit && $canWithdraw);
+            $depositEnabled = ($canDeposit === 1);
+            $withdrawEnabled = ($canWithdraw === 1);
             $result[$code] = array(
                 'id' => $id,
                 'code' => $code,
                 'name' => $this->safe_string($currency, 'name'),
                 'active' => $active,
+                'deposit' => $depositEnabled,
+                'withdraw' => $withdrawEnabled,
                 'fee' => $this->safe_number($currency, 'withdrawal_fee'),
                 'precision' => $this->safe_integer($currency, 'decimal'),
                 'limits' => array(
@@ -435,23 +440,22 @@ class vcc extends Exchange {
         //     }
         //
         $timestamp = $this->milliseconds();
-        $baseVolume = $this->safe_number($ticker, 'base_volume');
-        $quoteVolume = $this->safe_number($ticker, 'quote_volume');
-        $open = $this->safe_number($ticker, 'open_price');
-        $last = $this->safe_number($ticker, 'last_price');
-        $vwap = $this->vwap($baseVolume, $quoteVolume);
+        $baseVolume = $this->safe_string($ticker, 'base_volume');
+        $quoteVolume = $this->safe_string($ticker, 'quote_volume');
+        $open = $this->safe_string($ticker, 'open_price');
+        $last = $this->safe_string($ticker, 'last_price');
         $symbol = $this->safe_symbol(null, $market);
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_number($ticker, 'max_price'),
-            'low' => $this->safe_number($ticker, 'min_price'),
-            'bid' => $this->safe_number($ticker, 'bid'),
+            'high' => $this->safe_string($ticker, 'max_price'),
+            'low' => $this->safe_string($ticker, 'min_price'),
+            'bid' => $this->safe_string($ticker, 'bid'),
             'bidVolume' => null,
-            'ask' => $this->safe_number($ticker, 'ask'),
+            'ask' => $this->safe_string($ticker, 'ask'),
             'askVolume' => null,
-            'vwap' => $vwap,
+            'vwap' => null,
             'open' => $open,
             'close' => $last,
             'last' => $last,
@@ -462,7 +466,7 @@ class vcc extends Exchange {
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
-        ), $market);
+        ), $market, false);
     }
 
     public function fetch_tickers($symbols = null, $params = array ()) {
@@ -746,12 +750,14 @@ class vcc extends Exchange {
             );
         }
         $type = ($amount > 0) ? 'deposit' : 'withdrawal';
+        $network = $this->safe_string($transaction, 'network');
         return array(
             'info' => $transaction,
             'id' => $id,
             'txid' => $txid,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
+            'network' => $network,
             'address' => $address,
             'addressTo' => $address,
             'addressFrom' => null,

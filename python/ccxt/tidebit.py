@@ -205,20 +205,31 @@ class tidebit(Exchange):
         return self.parse_order_book(response, symbol, timestamp)
 
     def parse_ticker(self, ticker, market=None):
+        #
+        #     {
+        #         "at":1398410899,
+        #         "ticker": {
+        #             "buy": "3000.0",
+        #             "sell":"3100.0",
+        #             "low":"3000.0",
+        #             "high":"3000.0",
+        #             "last":"3000.0",
+        #             "vol":"0.11"
+        #         }
+        #     }
+        #
         timestamp = self.safe_timestamp(ticker, 'at')
         ticker = self.safe_value(ticker, 'ticker', {})
-        symbol = None
-        if market is not None:
-            symbol = market['symbol']
-        last = self.safe_number(ticker, 'last')
-        return {
-            'symbol': symbol,
+        market = self.safe_market(None, market)
+        last = self.safe_string(ticker, 'last')
+        return self.safe_ticker({
+            'symbol': market['symbol'],
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high'),
-            'low': self.safe_number(ticker, 'low'),
-            'bid': self.safe_number(ticker, 'buy'),
-            'ask': self.safe_number(ticker, 'sell'),
+            'high': self.safe_string(ticker, 'high'),
+            'low': self.safe_string(ticker, 'low'),
+            'bid': self.safe_string(ticker, 'buy'),
+            'ask': self.safe_string(ticker, 'sell'),
             'bidVolume': None,
             'askVolume': None,
             'vwap': None,
@@ -229,10 +240,10 @@ class tidebit(Exchange):
             'percentage': None,
             'previousClose': None,
             'average': None,
-            'baseVolume': self.safe_number(ticker, 'vol'),
+            'baseVolume': self.safe_string(ticker, 'vol'),
             'quoteVolume': None,
             'info': ticker,
-        }
+        }, market, False)
 
     def fetch_tickers(self, symbols=None, params={}):
         self.load_markets()
@@ -254,6 +265,19 @@ class tidebit(Exchange):
             'market': market['id'],
         }
         response = self.publicGetTickersMarket(self.extend(request, params))
+        #
+        #     {
+        #         "at":1398410899,
+        #         "ticker": {
+        #             "buy": "3000.0",
+        #             "sell":"3100.0",
+        #             "low":"3000.0",
+        #             "high":"3000.0",
+        #             "last":"3000.0",
+        #             "vol":"0.11"
+        #         }
+        #     }
+        #
         return self.parse_ticker(response, market)
 
     def parse_trade(self, trade, market=None):

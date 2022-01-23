@@ -4,6 +4,13 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
+
+# -----------------------------------------------------------------------------
+
+try:
+    basestring  # Python 3
+except NameError:
+    basestring = str  # Python 2
 import hashlib
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
@@ -35,6 +42,7 @@ class deribit(Exchange):
             # 5 requests per second for matching-engine endpoints, cost = (1000ms / rateLimit) / 5 = 4
             'rateLimit': 50,
             'has': {
+                'fetchPosition': True,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
                 'CORS': True,
@@ -357,6 +365,9 @@ class deribit(Exchange):
             'options': {
                 'code': 'BTC',
                 'fetchBalance': {
+                    'code': 'BTC',
+                },
+                'fetchPositions': {
                     'code': 'BTC',
                 },
             },
@@ -728,18 +739,18 @@ class deribit(Exchange):
         timestamp = self.safe_integer_2(ticker, 'timestamp', 'creation_timestamp')
         marketId = self.safe_string(ticker, 'instrument_name')
         symbol = self.safe_symbol(marketId, market)
-        last = self.safe_number_2(ticker, 'last_price', 'last')
+        last = self.safe_string_2(ticker, 'last_price', 'last')
         stats = self.safe_value(ticker, 'stats', ticker)
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number_2(stats, 'high', 'max_price'),
-            'low': self.safe_number_2(stats, 'low', 'min_price'),
-            'bid': self.safe_number_2(ticker, 'best_bid_price', 'bid_price'),
-            'bidVolume': self.safe_number(ticker, 'best_bid_amount'),
-            'ask': self.safe_number_2(ticker, 'best_ask_price', 'ask_price'),
-            'askVolume': self.safe_number(ticker, 'best_ask_amount'),
+            'high': self.safe_string_2(stats, 'high', 'max_price'),
+            'low': self.safe_string_2(stats, 'low', 'min_price'),
+            'bid': self.safe_string_2(ticker, 'best_bid_price', 'bid_price'),
+            'bidVolume': self.safe_string(ticker, 'best_bid_amount'),
+            'ask': self.safe_string_2(ticker, 'best_ask_price', 'ask_price'),
+            'askVolume': self.safe_string(ticker, 'best_ask_amount'),
             'vwap': None,
             'open': None,
             'close': last,
@@ -749,9 +760,9 @@ class deribit(Exchange):
             'percentage': None,
             'average': None,
             'baseVolume': None,
-            'quoteVolume': self.safe_number(stats, 'volume'),
+            'quoteVolume': self.safe_string(stats, 'volume'),
             'info': ticker,
-        }, market)
+        }, market, False)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
@@ -1734,15 +1745,26 @@ class deribit(Exchange):
         result = []
         for i in range(0, len(positions)):
             result.append(self.parse_position(positions[i]))
-        # todo unify parsePositions
         return result
 
     async def fetch_positions(self, symbols=None, params={}):
         await self.load_markets()
-        code = self.code_from_options('fetchPositions', params)
+        code = None
+        if symbols is None:
+            code = self.code_from_options('fetchPositions', params)
+        elif isinstance(symbols, basestring):
+            code = symbols
+        else:
+            if isinstance(symbols, list):
+                length = len(symbols)
+                if length != 1:
+                    raise BadRequest(self.id + ' fetchPositions symbols argument cannot contain more than 1 symbol')
+                market = self.market(symbols[0])
+                code = market['base']
         currency = self.currency(code)
         request = {
             'currency': currency['id'],
+            # "kind" : "future", "option"
         }
         response = await self.privateGetGetPositions(self.extend(request, params))
         #
@@ -1770,14 +1792,12 @@ class deribit(Exchange):
         #                 "size": 50,
         #                 "size_currency": 0.006687487,
         #                 "total_profit_loss": 0.000032781
-        #             }
+        #             },
         #         ]
         #     }
         #
-        # response is returning an empty list for result
-        # todo unify parsePositions
-        result = self.parse_positions(response)
-        return self.filter_by_array(result, 'symbol', symbols, False)
+        result = self.safe_value(response, 'result')
+        return self.parse_positions(result)
 
     async def fetch_historical_volatility(self, code, params={}):
         await self.load_markets()

@@ -153,6 +153,27 @@ class buda extends Exchange {
     public function fetch_currency_info($currency, $currencies = null) {
         if (!$currencies) {
             $response = $this->publicGetCurrencies ();
+            //
+            //     {
+            //         "currencies":[
+            //             {
+            //                 "id":"BTC",
+            //                 "symbol":"฿",
+            //                 "managed":true,
+            //                 "input_decimals":8,
+            //                 "display_decimals":8,
+            //                 "timezone":"UTC",
+            //                 "deposit_minimum":["0.0","BTC"],
+            //                 "withdrawal_minimum":["0.00001","BTC"],
+            //                 "max_digits_for_decimals":6,
+            //                 "crypto":true,
+            //                 "address_explorer":"https://blockchair.com/bitcoin/address/",
+            //                 "tx_explorer":"https://blockchair.com/bitcoin/transaction/",
+            //                 "amount_to_micro_multiplier":1000000000000
+            //             }
+            //         ]
+            //     }
+            //
             $currencies = $this->safe_value($response, 'currencies');
         }
         for ($i = 0; $i < count($currencies); $i++) {
@@ -221,23 +242,51 @@ class buda extends Exchange {
 
     public function fetch_currencies($params = array ()) {
         $response = $this->publicGetCurrencies ();
+        //
+        //     {
+        //         "currencies":[
+        //             {
+        //                 "id":"BTC",
+        //                 "symbol":"฿",
+        //                 "managed":true,
+        //                 "input_decimals":8,
+        //                 "display_decimals":8,
+        //                 "timezone":"UTC",
+        //                 "deposit_minimum":["0.0","BTC"],
+        //                 "withdrawal_minimum":["0.00001","BTC"],
+        //                 "max_digits_for_decimals":6,
+        //                 "crypto":true,
+        //                 "address_explorer":"https://blockchair.com/bitcoin/address/",
+        //                 "tx_explorer":"https://blockchair.com/bitcoin/transaction/",
+        //                 "amount_to_micro_multiplier":1000000000000
+        //             }
+        //         ]
+        //     }
+        //
         $currencies = $response['currencies'];
         $result = array();
         for ($i = 0; $i < count($currencies); $i++) {
             $currency = $currencies[$i];
-            if (!$currency['managed']) {
+            $managed = $this->safe_value($currency, 'managed', false);
+            if (!$managed) {
                 continue;
             }
             $id = $this->safe_string($currency, 'id');
             $code = $this->safe_currency_code($id);
             $precision = $this->safe_number($currency, 'input_decimals');
             $minimum = pow(10, -$precision);
+            $depositMinimum = $this->safe_value($currency, 'deposit_minimum', array());
+            $withdrawalMinimum = $this->safe_value($currency, 'withdrawal_minimum', array());
+            $minDeposit = $this->safe_number($depositMinimum, 0);
+            $minWithdraw = $this->safe_number($withdrawalMinimum, 0);
             $result[$code] = array(
                 'id' => $id,
                 'code' => $code,
                 'info' => $currency,
                 'name' => null,
                 'active' => true,
+                'deposit' => null,
+                'withdraw' => null,
                 'fee' => null,
                 'precision' => $precision,
                 'limits' => array(
@@ -246,11 +295,11 @@ class buda extends Exchange {
                         'max' => null,
                     ),
                     'deposit' => array(
-                        'min' => floatval($currency['deposit_minimum'][0]),
+                        'min' => $minDeposit,
                         'max' => null,
                     ),
                     'withdraw' => array(
-                        'min' => floatval($currency['withdrawal_minimum'][0]),
+                        'min' => $minWithdraw,
                     ),
                 ),
             );
@@ -310,43 +359,68 @@ class buda extends Exchange {
             'market' => $market['id'],
         );
         $response = $this->publicGetMarketsMarketTicker (array_merge($request, $params));
+        //
+        //     {
+        //         "ticker":{
+        //             "market_id":"ETH-BTC",
+        //             "last_price":["0.07300001","BTC"],
+        //             "min_ask":["0.07716895","BTC"],
+        //             "max_bid":["0.0754966","BTC"],
+        //             "volume":["0.168965697","ETH"],
+        //             "price_variation_24h":"-0.046",
+        //             "price_variation_7d":"-0.085"
+        //         }
+        //     }
+        //
         $ticker = $this->safe_value($response, 'ticker');
         return $this->parse_ticker($ticker, $market);
     }
 
     public function parse_ticker($ticker, $market = null) {
+        //
+        // fetchTicker
+        //
+        //     {
+        //         "market_id":"ETH-BTC",
+        //         "last_price":["0.07300001","BTC"],
+        //         "min_ask":["0.07716895","BTC"],
+        //         "max_bid":["0.0754966","BTC"],
+        //         "volume":["0.168965697","ETH"],
+        //         "price_variation_24h":"-0.046",
+        //         "price_variation_7d":"-0.085"
+        //     }
+        //
         $timestamp = $this->milliseconds();
-        $symbol = null;
-        if ($market !== null) {
-            $symbol = $market['symbol'];
-        }
-        $last = floatval($ticker['last_price'][0]);
-        $percentage = floatval($ticker['price_variation_24h']);
-        $open = floatval($this->price_to_precision($symbol, $last / ($percentage + 1)));
-        $change = $last - $open;
-        $average = $this->sum($last, $open) / 2;
-        return array(
+        $marketId = $this->safe_string($ticker, 'market_id');
+        $symbol = $this->safe_symbol($marketId, $market, '-');
+        $lastPrice = $this->safe_value($ticker, 'last_price', array());
+        $last = $this->safe_number($lastPrice, 0);
+        $percentage = $this->safe_number($ticker, 'price_variation_24h');
+        $maxBid = $this->safe_value($ticker, 'max_bid', array());
+        $minAsk = $this->safe_value($ticker, 'min_ask', array());
+        $baseVolume = $this->safe_value($ticker, 'volume', array());
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
             'high' => null,
             'low' => null,
-            'bid' => floatval($ticker['max_bid'][0]),
+            'bid' => $this->safe_number($maxBid, 0),
             'bidVolume' => null,
-            'ask' => floatval($ticker['min_ask'][0]),
+            'ask' => $this->safe_number($minAsk, 0),
             'askVolume' => null,
             'vwap' => null,
-            'open' => $open,
+            'open' => null,
             'close' => $last,
             'last' => $last,
-            'previousClose' => $open,
-            'change' => $change,
+            'previousClose' => null,
+            'change' => null,
             'percentage' => $percentage * 100,
-            'average' => $average,
-            'baseVolume' => floatval($ticker['volume'][0]),
+            'average' => null,
+            'baseVolume' => $this->safe_number($baseVolume, 0),
             'quoteVolume' => null,
             'info' => $ticker,
-        );
+        ), $market);
     }
 
     public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
@@ -714,7 +788,13 @@ class buda extends Exchange {
             'txid' => $txid,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
+            'network' => null,
             'address' => $address,
+            'addressTo' => null,
+            'addressFrom' => null,
+            'tag' => null,
+            'tagTo' => null,
+            'tagFrom' => null,
             'type' => $type,
             'amount' => $amount,
             'currency' => $code,

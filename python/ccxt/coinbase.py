@@ -436,8 +436,13 @@ class coinbase(Exchange):
             'txid': id,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
+            'network': None,
             'address': None,
+            'addressTo': None,
+            'addressFrom': None,
             'tag': None,
+            'tagTo': None,
+            'tagFrom': None,
             'type': type,
             'amount': amount,
             'currency': currency,
@@ -549,6 +554,20 @@ class coinbase(Exchange):
                         'quoteId': quoteId,
                         'type': 'spot',
                         'spot': True,
+                        'margin': False,
+                        'future': False,
+                        'swap': False,
+                        'option': False,
+                        'optionType': None,
+                        'strike': None,
+                        'linear': None,
+                        'inverse': None,
+                        'contract': False,
+                        'contractSize': None,
+                        'settle': None,
+                        'settleId': None,
+                        'expiry': None,
+                        'expiryDatetime': None,
                         'active': None,
                         'info': quoteCurrency,
                         'precision': {
@@ -640,6 +659,8 @@ class coinbase(Exchange):
                 'type': type,
                 'name': name,
                 'active': True,
+                'deposit': None,
+                'withdraw': None,
                 'fee': None,
                 'precision': None,
                 'limits': {
@@ -726,17 +747,14 @@ class coinbase(Exchange):
         bid = None
         last = None
         timestamp = self.milliseconds()
-        if isinstance(ticker, basestring):
-            inverted = Precise.string_div('1', ticker)  # the currency requested, USD or other, is the base currency
-            last = self.parse_number(inverted)
-        else:
+        if not isinstance(ticker, basestring):
             spot, buy, sell = ticker
             spotData = self.safe_value(spot, 'data', {})
             buyData = self.safe_value(buy, 'data', {})
             sellData = self.safe_value(sell, 'data', {})
-            last = self.safe_number(spotData, 'amount')
-            bid = self.safe_number(buyData, 'amount')
-            ask = self.safe_number(sellData, 'amount')
+            last = self.safe_string(spotData, 'amount')
+            bid = self.safe_string(buyData, 'amount')
+            ask = self.safe_string(sellData, 'amount')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
@@ -758,7 +776,7 @@ class coinbase(Exchange):
             'baseVolume': None,
             'quoteVolume': None,
             'info': ticker,
-        })
+        }, market, False)
 
     def fetch_balance(self, params={}):
         self.load_markets()

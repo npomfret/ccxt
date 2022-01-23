@@ -241,8 +241,8 @@ class liquid extends Exchange {
         //             minimum_fee => null,
         //             minimum_order_quantity => null,
         //             display_precision => 2,
-        //             depositable => true,
-        //             withdrawable => true,
+        //             $depositable => true,
+        //             $withdrawable => true,
         //             discount_fee => 0.5,
         //             credit_card_fundable => false,
         //             lendable => false,
@@ -262,7 +262,9 @@ class liquid extends Exchange {
             $id = $this->safe_string($currency, 'currency');
             $code = $this->safe_currency_code($id);
             $name = $this->safe_string($currency, 'name');
-            $active = $currency['depositable'] && $currency['withdrawable'];
+            $depositable = $this->safe_value($currency, 'depositable');
+            $withdrawable = $this->safe_value($currency, 'withdrawable');
+            $active = $depositable && $withdrawable;
             $amountPrecision = $this->safe_integer($currency, 'assets_precision');
             $result[$code] = array(
                 'id' => $id,
@@ -270,6 +272,8 @@ class liquid extends Exchange {
                 'info' => $currency,
                 'name' => $name,
                 'active' => $active,
+                'deposit' => $depositable,
+                'withdraw' => $withdrawable,
                 'fee' => $this->safe_number($currency, 'withdrawal_fee'),
                 'precision' => $amountPrecision,
                 'limits' => array(
@@ -550,7 +554,7 @@ class liquid extends Exchange {
             if ($ticker['last_traded_price']) {
                 $length = is_array($ticker['last_traded_price']) ? count($ticker['last_traded_price']) : 0;
                 if ($length > 0) {
-                    $last = $this->safe_number($ticker, 'last_traded_price');
+                    $last = $this->safe_string($ticker, 'last_traded_price');
                 }
             }
         }
@@ -572,16 +576,16 @@ class liquid extends Exchange {
         if ($market !== null) {
             $symbol = $market['symbol'];
         }
-        $open = $this->safe_number($ticker, 'last_price_24h');
+        $open = $this->safe_string($ticker, 'last_price_24h');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_number($ticker, 'high_market_ask'),
-            'low' => $this->safe_number($ticker, 'low_market_bid'),
-            'bid' => $this->safe_number($ticker, 'market_bid'),
+            'high' => $this->safe_string($ticker, 'high_market_ask'),
+            'low' => $this->safe_string($ticker, 'low_market_bid'),
+            'bid' => $this->safe_string($ticker, 'market_bid'),
             'bidVolume' => null,
-            'ask' => $this->safe_number($ticker, 'market_ask'),
+            'ask' => $this->safe_string($ticker, 'market_ask'),
             'askVolume' => null,
             'vwap' => null,
             'open' => $open,
@@ -591,10 +595,10 @@ class liquid extends Exchange {
             'change' => null,
             'percentage' => null,
             'average' => null,
-            'baseVolume' => $this->safe_number($ticker, 'volume_24h'),
+            'baseVolume' => $this->safe_string($ticker, 'volume_24h'),
             'quoteVolume' => null,
             'info' => $ticker,
-        ), $market);
+        ), $market, false);
     }
 
     public function fetch_tickers($symbols = null, $params = array ()) {
@@ -1111,7 +1115,7 @@ class liquid extends Exchange {
         //         broadcasted_at => null,
         //         wallet_label => null,
         //         chain_name => 'Bitcoin',
-        //         network => null
+        //         $network => null
         //     ),
         //
         // fetchWithdrawals
@@ -1130,7 +1134,7 @@ class liquid extends Exchange {
         //         broadcasted_at => '1614720762',
         //         wallet_label => 'btc',
         //         chain_name => 'Bitcoin',
-        //         network => null
+        //         $network => null
         //     ),
         //
         // fetchDeposits
@@ -1150,14 +1154,20 @@ class liquid extends Exchange {
         $amountString = $this->safe_string($transaction, 'amount');
         $feeCostString = $this->safe_string($transaction, 'withdrawal_fee');
         $amount = $this->parse_number(Precise::string_sub($amountString, $feeCostString));
+        $network = $this->safe_string($transaction, 'chain_name');
         return array(
             'info' => $transaction,
             'id' => $id,
             'txid' => $txid,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
+            'network' => $network,
             'address' => $address,
+            'addressTo' => null,
+            'addressFrom' => null,
             'tag' => $tag,
+            'tagTo' => null,
+            'tagFrom' => null,
             'type' => $type,
             'amount' => $amount,
             'currency' => $code,

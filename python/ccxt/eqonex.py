@@ -20,6 +20,7 @@ class eqonex(Exchange):
             'countries': ['US', 'SG'],  # United States, Singapore
             'rateLimit': 10,
             'has': {
+                'fetchTradingLimits': True,
                 'cancelOrder': True,
                 'CORS': None,
                 'createOrder': True,
@@ -50,6 +51,7 @@ class eqonex(Exchange):
                 '6h': 5,
                 '1d': 6,
                 '7d': 7,
+                '1w': 7,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/51840849/122649755-1a076c80-d138-11eb-8f2e-9a9166a03d79.jpg',
@@ -192,36 +194,66 @@ class eqonex(Exchange):
         #     }
         #
         id = self.safe_string(market, 'instrumentId')
-        uppercaseId = self.safe_string(market, 'symbol')
+        baseId = self.safe_string(market, 'currency')
+        quoteId = self.safe_string(market, 'contAmtCurr')
+        settleId = self.safe_string(market, 'settlCurrency')
+        base = self.safe_currency_code(baseId)
+        quote = self.safe_currency_code(quoteId)
+        settle = self.safe_currency_code(settleId)
         assetType = self.safe_string(market, 'assetType')
         spot = (assetType == 'PAIR')
         swap = (assetType == 'PERPETUAL_SWAP')
-        type = 'swap' if swap else 'spot'
-        baseId = self.safe_string(market, 'currency')
-        quoteId = self.safe_string(market, 'contAmtCurr')
-        base = self.safe_currency_code(baseId)
-        quote = self.safe_currency_code(quoteId)
-        symbol = uppercaseId if swap else (base + '/' + quote)
+        symbol = base + '/' + quote
+        uppercaseId = self.safe_string(market, 'symbol')
+        type = 'spot'
+        linear = None
+        inverse = None
+        contract = False
+        if swap:
+            symbol = symbol + ':' + settle
+            type = 'swap'
+            linear = quote == settle
+            inverse = not linear
+            contract = True
+        elif not spot:
+            symbol = uppercaseId
+            type = assetType
+            contract = True
         status = self.safe_integer(market, 'securityStatus')
-        active = (status == 1)
-        precision = {
-            'amount': self.safe_integer(market, 'quantity_scale'),
-            'price': self.safe_integer(market, 'price_scale'),
-        }
         return {
             'id': id,
             'uppercaseId': uppercaseId,
             'symbol': symbol,
             'base': base,
             'quote': quote,
+            'settle': settle,
             'baseId': baseId,
             'quoteId': quoteId,
+            'settleId': settleId,
             'type': type,
             'spot': spot,
+            'margin': False,
             'swap': swap,
-            'active': active,
-            'precision': precision,
+            'future': False,
+            'option': False,
+            'contract': contract,
+            'linear': linear,
+            'inverse': inverse,
+            'contractSize': self.safe_number(market, 'contractMultiplier'),
+            'active': (status == 1),
+            'expiry': None,
+            'expiryDatetime': None,
+            'strike': None,
+            'optionType': None,
+            'precision': {
+                'amount': self.safe_integer(market, 'quantity_scale'),
+                'price': self.safe_integer(market, 'price_scale'),
+            },
             'limits': {
+                'leverage': {
+                    'min': None,
+                    'max': None,
+                },
                 'amount': {
                     'min': self.safe_number(market, 'minTradeVol'),
                     'max': None,
@@ -296,6 +328,8 @@ class eqonex(Exchange):
             'precision': precision,
             'fee': fee,
             'active': active,
+            'deposit': None,
+            'withdraw': None,
             'limits': {
                 'amount': {
                     'min': None,
@@ -1071,6 +1105,7 @@ class eqonex(Exchange):
             'txid': txid,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
+            'network': None,
             'addressFrom': None,
             'address': address,
             'addressTo': None,

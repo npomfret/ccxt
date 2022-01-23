@@ -65,15 +65,12 @@ class binance extends Exchange {
                 'fetchIsolatedPositions' => null,
                 'fetchL3OrderBook' => null,
                 'fetchLedger' => null,
-                'fetchLedgerEntry' => null,
                 'fetchLeverage' => null,
                 'fetchMarkets' => true,
-                'fetchMarketsByType' => null,
                 'fetchMarkOHLCV' => true,
                 'fetchMyBuys' => null,
                 'fetchMySells' => null,
                 'fetchMyTrades' => true,
-                'fetchNetworkDepositAddress' => null,
                 'fetchOHLCV' => true,
                 'fetchOpenOrder' => null,
                 'fetchOpenOrders' => true,
@@ -81,10 +78,7 @@ class binance extends Exchange {
                 'fetchOrderBook' => true,
                 'fetchOrderBooks' => null,
                 'fetchOrders' => true,
-                'fetchOrdersByState' => null,
-                'fetchOrdersByStatus' => null,
                 'fetchOrderTrades' => true,
-                'fetchPartiallyFilledOrders' => null,
                 'fetchPosition' => null,
                 'fetchPositions' => true,
                 'fetchPositionsRisk' => true,
@@ -92,7 +86,6 @@ class binance extends Exchange {
                 'fetchStatus' => true,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
-                'fetchTickersByType' => null,
                 'fetchTime' => true,
                 'fetchTrades' => true,
                 'fetchTradingFee' => true,
@@ -100,8 +93,6 @@ class binance extends Exchange {
                 'fetchTradingLimits' => null,
                 'fetchTransactions' => false,
                 'fetchTransfers' => true,
-                'fetchWithdrawAddress' => false,
-                'fetchWithdrawAddressesByNetwork' => false,
                 'fetchWithdrawal' => false,
                 'fetchWithdrawals' => true,
                 'fetchWithdrawalWhitelist' => false,
@@ -112,7 +103,6 @@ class binance extends Exchange {
                 'setPositionMode' => true,
                 'signIn' => false,
                 'transfer' => true,
-                'transferOut' => false,
                 'withdraw' => true,
             ),
             'timeframes' => array(
@@ -137,6 +127,8 @@ class binance extends Exchange {
                 'test' => array(
                     'dapiPublic' => 'https://testnet.binancefuture.com/dapi/v1',
                     'dapiPrivate' => 'https://testnet.binancefuture.com/dapi/v1',
+                    'vapiPublic' => 'https://testnet.binanceops.com/vapi/v1',
+                    'vapiPrivate' => 'https://testnet.binanceops.com/vapi/v1',
                     'fapiPublic' => 'https://testnet.binancefuture.com/fapi/v1',
                     'fapiPrivate' => 'https://testnet.binancefuture.com/fapi/v1',
                     'fapiPrivateV2' => 'https://testnet.binancefuture.com/fapi/v2',
@@ -149,6 +141,8 @@ class binance extends Exchange {
                     'sapi' => 'https://api.binance.com/sapi/v1',
                     'dapiPublic' => 'https://dapi.binance.com/dapi/v1',
                     'dapiPrivate' => 'https://dapi.binance.com/dapi/v1',
+                    'vapiPublic' => 'https://vapi.binance.com/vapi/v1',
+                    'vapiPrivate' => 'https://vapi.binance.com/vapi/v1',
                     'dapiPrivateV2' => 'https://dapi.binance.com/dapi/v2',
                     'dapiData' => 'https://dapi.binance.com/futures/data',
                     'fapiPublic' => 'https://fapi.binance.com/fapi/v1',
@@ -160,10 +154,10 @@ class binance extends Exchange {
                     'v1' => 'https://api.binance.com/api/v1',
                 ),
                 'www' => 'https://www.binance.com',
-                // 'referral' => array(
-                //     'url' => 'https://www.binance.com/en/register?ref=BLEJC98C',
-                //     'discount' => 0.2,
-                // ),
+                'referral' => array(
+                    'url' => 'https://www.binance.com/en/register?ref=D7YA7CLY',
+                    'discount' => 0.1,
+                ),
                 'doc' => array(
                     'https://binance-docs.github.io/apidocs/spot/en',
                 ),
@@ -272,6 +266,7 @@ class binance extends Exchange {
                         'mining/payment/list' => 5,
                         'mining/statistics/user/status' => 5,
                         'mining/statistics/user/list' => 5,
+                        'mining/payment/uid' => 5,
                         // liquid swap endpoints
                         'bswap/pools' => 1,
                         'bswap/liquidity' => array( 'cost' => 1, 'noPoolId' => 10 ),
@@ -281,6 +276,8 @@ class binance extends Exchange {
                         'bswap/poolConfigure' => 1,
                         'bswap/addLiquidityPreview' => 1,
                         'bswap/removeLiquidityPreview' => 1,
+                        'bswap/unclaimedRewards' => 1,
+                        'bswap/claimedHistory' => 1,
                         // leveraged token endpoints
                         'blvt/tokenInfo' => 1,
                         'blvt/subscribe/record' => 1,
@@ -323,6 +320,7 @@ class binance extends Exchange {
                         'nft/history/withdraw' => 1,
                         'nft/user/getAsset' => 1,
                         'pay/transactions' => 1,
+                        'giftcard/verify' => 1,
                     ),
                     'post' => array(
                         'asset/dust' => 1,
@@ -367,6 +365,7 @@ class binance extends Exchange {
                         'bswap/liquidityAdd' => 2,
                         'bswap/liquidityRemove' => 2,
                         'bswap/swap' => 2,
+                        'bswap/claimRewards' => 1,
                         // leveraged token endpoints
                         'blvt/subscribe' => 1,
                         'blvt/redeem' => 1,
@@ -394,6 +393,8 @@ class binance extends Exchange {
                         'broker/universalTransfer' => 1,
                         'broker/subAccountApi/permission/universalTransfer' => 1,
                         'broker/subAccountApi/permission/vanillaOptions' => 1,
+                        'giftcard/createCode' => 1,
+                        'giftcard/redeemCode' => 1,
                     ),
                     'put' => array(
                         'userDataStream' => 1,
@@ -599,6 +600,47 @@ class binance extends Exchange {
                         'positionRisk' => 1,
                     ),
                 ),
+                'vapiPublic' => array(
+                    'get' => array(
+                        'ping',
+                        'time',
+                        'optionInfo',
+                        'exchangeInfo',
+                        'index',
+                        'ticker',
+                        'mark',
+                        'depth',
+                        'klines',
+                        'trades',
+                        'historicalTrades',
+                    ),
+                ),
+                'vapiPrivate' => array(
+                    'get' => array(
+                        'account',
+                        'position',
+                        'order',
+                        'openOrders',
+                        'historyOrders',
+                        'userTrades',
+                    ),
+                    'post' => array(
+                        'transfer',
+                        'bill',
+                        'order',
+                        'batchOrders',
+                        'userDataStream',
+                    ),
+                    'put' => array(
+                        'userDataStream',
+                    ),
+                    'delete' => array(
+                        'order',
+                        'batchOrders',
+                        'allOpenOrders',
+                        'userDataStream',
+                    ),
+                ),
                 'public' => array(
                     'get' => array(
                         'ping' => 1,
@@ -725,6 +767,7 @@ class binance extends Exchange {
                         ),
                     ),
                 ),
+                'option' => array(),
             ),
             'commonCurrencies' => array(
                 'BCC' => 'BCC', // kept for backward-compatibility https://github.com/ccxt/ccxt/issues/4848
@@ -927,6 +970,7 @@ class binance extends Exchange {
                     "You don't have permission." => '\\ccxt\\PermissionDenied', // array("msg":"You don't have permission.","success":false)
                     'Market is closed.' => '\\ccxt\\ExchangeNotAvailable', // array("code":-1013,"msg":"Market is closed.")
                     'Too many requests. Please try again later.' => '\\ccxt\\DDoSProtection', // array("msg":"Too many requests. Please try again later.","success":false)
+                    'This action disabled is on this account.' => '\\ccxt\\AccountSuspended', // array("code":-2010,"msg":"This action disabled is on this account.")
                     '-1000' => '\\ccxt\\ExchangeNotAvailable', // array("code":-1000,"msg":"An unknown error occured while processing the request.")
                     '-1001' => '\\ccxt\\ExchangeNotAvailable', // array("code":-1001,"msg":"'Internal error; unable to process your request. Please try again.'")
                     '-1002' => '\\ccxt\\AuthenticationError', // array("code":-1002,"msg":"'You are not authorized to execute this request.'")
@@ -1293,6 +1337,8 @@ class binance extends Exchange {
                 'precision' => $precision,
                 'info' => $entry,
                 'active' => $active,
+                'deposit' => $isDepositEnabled,
+                'withdraw' => $isWithdrawEnabled,
                 'networks' => $networkList,
                 'fee' => $fee,
                 'fees' => $fees,
@@ -3487,12 +3533,14 @@ class binance extends Exchange {
         $updated = $this->safe_integer_2($transaction, 'successTime', 'updateTime');
         $internal = $this->safe_integer($transaction, 'transferType', false);
         $internal = $internal ? true : false;
+        $network = $this->safe_string($transaction, 'network');
         return array(
             'info' => $transaction,
             'id' => $id,
             'txid' => $txid,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
+            'network' => $network,
             'address' => $address,
             'addressTo' => $address,
             'addressFrom' => null,
@@ -3600,7 +3648,7 @@ class binance extends Exchange {
         $result = array();
         for ($i = 0; $i < count($incomes); $i++) {
             $entry = $incomes[$i];
-            $parsed = $this->parse_income ($entry, $market);
+            $parsed = $this->parse_income($entry, $market);
             $result[] = $parsed;
         }
         $sorted = $this->sort_by($result, 'timestamp');
@@ -4264,8 +4312,8 @@ class binance extends Exchange {
         $indexPrice = $this->safe_number($premiumIndex, 'indexPrice');
         $interestRate = $this->safe_number($premiumIndex, 'interestRate');
         $estimatedSettlePrice = $this->safe_number($premiumIndex, 'estimatedSettlePrice');
-        $nextFundingRate = $this->safe_number($premiumIndex, 'lastFundingRate');
-        $nextFundingTime = $this->safe_integer($premiumIndex, 'nextFundingTime');
+        $fundingRate = $this->safe_number($premiumIndex, 'lastFundingRate');
+        $fundingTime = $this->safe_integer($premiumIndex, 'nextFundingTime');
         return array(
             'info' => $premiumIndex,
             'symbol' => $symbol,
@@ -4275,12 +4323,15 @@ class binance extends Exchange {
             'estimatedSettlePrice' => $estimatedSettlePrice,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
+            'fundingRate' => $fundingRate,
+            'fundingTimestamp' => $fundingTime,
+            'fundingDatetime' => $this->iso8601($fundingTime),
+            'nextFundingRate' => null,
+            'nextFundingTimestamp' => null,
+            'nextFundingDatetime' => null,
             'previousFundingRate' => null,
-            'nextFundingRate' => $nextFundingRate,
             'previousFundingTimestamp' => null,
-            'nextFundingTimestamp' => $nextFundingTime,
             'previousFundingDatetime' => null,
-            'nextFundingDatetime' => $this->iso8601($nextFundingTime),
         );
     }
 
@@ -4307,7 +4358,7 @@ class binance extends Exchange {
             $code = ($this->options['defaultType'] === 'future') ? $market['quote'] : $market['base'];
             // sometimes not all the codes are correctly returned...
             if (is_array($balances) && array_key_exists($code, $balances)) {
-                $parsed = $this->parse_account_position (array_merge($position, array(
+                $parsed = $this->parse_account_position(array_merge($position, array(
                     'crossMargin' => $balances[$code]['crossMargin'],
                     'crossWalletBalance' => $balances[$code]['crossWalletBalance'],
                 )), $market);
@@ -4360,7 +4411,7 @@ class binance extends Exchange {
         //
         $marketId = $this->safe_string($position, 'symbol');
         $market = $this->safe_market($marketId, $market);
-        $symbol = $market['symbol'];
+        $symbol = $this->safe_string($market, 'symbol');
         $leverageString = $this->safe_string($position, 'leverage');
         $leverage = intval($leverageString);
         $initialMarginString = $this->safe_string($position, 'initialMargin');
@@ -4385,7 +4436,8 @@ class binance extends Exchange {
         $contractsStringAbs = Precise::string_abs($contractsString);
         if ($contractsString === null) {
             $entryNotional = Precise::string_mul(Precise::string_mul($leverageString, $initialMarginString), $entryPriceString);
-            $contractsString = Precise::string_div($entryNotional, $market['contractSize']);
+            $contractSize = $this->safe_string($market, 'contractSize');
+            $contractsString = Precise::string_div($entryNotional, $contractSize);
             $contractsStringAbs = Precise::string_div(Precise::string_add($contractsString, '0.5'), '1', 0);
         }
         $contracts = $this->parse_number($contractsStringAbs);
@@ -4745,7 +4797,7 @@ class binance extends Exchange {
             throw new NotSupported($this->id . ' fetchPositions() supports linear and inverse contracts only');
         }
         $account = $this->$method ($query);
-        $result = $this->parse_account_positions ($account);
+        $result = $this->parse_account_positions($account);
         return $this->filter_by_array($result, 'symbol', $symbols, false);
     }
 
@@ -4827,7 +4879,7 @@ class binance extends Exchange {
         $response = $this->$method (array_merge($request, $params));
         $result = array();
         for ($i = 0; $i < count($response); $i++) {
-            $parsed = $this->parse_position_risk ($response[$i]);
+            $parsed = $this->parse_position_risk($response[$i]);
             $result[] = $parsed;
         }
         return $this->filter_by_array($result, 'symbol', $symbols, false);
@@ -4869,7 +4921,7 @@ class binance extends Exchange {
             throw NotSupported ($this->id . ' fetchFundingHistory() supports linear and inverse contracts only');
         }
         $response = $this->$method (array_merge($request, $params));
-        return $this->parse_incomes ($response, $market, $since, $limit);
+        return $this->parse_incomes($response, $market, $since, $limit);
     }
 
     public function set_leverage($leverage, $symbol = null, $params = array ()) {
@@ -4974,6 +5026,7 @@ class binance extends Exchange {
                 throw new AuthenticationError($this->id . ' historicalTrades endpoint requires `apiKey` credential');
             }
         }
+        $giftcard = ($api === 'sapi') && (mb_strpos($path, 'gift') !== false) && ($method === 'POST');
         $userDataStream = ($path === 'userDataStream') || ($path === 'listenKey');
         if ($userDataStream) {
             if ($this->apiKey) {
@@ -5002,6 +5055,11 @@ class binance extends Exchange {
                     'timestamp' => $this->nonce(),
                     'recvWindow' => $recvWindow,
                 ), $params));
+            } else if ($giftcard) {
+                $query = $this->urlencode(array(
+                    'timestamp' => $this->nonce(),
+                    'recvWindow' => $recvWindow,
+                ));
             } else {
                 $query = $this->urlencode(array_merge(array(
                     'timestamp' => $this->nonce(),
@@ -5015,6 +5073,10 @@ class binance extends Exchange {
             );
             if (($method === 'GET') || ($method === 'DELETE') || ($api === 'wapi')) {
                 $url .= '?' . $query;
+            } else if ($giftcard) {
+                $url .= '?' . $query;
+                $headers['Content-Type'] = 'application/json';
+                $body = $this->json($params);
             } else {
                 $body = $query;
                 $headers['Content-Type'] = 'application/x-www-form-urlencoded';
@@ -5255,5 +5317,70 @@ class binance extends Exchange {
             );
         }
         return $result;
+    }
+
+    public function create_gift_code($code, $amount, $params = array ()) {
+        $this->load_markets();
+        $currency = $this->currency($code);
+        // ensure you have enough token in your funding account before calling this $code
+        $request = array(
+            'token' => $currency['id'],
+            'amount' => $amount,
+        );
+        $response = $this->sapiPostGiftcardCreateCode (array_merge($request, $params));
+        //
+        //     {
+        //       $code => '000000',
+        //       message => 'success',
+        //       $data => array( referenceNo => '0033002404219823', $code => 'AP6EXTLKNHM6CEX7' ),
+        //       success => true
+        //     }
+        //
+        $data = $this->safe_value($response, 'data');
+        $giftcardCode = $this->safe_string($data, 'code');
+        $id = $this->safe_string($data, 'referenceNo');
+        return array(
+            'info' => $response,
+            'id' => $id,
+            'code' => $giftcardCode,
+            'currency' => $code,
+            'amount' => $amount,
+        );
+    }
+
+    public function redeem_gift_code($giftcardCode, $params = array ()) {
+        $request = array(
+            'code' => $giftcardCode,
+        );
+        $response = $this->sapiPostGiftcardRedeemCode (array_merge($request, $params));
+        //
+        //     {
+        //       code => '000000',
+        //       message => 'success',
+        //       data => array(
+        //         referenceNo => '0033002404219823',
+        //         identityNo => '10316431732801474560'
+        //       ),
+        //       success => true
+        //     }
+        //
+        return $response;
+    }
+
+    public function verify_gift_code($id, $params = array ()) {
+        $request = array(
+            'type' => 'CODE',
+            'value' => $id,
+        );
+        $response = $this->sapiGetGiftcardVerify (array_merge($request, $params));
+        //
+        //     {
+        //       code => '000000',
+        //       message => 'success',
+        //       data => array( valid => true ),
+        //       success => true
+        //     }
+        //
+        return $response;
     }
 }

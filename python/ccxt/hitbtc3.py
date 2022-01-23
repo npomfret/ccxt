@@ -33,6 +33,9 @@ class hitbtc3(Exchange):
             'version': '3',
             'pro': True,
             'has': {
+                'fetchTradingFees': True,
+                'fetchOrderBooks': True,
+                'cancelAllOrders': True,
                 'cancelOrder': True,
                 'CORS': False,
                 'createOrder': True,
@@ -41,7 +44,7 @@ class hitbtc3(Exchange):
                 'fetchClosedOrders': True,
                 'fetchCurrencies': True,
                 'fetchDepositAddress': True,
-                'fetchDeposits': False,
+                'fetchDeposits': True,
                 'fetchFundingRateHistory': True,
                 'fetchMarkets': True,
                 'fetchMyTrades': True,
@@ -57,7 +60,7 @@ class hitbtc3(Exchange):
                 'fetchTrades': True,
                 'fetchTradingFee': True,
                 'fetchTransactions': True,
-                'fetchWithdrawals': False,
+                'fetchWithdrawals': True,
                 'withdraw': True,
                 'transfer': True,
             },
@@ -466,6 +469,8 @@ class hitbtc3(Exchange):
             rawNetworks = self.safe_value(entry, 'networks', [])
             networks = {}
             fee = None
+            depositEnabled = None
+            withdrawEnabled = None
             for j in range(0, len(rawNetworks)):
                 rawNetwork = rawNetworks[j]
                 networkId = self.safe_string(rawNetwork, 'protocol')
@@ -478,12 +483,22 @@ class hitbtc3(Exchange):
                 payoutEnabledNetwork = self.safe_value(entry, 'payout_enabled', False)
                 transferEnabledNetwork = self.safe_value(entry, 'transfer_enabled', False)
                 active = payinEnabledNetwork and payoutEnabledNetwork and transferEnabledNetwork
+                if payinEnabledNetwork and not depositEnabled:
+                    depositEnabled = True
+                elif not payinEnabledNetwork:
+                    depositEnabled = False
+                if payoutEnabledNetwork and not withdrawEnabled:
+                    withdrawEnabled = True
+                elif not payoutEnabledNetwork:
+                    withdrawEnabled = False
                 networks[network] = {
                     'info': rawNetwork,
                     'id': networkId,
                     'network': network,
                     'fee': fee,
                     'active': active,
+                    'deposit': payinEnabledNetwork,
+                    'withdraw': payoutEnabledNetwork,
                     'precision': precision,
                     'limits': {
                         'withdraw': {
@@ -501,6 +516,8 @@ class hitbtc3(Exchange):
                 'precision': precision,
                 'name': name,
                 'active': active,
+                'deposit': depositEnabled,
+                'withdraw': withdrawEnabled,
                 'networks': networks,
                 'fee': fee if (networksLength <= 1) else None,
                 'limits': {
@@ -641,22 +658,21 @@ class hitbtc3(Exchange):
         #
         timestamp = self.parse8601(ticker['timestamp'])
         symbol = self.safe_symbol(None, market)
-        baseVolume = self.safe_number(ticker, 'volume')
-        quoteVolume = self.safe_number(ticker, 'volume_quote')
-        open = self.safe_number(ticker, 'open')
-        last = self.safe_number(ticker, 'last')
-        vwap = self.vwap(baseVolume, quoteVolume)
+        baseVolume = self.safe_string(ticker, 'volume')
+        quoteVolume = self.safe_string(ticker, 'volume_quote')
+        open = self.safe_string(ticker, 'open')
+        last = self.safe_string(ticker, 'last')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high'),
-            'low': self.safe_number(ticker, 'low'),
-            'bid': self.safe_number(ticker, 'bid'),
+            'high': self.safe_string(ticker, 'high'),
+            'low': self.safe_string(ticker, 'low'),
+            'bid': self.safe_string(ticker, 'bid'),
             'bidVolume': None,
-            'ask': self.safe_number(ticker, 'ask'),
+            'ask': self.safe_string(ticker, 'ask'),
             'askVolume': None,
-            'vwap': vwap,
+            'vwap': None,
             'open': open,
             'close': last,
             'last': last,
@@ -667,7 +683,7 @@ class hitbtc3(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
         self.load_markets()
@@ -907,6 +923,7 @@ class hitbtc3(Exchange):
             'txid': txhash,
             'code': code,
             'amount': amount,
+            'network': None,
             'address': address,
             'addressFrom': addressFrom,
             'addressTo': addressTo,

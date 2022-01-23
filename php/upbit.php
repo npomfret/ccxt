@@ -22,6 +22,8 @@ class upbit extends Exchange {
             'pro' => true,
             // new metainfo interface
             'has' => array(
+                'fetchDepositAddresses' => true,
+                'fetchCanceledOrders' => true,
                 'cancelOrder' => true,
                 'CORS' => true,
                 'createDepositAddress' => true,
@@ -395,6 +397,22 @@ class upbit extends Exchange {
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
                 'active' => $active,
+                'type' => 'spot',
+                'spot' => true,
+                'margin' => false,
+                'future' => false,
+                'swap' => false,
+                'option' => false,
+                'optionType' => null,
+                'strike' => null,
+                'linear' => null,
+                'inverse' => null,
+                'contract' => false,
+                'contractSize' => null,
+                'settle' => null,
+                'settleId' => null,
+                'expiry' => null,
+                'expiryDatetime' => null,
                 'info' => $market,
                 'precision' => $precision,
                 'maker' => $makerFee,
@@ -536,7 +554,7 @@ class upbit extends Exchange {
         //                     low_price =>  0.02934283,
         //                   trade_price =>  0.02947773,
         //            prev_closing_price =>  0.02966,
-        //                        $change => "FALL",
+        //                        change => "FALL",
         //                  change_price =>  0.00018227,
         //                   change_rate =>  0.0061453136,
         //           signed_change_price =>  -0.00018227,
@@ -554,33 +572,30 @@ class upbit extends Exchange {
         //
         $timestamp = $this->safe_integer($ticker, 'trade_timestamp');
         $marketId = $this->safe_string_2($ticker, 'market', 'code');
-        $symbol = $this->safe_symbol($marketId, $market, '-');
-        $previous = $this->safe_number($ticker, 'prev_closing_price');
-        $last = $this->safe_number($ticker, 'trade_price');
-        $change = $this->safe_number($ticker, 'signed_change_price');
-        $percentage = $this->safe_number($ticker, 'signed_change_rate');
-        return array(
-            'symbol' => $symbol,
+        $market = $this->safe_market($marketId, $market, '-');
+        $last = $this->safe_string($ticker, 'trade_price');
+        return $this->safe_ticker(array(
+            'symbol' => $market['symbol'],
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_number($ticker, 'high_price'),
-            'low' => $this->safe_number($ticker, 'low_price'),
+            'high' => $this->safe_string($ticker, 'high_price'),
+            'low' => $this->safe_string($ticker, 'low_price'),
             'bid' => null,
             'bidVolume' => null,
             'ask' => null,
             'askVolume' => null,
             'vwap' => null,
-            'open' => $this->safe_number($ticker, 'opening_price'),
+            'open' => $this->safe_string($ticker, 'opening_price'),
             'close' => $last,
             'last' => $last,
-            'previousClose' => $previous,
-            'change' => $change,
-            'percentage' => $percentage,
+            'previousClose' => $this->safe_string($ticker, 'prev_closing_price'),
+            'change' => $this->safe_string($ticker, 'signed_change_price'),
+            'percentage' => $this->safe_string($ticker, 'signed_change_rate'),
             'average' => null,
-            'baseVolume' => $this->safe_number($ticker, 'acc_trade_volume_24h'),
-            'quoteVolume' => $this->safe_number($ticker, 'acc_trade_price_24h'),
+            'baseVolume' => $this->safe_string($ticker, 'acc_trade_volume_24h'),
+            'quoteVolume' => $this->safe_string($ticker, 'acc_trade_price_24h'),
             'info' => $ticker,
-        );
+        ), $market, false);
     }
 
     public function fetch_tickers($symbols = null, $params = array ()) {
@@ -1081,8 +1096,13 @@ class upbit extends Exchange {
             'id' => $id,
             'currency' => $code,
             'amount' => $amount,
+            'network' => null,
             'address' => $address,
+            'addressTo' => null,
+            'addressFrom' => null,
             'tag' => $tag,
+            'tagTo' => null,
+            'tagFrom' => null,
             'status' => $status,
             'type' => $type,
             'updated' => $updated,

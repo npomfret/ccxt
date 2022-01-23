@@ -20,6 +20,7 @@ module.exports = class deribit extends Exchange {
             // 5 requests per second for matching-engine endpoints, cost = (1000ms / rateLimit) / 5 = 4
             'rateLimit': 50,
             'has': {
+                'fetchPosition': true,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
                 'CORS': true,
@@ -342,6 +343,9 @@ module.exports = class deribit extends Exchange {
             'options': {
                 'code': 'BTC',
                 'fetchBalance': {
+                    'code': 'BTC',
+                },
+                'fetchPositions': {
                     'code': 'BTC',
                 },
             },
@@ -726,18 +730,18 @@ module.exports = class deribit extends Exchange {
         const timestamp = this.safeInteger2 (ticker, 'timestamp', 'creation_timestamp');
         const marketId = this.safeString (ticker, 'instrument_name');
         const symbol = this.safeSymbol (marketId, market);
-        const last = this.safeNumber2 (ticker, 'last_price', 'last');
+        const last = this.safeString2 (ticker, 'last_price', 'last');
         const stats = this.safeValue (ticker, 'stats', ticker);
         return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeNumber2 (stats, 'high', 'max_price'),
-            'low': this.safeNumber2 (stats, 'low', 'min_price'),
-            'bid': this.safeNumber2 (ticker, 'best_bid_price', 'bid_price'),
-            'bidVolume': this.safeNumber (ticker, 'best_bid_amount'),
-            'ask': this.safeNumber2 (ticker, 'best_ask_price', 'ask_price'),
-            'askVolume': this.safeNumber (ticker, 'best_ask_amount'),
+            'high': this.safeString2 (stats, 'high', 'max_price'),
+            'low': this.safeString2 (stats, 'low', 'min_price'),
+            'bid': this.safeString2 (ticker, 'best_bid_price', 'bid_price'),
+            'bidVolume': this.safeString (ticker, 'best_bid_amount'),
+            'ask': this.safeString2 (ticker, 'best_ask_price', 'ask_price'),
+            'askVolume': this.safeString (ticker, 'best_ask_amount'),
             'vwap': undefined,
             'open': undefined,
             'close': last,
@@ -747,9 +751,9 @@ module.exports = class deribit extends Exchange {
             'percentage': undefined,
             'average': undefined,
             'baseVolume': undefined,
-            'quoteVolume': this.safeNumber (stats, 'volume'),
+            'quoteVolume': this.safeString (stats, 'volume'),
             'info': ticker,
-        }, market);
+        }, market, false);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -1790,16 +1794,30 @@ module.exports = class deribit extends Exchange {
         for (let i = 0; i < positions.length; i++) {
             result.push (this.parsePosition (positions[i]));
         }
-        // todo unify parsePositions
         return result;
     }
 
     async fetchPositions (symbols = undefined, params = {}) {
         await this.loadMarkets ();
-        const code = this.codeFromOptions ('fetchPositions', params);
+        let code = undefined;
+        if (symbols === undefined) {
+            code = this.codeFromOptions ('fetchPositions', params);
+        } else if (typeof symbols === 'string') {
+            code = symbols;
+        } else {
+            if (Array.isArray (symbols)) {
+                const length = symbols.length;
+                if (length !== 1) {
+                    throw new BadRequest (this.id + ' fetchPositions symbols argument cannot contain more than 1 symbol');
+                }
+                const market = this.market (symbols[0]);
+                code = market['base'];
+            }
+        }
         const currency = this.currency (code);
         const request = {
             'currency': currency['id'],
+            // "kind" : "future", "option"
         };
         const response = await this.privateGetGetPositions (this.extend (request, params));
         //
@@ -1827,14 +1845,12 @@ module.exports = class deribit extends Exchange {
         //                 "size": 50,
         //                 "size_currency": 0.006687487,
         //                 "total_profit_loss": 0.000032781
-        //             }
+        //             },
         //         ]
         //     }
         //
-        // response is returning an empty list for result
-        // todo unify parsePositions
-        const result = this.parsePositions (response);
-        return this.filterByArray (result, 'symbol', symbols, false);
+        const result = this.safeValue (response, 'result');
+        return this.parsePositions (result);
     }
 
     async fetchHistoricalVolatility (code, params = {}) {

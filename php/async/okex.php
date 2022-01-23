@@ -68,12 +68,10 @@ class okex extends Exchange {
                 'fetchLedgerEntry' => null,
                 'fetchLeverage' => true,
                 'fetchMarkets' => true,
-                'fetchMarketsByType' => true,
                 'fetchMarkOHLCV' => true,
                 'fetchMyBuys' => null,
                 'fetchMySells' => null,
                 'fetchMyTrades' => true,
-                'fetchNetworkDepositAddress' => null,
                 'fetchOHLCV' => true,
                 'fetchOpenOrder' => null,
                 'fetchOpenOrders' => true,
@@ -81,10 +79,7 @@ class okex extends Exchange {
                 'fetchOrderBook' => true,
                 'fetchOrderBooks' => null,
                 'fetchOrders' => null,
-                'fetchOrdersByState' => null,
-                'fetchOrdersByStatus' => null,
                 'fetchOrderTrades' => true,
-                'fetchPartiallyFilledOrders' => null,
                 'fetchPosition' => true,
                 'fetchPositions' => true,
                 'fetchPositionsRisk' => null,
@@ -92,7 +87,6 @@ class okex extends Exchange {
                 'fetchStatus' => true,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
-                'fetchTickersByType' => true,
                 'fetchTime' => true,
                 'fetchTrades' => true,
                 'fetchTradingFee' => true,
@@ -100,8 +94,6 @@ class okex extends Exchange {
                 'fetchTradingLimits' => null,
                 'fetchTransactions' => null,
                 'fetchTransfers' => null,
-                'fetchWithdrawAddress' => null,
-                'fetchWithdrawAddressesByNetwork' => null,
                 'fetchWithdrawal' => null,
                 'fetchWithdrawals' => true,
                 'fetchWithdrawalWhitelist' => null,
@@ -112,7 +104,6 @@ class okex extends Exchange {
                 'setPositionMode' => true,
                 'signIn' => null,
                 'transfer' => true,
-                'transferOut' => false,
                 'withdraw' => true,
             ),
             'timeframes' => array(
@@ -192,6 +183,9 @@ class okex extends Exchange {
                         'rubik/stat/option/open-interest-volume-strike' => 4,
                         'rubik/stat/option/taker-block-volume' => 4,
                         'system/status' => 100,
+                        'asset/lending-rate-summary' => 5 / 3,
+                        'asset/lending-rate-history' => 5 / 3,
+                        'market/exchange-rate' => 20,
                     ),
                 ),
                 'private' => array(
@@ -210,6 +204,9 @@ class okex extends Exchange {
                         'account/interest-accrued' => 4,
                         'account/interest-rate' => 4,
                         'account/max-withdrawal' => 1,
+                        'account/risk-state' => 2,
+                        'account/borrow-repay-history' => 4,
+                        'account/interest-limits' => 4,
                         'asset/asset-valuation' => 1 / 5,
                         'asset/deposit-address' => 5 / 3,
                         'asset/balances' => 5 / 3,
@@ -220,6 +217,8 @@ class okex extends Exchange {
                         'asset/bills' => 5 / 3,
                         'asset/piggy-balance' => 5 / 3,
                         'asset/deposit-lightning' => 5,
+                        'asset/lending-history' => 5 / 3,
+                        'asset/saving-balance' => 5 / 3,
                         'trade/order' => 1 / 3,
                         'trade/orders-pending' => 1,
                         'trade/orders-history' => 0.5,
@@ -232,16 +231,26 @@ class okex extends Exchange {
                         'asset/subaccount/bills' => 5 / 3,
                         'users/subaccount/list' => 10,
                         'users/subaccount/apikey' => 10,
+                        // broker
+                        'broker/nd/info' => 10,
+                        'broker/nd/subaccount-info' => 10,
+                        'asset/broker/nd/subaccount-deposit-address' => 4,
+                        'asset/broker/nd/subaccount-deposit-history' => 4,
+                        'broker/nd/rebate-daily' => 1,
                     ),
                     'post' => array(
                         'account/set-position-mode' => 4,
                         'account/set-leverage' => 1,
                         'account/position/margin-balance' => 1,
                         'account/set-greeks' => 4,
+                        'account/set-isolated-mode' => 4,
+                        'account/simulated_margin' => 10,
+                        'account/borrow-repay' => 5 / 3,
                         'asset/transfer' => 10,
                         'asset/withdrawal' => 5 / 3,
                         'asset/purchase_redempt' => 5 / 3,
                         'asset/withdrawal-lightning' => 5,
+                        'asset/set-lending-rate' => 5 / 3,
                         'trade/order' => 1 / 3,
                         'trade/batch-orders' => 1 / 15,
                         'trade/cancel-order' => 1 / 3,
@@ -256,6 +265,12 @@ class okex extends Exchange {
                         'users/subaccount/modify-apikey' => 10,
                         'users/subaccount/apikey' => 10,
                         'asset/subaccount/transfer' => 10,
+                        // broker
+                        'broker/nd/create-subaccount' => 10,
+                        'broker/nd/delete-subaccount' => 10,
+                        'broker/nd/set-subaccount-level' => 4,
+                        'broker/nd/set-subaccount-fee-rate' => 4,
+                        'asset/broker/nd/subaccount-deposit-address' => 4,
                     ),
                 ),
             ),
@@ -346,8 +361,8 @@ class okex extends Exchange {
                     '51009' => '\\ccxt\\AccountSuspended', // Order placement function is blocked by the platform
                     '51010' => '\\ccxt\\InsufficientFunds', // Account level too low
                     '51011' => '\\ccxt\\InvalidOrder', // Duplicated order ID
-                    '51012' => '\\ccxt\\ExchangeError', // Token does not exist
-                    '51014' => '\\ccxt\\ExchangeError', // Index does not exist
+                    '51012' => '\\ccxt\\BadSymbol', // Token does not exist
+                    '51014' => '\\ccxt\\BadSymbol', // Index does not exist
                     '51015' => '\\ccxt\\BadSymbol', // Instrument ID does not match instrument type
                     '51016' => '\\ccxt\\InvalidOrder', // Duplicated client order ID
                     '51017' => '\\ccxt\\ExchangeError', // Borrow amount exceeds the limit
@@ -767,8 +782,8 @@ class okex extends Exchange {
             $baseId = $this->safe_string($parts, 0);
             $quoteId = $this->safe_string($parts, 1);
         }
-        $inverse = $baseId === $settleCurrency;
-        $linear = $quoteId === $settleCurrency;
+        $inverse = $contract ? ($baseId === $settleCurrency) : null;
+        $linear = $contract ? ($quoteId === $settleCurrency) : null;
         $base = $this->safe_currency_code($baseId);
         $quote = $this->safe_currency_code($quoteId);
         $symbol = $base . '/' . $quote;
@@ -951,6 +966,8 @@ class okex extends Exchange {
             $chains = $dataByCurrencyId[$currencyId];
             $networks = array();
             $currencyActive = false;
+            $depositEnabled = null;
+            $withdrawEnabled = null;
             for ($j = 0; $j < count($chains); $j++) {
                 $chain = $chains[$j];
                 $canDeposit = $this->safe_value($chain, 'canDep');
@@ -959,6 +976,16 @@ class okex extends Exchange {
                 $active = ($canDeposit && $canWithdraw && $canInternal) ? true : false;
                 $currencyActive = ($currencyActive === null) ? $active : $currencyActive;
                 $networkId = $this->safe_string($chain, 'chain');
+                if ($canDeposit && !$depositEnabled) {
+                    $depositEnabled = true;
+                } else if (!$canDeposit) {
+                    $depositEnabled = false;
+                }
+                if ($canWithdraw && !$withdrawEnabled) {
+                    $withdrawEnabled = true;
+                } else if (!$canWithdraw) {
+                    $withdrawEnabled = false;
+                }
                 if (mb_strpos($networkId, '-') !== false) {
                     $parts = explode('-', $networkId);
                     $chainPart = $this->safe_string($parts, 1, $networkId);
@@ -977,6 +1004,8 @@ class okex extends Exchange {
                         'id' => $networkId,
                         'network' => $network,
                         'active' => $active,
+                        'deposit' => $canDeposit,
+                        'withdraw' => $canWithdraw,
                         'fee' => $this->safe_number($chain, 'minFee'),
                         'precision' => null,
                         'limits' => array(
@@ -994,6 +1023,8 @@ class okex extends Exchange {
                 'id' => $currencyId,
                 'name' => null,
                 'active' => $currencyActive,
+                'deposit' => $depositEnabled,
+                'withdraw' => $withdrawEnabled,
                 'fee' => null,
                 'precision' => $precision,
                 'limits' => array(
@@ -1076,7 +1107,7 @@ class okex extends Exchange {
         $quoteVolume = $this->safe_number($ticker, 'volCcy24h');
         $baseVolume = $this->safe_number($ticker, 'vol24h');
         $vwap = $this->vwap($baseVolume, $quoteVolume);
-        return array(
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -1097,7 +1128,7 @@ class okex extends Exchange {
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
-        );
+        ), $market);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {
@@ -1550,13 +1581,9 @@ class okex extends Exchange {
 
     public function fetch_balance($params = array ()) {
         yield $this->load_markets();
-        $defaultType = $this->safe_string($this->options, 'defaultType');
-        $options = $this->safe_value($this->options, 'fetchBalance', array());
-        $type = $this->safe_string($options, 'type', $defaultType);
-        $type = $this->safe_string($params, 'type', $type);
-        $params = $this->omit($params, 'type');
+        list($marketType, $query) = $this->handle_market_type_and_params('fetchBalance', null, $params);
         $method = null;
-        if ($type === 'funding') {
+        if ($marketType === 'funding') {
             $method = 'privateGetAssetBalances';
         } else {
             $method = 'privateGetAccountBalance';
@@ -1564,7 +1591,7 @@ class okex extends Exchange {
         $request = array(
             // 'ccy' => 'BTC,ETH', // comma-separated list of currency ids
         );
-        $response = yield $this->$method (array_merge($request, $params));
+        $response = yield $this->$method (array_merge($request, $query));
         //
         //     {
         //         "code":"0",
@@ -1667,7 +1694,7 @@ class okex extends Exchange {
         //         "msg":""
         //     }
         //
-        return $this->parse_balance_by_type($type, $response);
+        return $this->parse_balance_by_type($marketType, $response);
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -2879,6 +2906,7 @@ class okex extends Exchange {
             'id' => $id,
             'currency' => $code,
             'amount' => $amount,
+            'network' => null,
             'addressFrom' => $addressFrom,
             'addressTo' => $addressTo,
             'address' => $address,
@@ -3327,10 +3355,11 @@ class okex extends Exchange {
         //
         // in the response above $nextFundingRate is actually two funding rates from now
         //
-        $nextFundingRateTimestamp = $this->safe_integer($fundingRate, 'fundingTime');
+        $nextFundingRateTimestamp = $this->safe_integer($fundingRate, 'nextFundingTime');
         $marketId = $this->safe_string($fundingRate, 'instId');
         $symbol = $this->safe_symbol($marketId, $market);
-        $nextFundingRate = $this->safe_number($fundingRate, 'fundingRate');
+        $nextFundingRate = $this->safe_number($fundingRate, 'nextFundingRate');
+        $fundingTime = $this->safe_integer($fundingRate, 'fundingTime');
         // https://www.okex.com/support/hc/en-us/articles/360053909272-Ⅸ-Introduction-to-perpetual-swap-funding-fee
         // > The current interest is 0.
         return array(
@@ -3342,12 +3371,15 @@ class okex extends Exchange {
             'estimatedSettlePrice' => null,
             'timestamp' => null,
             'datetime' => null,
-            'previousFundingRate' => null,
+            'fundingRate' => $this->safe_number($fundingRate, 'fundingRate'),
+            'fundingTimestamp' => $fundingTime,
+            'fundingDatetime' => $this->iso8601($fundingTime),
             'nextFundingRate' => $nextFundingRate,
-            'previousFundingTimestamp' => null,
             'nextFundingTimestamp' => $nextFundingRateTimestamp,
-            'previousFundingDatetime' => null,
             'nextFundingDatetime' => $this->iso8601($nextFundingRateTimestamp),
+            'previousFundingRate' => null,
+            'previousFundingTimestamp' => null,
+            'previousFundingDatetime' => null,
         );
     }
 

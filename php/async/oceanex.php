@@ -156,7 +156,21 @@ class oceanex extends Exchange {
                 'quoteId' => $quoteId,
                 'type' => 'spot',
                 'spot' => true,
-                'active' => true,
+                'margin' => false,
+                'future' => false,
+                'swap' => false,
+                'option' => false,
+                'optionType' => null,
+                'strike' => null,
+                'linear' => null,
+                'inverse' => null,
+                'contract' => false,
+                'contractSize' => null,
+                'settle' => null,
+                'settleId' => null,
+                'expiry' => null,
+                'expiryDatetime' => null,
+                'active' => null,
                 'info' => $market,
                 'precision' => array(
                     'amount' => $this->safe_integer($market, 'amount_precision'),
@@ -264,8 +278,9 @@ class oceanex extends Exchange {
         //
         $ticker = $this->safe_value($data, 'ticker', array());
         $timestamp = $this->safe_timestamp($data, 'at');
-        return array(
-            'symbol' => $market['symbol'],
+        $symbol = $this->safe_symbol(null, $market);
+        return $this->safe_ticker(array(
+            'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
             'high' => $this->safe_number($ticker, 'high'),
@@ -285,7 +300,7 @@ class oceanex extends Exchange {
             'baseVolume' => $this->safe_number($ticker, 'volume'),
             'quoteVolume' => null,
             'info' => $ticker,
-        );
+        ), $market);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {

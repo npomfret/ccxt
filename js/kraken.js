@@ -20,12 +20,18 @@ module.exports = class kraken extends Exchange {
             'certified': false,
             'pro': true,
             'has': {
+                'spot': true,
                 'margin': true,
+                'swap': false,
+                'future': false,
+                'option': false,
+                'addMargin': false,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
                 'CORS': undefined,
                 'createDepositAddress': true,
                 'createOrder': true,
+                'createReduceOnlyOrder': false,
                 'fetchBalance': true,
                 'fetchBorrowRate': false,
                 'fetchBorrowRateHistory': false,
@@ -34,9 +40,16 @@ module.exports = class kraken extends Exchange {
                 'fetchCurrencies': true,
                 'fetchDepositAddress': true,
                 'fetchDeposits': true,
+                'fetchFundingHistory': false,
+                'fetchFundingRate': false,
+                'fetchFundingRateHistory': false,
+                'fetchFundingRates': false,
+                'fetchIndexOHLCV': false,
+                'fetchIsolatedPositions': false,
                 'fetchLedger': true,
                 'fetchLedgerEntry': true,
                 'fetchMarkets': true,
+                'fetchMarkOHLCV': false,
                 'fetchMyTrades': true,
                 'fetchOHLCV': true,
                 'fetchOpenOrders': true,
@@ -44,6 +57,7 @@ module.exports = class kraken extends Exchange {
                 'fetchOrderBook': true,
                 'fetchOrderTrades': 'emulated',
                 'fetchPositions': true,
+                'fetchPositionsRisk': false,
                 'fetchPremiumIndexOHLCV': false,
                 'fetchTicker': true,
                 'fetchTickers': true,
@@ -51,7 +65,10 @@ module.exports = class kraken extends Exchange {
                 'fetchTrades': true,
                 'fetchTradingFees': true,
                 'fetchWithdrawals': true,
+                'reduceMargin': false,
+                'setLeverage': false,
                 'setMarginMode': false, // Kraken only supports cross margin
+                'setPositionMode': false,
                 'withdraw': true,
             },
             'marketsByAltname': {},
@@ -427,7 +444,6 @@ module.exports = class kraken extends Exchange {
             const quote = this.safeCurrencyCode (quoteId);
             const darkpool = id.indexOf ('.d') >= 0;
             const altname = this.safeString (market, 'altname');
-            const symbol = darkpool ? altname : (base + '/' + quote);
             const makerFees = this.safeValue (market, 'fees_maker', []);
             const firstMakerFee = this.safeValue (makerFees, 0, []);
             const firstMakerFeeRate = this.safeNumber (firstMakerFee, 1);
@@ -442,47 +458,60 @@ module.exports = class kraken extends Exchange {
             if (firstTakerFeeRate !== undefined) {
                 taker = parseFloat (firstTakerFeeRate) / 100;
             }
-            const precision = {
-                'amount': this.safeInteger (market, 'lot_decimals'),
-                'price': this.safeInteger (market, 'pair_decimals'),
-            };
-            const minAmount = this.safeNumber (market, 'ordermin');
             const leverageBuy = this.safeValue (market, 'leverage_buy', []);
             const leverageBuyLength = leverageBuy.length;
-            const maxLeverage = this.safeValue (leverageBuy, leverageBuyLength - 1, 1);
+            const precisionPrice = this.safeString (market, 'pair_decimals');
             result.push ({
                 'id': id,
-                'symbol': symbol,
+                'symbol': darkpool ? altname : (base + '/' + quote),
                 'base': base,
                 'quote': quote,
+                'settle': undefined,
                 'baseId': baseId,
                 'quoteId': quoteId,
+                'settleId': undefined,
                 'darkpool': darkpool,
-                'info': market,
                 'altname': market['altname'],
-                'maker': maker,
-                'taker': taker,
                 'type': 'spot',
                 'spot': true,
+                'margin': (leverageBuyLength > 0),
+                'swap': false,
+                'future': false,
+                'option': false,
                 'active': true,
-                'precision': precision,
+                'contract': false,
+                'linear': undefined,
+                'inverse': undefined,
+                'maker': maker,
+                'taker': taker,
+                'contractSize': undefined,
+                'expiry': undefined,
+                'expiryDatetime': undefined,
+                'strike': undefined,
+                'optionType': undefined,
+                'precision': {
+                    'price': this.safeInteger (market, 'pair_decimals'),
+                    'amount': this.safeInteger (market, 'lot_decimals'),
+                },
                 'limits': {
+                    'leverage': {
+                        'min': this.parseNumber ('1'),
+                        'max': this.safeValue (leverageBuy, leverageBuyLength - 1, 1),
+                    },
                     'amount': {
-                        'min': minAmount,
+                        'min': this.safeNumber (market, 'ordermin'),
                         'max': undefined,
                     },
                     'price': {
-                        'min': Math.pow (10, -precision['price']),
+                        'min': this.parsePrecision (precisionPrice),
                         'max': undefined,
                     },
                     'cost': {
                         'min': undefined,
                         'max': undefined,
                     },
-                    'leverage': {
-                        'max': maxLeverage,
-                    },
                 },
+                'info': market,
             });
         }
         result = this.appendInactiveMarkets (result);
@@ -562,6 +591,8 @@ module.exports = class kraken extends Exchange {
                 'info': currency,
                 'name': code,
                 'active': active,
+                'deposit': undefined,
+                'withdraw': undefined,
                 'fee': undefined,
                 'precision': precision,
                 'limits': {
@@ -656,10 +687,7 @@ module.exports = class kraken extends Exchange {
 
     parseTicker (ticker, market = undefined) {
         const timestamp = this.milliseconds ();
-        let symbol = undefined;
-        if (market) {
-            symbol = market['symbol'];
-        }
+        const symbol = this.safeSymbol (undefined, market);
         const baseVolume = parseFloat (ticker['v'][1]);
         const vwap = parseFloat (ticker['p'][1]);
         let quoteVolume = undefined;
@@ -667,7 +695,7 @@ module.exports = class kraken extends Exchange {
             quoteVolume = baseVolume * vwap;
         }
         const last = parseFloat (ticker['c'][0]);
-        return {
+        return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
@@ -688,7 +716,7 @@ module.exports = class kraken extends Exchange {
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        };
+        }, market);
     }
 
     async fetchTickers (symbols = undefined, params = {}) {
@@ -1234,11 +1262,23 @@ module.exports = class kraken extends Exchange {
 
     parseOrder (order, market = undefined) {
         //
-        // createOrder
+        // createOrder for regular orders
         //
         //     {
         //         descr: { order: 'buy 0.02100000 ETHUSDT @ limit 330.00' },
         //         txid: [ 'OEKVV2-IH52O-TPL6GZ' ]
+        //     }
+        //     {
+        //         "txid": [ "TX_ID_HERE" ],
+        //         "descr": { "order":"buy 0.12345678 ETHEUR @ market" },
+        //     }
+        //
+        //
+        // createOrder for stop orders
+        //
+        //     {
+        //         "txid":["OSILNC-VQI5Q-775ZDQ"],
+        //         "descr":{"order":"sell 167.28002676 ADAXBT @ stop loss 0.00003280 -> limit 0.00003212"}
         //     }
         //
         const description = this.safeValue (order, 'descr', {});
@@ -1250,11 +1290,14 @@ module.exports = class kraken extends Exchange {
         let amount = undefined;
         if (orderDescription !== undefined) {
             const parts = orderDescription.split (' ');
+            const partsLength = parts.length;
             side = this.safeString (parts, 0);
             amount = this.safeString (parts, 1);
             marketId = this.safeString (parts, 2);
             type = this.safeString (parts, 4);
-            price = this.safeString (parts, 5);
+            if ((type === 'limit') || (type === 'stop')) {
+                price = this.safeString (parts, partsLength - 1);
+            }
         }
         side = this.safeString (description, 'type', side);
         type = this.safeString (description, 'ordertype', type);
@@ -1697,8 +1740,13 @@ module.exports = class kraken extends Exchange {
             'id': id,
             'currency': code,
             'amount': amount,
+            'network': undefined,
             'address': address,
+            'addressTo': undefined,
+            'addressFrom': undefined,
             'tag': undefined,
+            'tagTo': undefined,
+            'tagFrom': undefined,
             'status': status,
             'type': type,
             'updated': undefined,

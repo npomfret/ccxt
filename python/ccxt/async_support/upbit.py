@@ -28,6 +28,8 @@ class upbit(Exchange):
             'pro': True,
             # new metainfo interface
             'has': {
+                'fetchDepositAddresses': True,
+                'fetchCanceledOrders': True,
                 'cancelOrder': True,
                 'CORS': True,
                 'createDepositAddress': True,
@@ -394,6 +396,22 @@ class upbit(Exchange):
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'active': active,
+                'type': 'spot',
+                'spot': True,
+                'margin': False,
+                'future': False,
+                'swap': False,
+                'option': False,
+                'optionType': None,
+                'strike': None,
+                'linear': None,
+                'inverse': None,
+                'contract': False,
+                'contractSize': None,
+                'settle': None,
+                'settleId': None,
+                'expiry': None,
+                'expiryDatetime': None,
                 'info': market,
                 'precision': precision,
                 'maker': makerFee,
@@ -543,33 +561,30 @@ class upbit(Exchange):
         #
         timestamp = self.safe_integer(ticker, 'trade_timestamp')
         marketId = self.safe_string_2(ticker, 'market', 'code')
-        symbol = self.safe_symbol(marketId, market, '-')
-        previous = self.safe_number(ticker, 'prev_closing_price')
-        last = self.safe_number(ticker, 'trade_price')
-        change = self.safe_number(ticker, 'signed_change_price')
-        percentage = self.safe_number(ticker, 'signed_change_rate')
-        return {
-            'symbol': symbol,
+        market = self.safe_market(marketId, market, '-')
+        last = self.safe_string(ticker, 'trade_price')
+        return self.safe_ticker({
+            'symbol': market['symbol'],
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high_price'),
-            'low': self.safe_number(ticker, 'low_price'),
+            'high': self.safe_string(ticker, 'high_price'),
+            'low': self.safe_string(ticker, 'low_price'),
             'bid': None,
             'bidVolume': None,
             'ask': None,
             'askVolume': None,
             'vwap': None,
-            'open': self.safe_number(ticker, 'opening_price'),
+            'open': self.safe_string(ticker, 'opening_price'),
             'close': last,
             'last': last,
-            'previousClose': previous,
-            'change': change,
-            'percentage': percentage,
+            'previousClose': self.safe_string(ticker, 'prev_closing_price'),
+            'change': self.safe_string(ticker, 'signed_change_price'),
+            'percentage': self.safe_string(ticker, 'signed_change_rate'),
             'average': None,
-            'baseVolume': self.safe_number(ticker, 'acc_trade_volume_24h'),
-            'quoteVolume': self.safe_number(ticker, 'acc_trade_price_24h'),
+            'baseVolume': self.safe_string(ticker, 'acc_trade_volume_24h'),
+            'quoteVolume': self.safe_string(ticker, 'acc_trade_price_24h'),
             'info': ticker,
-        }
+        }, market, False)
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
@@ -1033,8 +1048,13 @@ class upbit(Exchange):
             'id': id,
             'currency': code,
             'amount': amount,
+            'network': None,
             'address': address,
+            'addressTo': None,
+            'addressFrom': None,
             'tag': tag,
+            'tagTo': None,
+            'tagFrom': None,
             'status': status,
             'type': type,
             'updated': updated,

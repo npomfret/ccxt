@@ -39,6 +39,7 @@ class gemini(Exchange):
             'rateLimit': 1500,  # 200 for private API
             'version': 'v1',
             'has': {
+                'fetchDepositAddressesByNetwork': True,
                 'cancelOrder': True,
                 'CORS': None,
                 'createDepositAddress': True,
@@ -504,24 +505,23 @@ class gemini(Exchange):
             quoteId = market['quoteId'].upper()
             base = market['base']
             quote = market['quote']
-        price = self.safe_number(ticker, 'price')
-        last = self.safe_number_2(ticker, 'last', 'close', price)
-        percentage = self.safe_number(ticker, 'percentChange24h')
-        open = self.safe_number(ticker, 'open')
-        baseVolume = self.safe_number(volume, baseId)
-        quoteVolume = self.safe_number(volume, quoteId)
-        vwap = self.vwap(baseVolume, quoteVolume)
+        price = self.safe_string(ticker, 'price')
+        last = self.safe_string_2(ticker, 'last', 'close', price)
+        percentage = self.safe_string(ticker, 'percentChange24h')
+        open = self.safe_string(ticker, 'open')
+        baseVolume = self.safe_string(volume, baseId)
+        quoteVolume = self.safe_string(volume, quoteId)
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high'),
-            'low': self.safe_number(ticker, 'low'),
-            'bid': self.safe_number(ticker, 'bid'),
+            'high': self.safe_string(ticker, 'high'),
+            'low': self.safe_string(ticker, 'low'),
+            'bid': self.safe_string(ticker, 'bid'),
             'bidVolume': None,
-            'ask': self.safe_number(ticker, 'ask'),
+            'ask': self.safe_string(ticker, 'ask'),
             'askVolume': None,
-            'vwap': vwap,
+            'vwap': None,
             'open': open,
             'close': last,
             'last': last,
@@ -532,7 +532,7 @@ class gemini(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
@@ -799,8 +799,13 @@ class gemini(Exchange):
             'txid': self.safe_string(transaction, 'txHash'),
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
+            'network': None,
             'address': address,
+            'addressTo': None,
+            'addressFrom': None,
             'tag': None,  # or is it defined?
+            'tagTo': None,
+            'tagFrom': None,
             'type': type,  # direction of the transaction,('deposit' | 'withdraw')
             'amount': self.safe_number(transaction, 'amount'),
             'currency': code,

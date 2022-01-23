@@ -21,6 +21,7 @@ class bitflyer extends Exchange {
             'rateLimit' => 1000, // their nonce-timestamp is in seconds...
             'hostname' => 'bitflyer.com', // or bitflyer.com
             'has' => array(
+                'fetchPositions' => true,
                 'cancelOrder' => true,
                 'CORS' => null,
                 'createOrder' => true,
@@ -208,16 +209,16 @@ class bitflyer extends Exchange {
     public function parse_ticker($ticker, $market = null) {
         $symbol = $this->safe_symbol(null, $market);
         $timestamp = $this->parse8601($this->safe_string($ticker, 'timestamp'));
-        $last = $this->safe_number($ticker, 'ltp');
-        return array(
+        $last = $this->safe_string($ticker, 'ltp');
+        return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
             'high' => null,
             'low' => null,
-            'bid' => $this->safe_number($ticker, 'best_bid'),
+            'bid' => $this->safe_string($ticker, 'best_bid'),
             'bidVolume' => null,
-            'ask' => $this->safe_number($ticker, 'best_ask'),
+            'ask' => $this->safe_string($ticker, 'best_ask'),
             'askVolume' => null,
             'vwap' => null,
             'open' => null,
@@ -227,10 +228,10 @@ class bitflyer extends Exchange {
             'change' => null,
             'percentage' => null,
             'average' => null,
-            'baseVolume' => $this->safe_number($ticker, 'volume_by_product'),
+            'baseVolume' => $this->safe_string($ticker, 'volume_by_product'),
             'quoteVolume' => null,
             'info' => $ticker,
-        );
+        ), $market, false);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {

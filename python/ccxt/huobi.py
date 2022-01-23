@@ -91,12 +91,10 @@ class huobi(Exchange):
                 'fetchLedgerEntry': None,
                 'fetchLeverage': None,
                 'fetchMarkets': True,
-                'fetchMarketsByType': None,
                 'fetchMarkOHLCV': True,
                 'fetchMyBuys': None,
                 'fetchMySells': None,
                 'fetchMyTrades': True,
-                'fetchNetworkDepositAddress': None,
                 'fetchOHLCV': True,
                 'fetchOpenOrder': None,
                 'fetchOpenOrders': True,
@@ -104,10 +102,7 @@ class huobi(Exchange):
                 'fetchOrderBook': True,
                 'fetchOrderBooks': None,
                 'fetchOrders': True,
-                'fetchOrdersByState': None,
-                'fetchOrdersByStatus': None,
                 'fetchOrderTrades': True,
-                'fetchPartiallyFilledOrders': None,
                 'fetchPosition': True,
                 'fetchPositions': True,
                 'fetchPositionsRisk': None,
@@ -115,7 +110,6 @@ class huobi(Exchange):
                 'fetchStatus': None,
                 'fetchTicker': True,
                 'fetchTickers': True,
-                'fetchTickersByType': None,
                 'fetchTime': True,
                 'fetchTrades': True,
                 'fetchTradingFee': True,
@@ -123,7 +117,6 @@ class huobi(Exchange):
                 'fetchTradingLimits': True,
                 'fetchTransactions': None,
                 'fetchTransfers': None,
-                'fetchWithdrawAddress': True,
                 'fetchWithdrawAddressesByNetwork': True,
                 'fetchWithdrawal': None,
                 'fetchWithdrawals': True,
@@ -135,7 +128,6 @@ class huobi(Exchange):
                 'setPositionMode': None,
                 'signIn': None,
                 'transfer': True,
-                'transferOut': False,
                 'withdraw': True,
             },
             'timeframes': {
@@ -1366,34 +1358,33 @@ class huobi(Exchange):
         askVolume = None
         if 'bid' in ticker:
             if isinstance(ticker['bid'], list):
-                bid = self.safe_number(ticker['bid'], 0)
-                bidVolume = self.safe_number(ticker['bid'], 1)
+                bid = self.safe_string(ticker['bid'], 0)
+                bidVolume = self.safe_string(ticker['bid'], 1)
             else:
-                bid = self.safe_number(ticker, 'bid')
-                bidVolume = self.safe_value(ticker, 'bidSize')
+                bid = self.safe_string(ticker, 'bid')
+                bidVolume = self.safe_string(ticker, 'bidSize')
         if 'ask' in ticker:
             if isinstance(ticker['ask'], list):
-                ask = self.safe_number(ticker['ask'], 0)
-                askVolume = self.safe_number(ticker['ask'], 1)
+                ask = self.safe_string(ticker['ask'], 0)
+                askVolume = self.safe_string(ticker['ask'], 1)
             else:
-                ask = self.safe_number(ticker, 'ask')
-                askVolume = self.safe_value(ticker, 'askSize')
-        open = self.safe_number(ticker, 'open')
-        close = self.safe_number(ticker, 'close')
-        baseVolume = self.safe_number(ticker, 'amount')
-        quoteVolume = self.safe_number(ticker, 'vol')
-        vwap = self.vwap(baseVolume, quoteVolume)
+                ask = self.safe_string(ticker, 'ask')
+                askVolume = self.safe_string(ticker, 'askSize')
+        open = self.safe_string(ticker, 'open')
+        close = self.safe_string(ticker, 'close')
+        baseVolume = self.safe_string(ticker, 'amount')
+        quoteVolume = self.safe_string(ticker, 'vol')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high'),
-            'low': self.safe_number(ticker, 'low'),
+            'high': self.safe_string(ticker, 'high'),
+            'low': self.safe_string(ticker, 'low'),
             'bid': bid,
             'bidVolume': bidVolume,
             'ask': ask,
             'askVolume': askVolume,
-            'vwap': vwap,
+            'vwap': None,
             'open': open,
             'close': close,
             'last': close,
@@ -1404,7 +1395,7 @@ class huobi(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
@@ -1822,7 +1813,8 @@ class huobi(Exchange):
             request['contract_code'] = market['id']
             request['trade_type'] = 0  # 0 all, 1 open long, 2 open short, 3 close short, 4 close long, 5 liquidate long positions, 6 liquidate short positions
             if market['linear']:
-                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', 'isolated')
+                defaultMargin = 'cross' if market['future'] else 'isolated'
+                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', defaultMargin)
                 if marginType == 'isolated':
                     method = 'contractPrivatePostLinearSwapApiV1SwapMatchresultsExact'
                 elif marginType == 'cross':
@@ -2152,6 +2144,8 @@ class huobi(Exchange):
             minPrecision = None
             minWithdraw = None
             maxWithdraw = None
+            deposit = None
+            withdraw = None
             for j in range(0, len(chains)):
                 chain = chains[j]
                 networkId = self.safe_string(chain, 'chain')
@@ -2165,13 +2159,23 @@ class huobi(Exchange):
                 network = self.safe_network(baseChainProtocol)
                 minWithdraw = self.safe_number(chain, 'minWithdrawAmt')
                 maxWithdraw = self.safe_number(chain, 'maxWithdrawAmt')
-                withdraw = self.safe_string(chain, 'withdrawStatus')
-                deposit = self.safe_string(chain, 'depositStatus')
-                active = (withdraw == 'allowed') and (deposit == 'allowed')
+                withdrawStatus = self.safe_string(chain, 'withdrawStatus')
+                depositStatus = self.safe_string(chain, 'depositStatus')
+                withdrawEnabled = (withdrawStatus == 'allowed')
+                depositEnabled = (depositStatus == 'allowed')
+                active = withdrawEnabled and depositEnabled
                 precision = self.safe_string(chain, 'withdrawPrecision')
                 if precision is not None:
                     precision = self.parse_number('1e-' + precision)
                     minPrecision = precision if (minPrecision is None) else max(precision, minPrecision)
+                if withdrawEnabled and not withdraw:
+                    withdraw = True
+                elif not withdrawEnabled:
+                    withdraw = False
+                if depositEnabled and not deposit:
+                    deposit = True
+                elif not depositEnabled:
+                    deposit = False
                 fee = self.safe_number(chain, 'transactFeeWithdraw')
                 networks[network] = {
                     'info': chain,
@@ -2184,6 +2188,8 @@ class huobi(Exchange):
                         },
                     },
                     'active': active,
+                    'deposit': depositEnabled,
+                    'withdraw': withdrawEnabled,
                     'fee': fee,
                     'precision': precision,
                 }
@@ -2194,6 +2200,8 @@ class huobi(Exchange):
                 'code': code,
                 'id': currencyId,
                 'active': currencyActive,
+                'deposit': deposit,
+                'withdraw': withdraw,
                 'fee': fee if (networkLength <= 1) else None,
                 'name': None,
                 'limits': {
@@ -2435,7 +2443,8 @@ class huobi(Exchange):
             market = self.market(symbol)
             request['contract_code'] = market['id']
             if market['linear']:
-                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', 'isolated')
+                defaultMargin = 'cross' if market['future'] else 'isolated'
+                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', defaultMargin)
                 if marginType == 'isolated':
                     method = 'contractPrivatePostLinearSwapApiV1SwapOrderInfo'
                 elif marginType == 'cross':
@@ -2679,7 +2688,8 @@ class huobi(Exchange):
         method = None
         request['contract_code'] = market['id']
         if market['linear']:
-            marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', 'isolated')
+            defaultMargin = 'cross' if market['future'] else 'isolated'
+            marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', defaultMargin)
             method = self.get_supported_mapping(marginType, {
                 'isolated': 'contractPrivatePostLinearSwapApiV1SwapHisorders',
                 'cross': 'contractPrivatePostLinearSwapApiV1SwapCrossHisorders',
@@ -2825,20 +2835,19 @@ class huobi(Exchange):
                 raise ArgumentsRequired(self.id + ' fetchOpenOrders() requires a symbol for ' + marketType + ' orders')
             market = self.market(symbol)
             request['contract_code'] = market['id']
-            if marketType == 'future':
-                method = 'contractPrivatePostApiV1ContractOpenorders'
-                request['symbol'] = market['settleId']
-            elif marketType == 'swap':
-                if market['linear']:
-                    marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', 'isolated')
-                    if marginType == 'isolated':
-                        method = 'contractPrivatePostLinearSwapApiV1SwapOpenorders'
-                    elif marginType == 'cross':
-                        method = 'contractPrivatePostLinearSwapApiV1SwapCrossOpenorders'
-                elif market['inverse']:
+            if market['linear']:
+                defaultMargin = 'cross' if market['future'] else 'isolated'
+                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', defaultMargin)
+                if marginType == 'isolated':
+                    method = 'contractPrivatePostLinearSwapApiV1SwapOpenorders'
+                elif marginType == 'cross':
+                    method = 'contractPrivatePostLinearSwapApiV1SwapCrossOpenorders'
+            elif market['inverse']:
+                if market['future']:
+                    method = 'contractPrivatePostApiV1ContractOpenorders'
+                    request['symbol'] = market['settleId']
+                elif market['swap']:
                     method = 'contractPrivatePostSwapApiV1SwapOpenorders'
-            else:
-                raise NotSupported(self.id + ' fetchOpenOrders() does not support ' + marketType + ' markets')
             if limit is not None:
                 request['page_size'] = limit
         response = getattr(self, method)(self.extend(request, params))
@@ -3328,19 +3337,19 @@ class huobi(Exchange):
             request['price'] = self.price_to_precision(symbol, price)
         request['order_price_type'] = type
         clientOrderId = self.safe_string_2(params, 'clientOrderId', 'client_order_id')  # must be 64 chars max and unique within 24 hours
-        # if clientOrderId is None:
-        #     broker = self.safe_value(self.options, 'broker', {})
-        #     brokerId = self.safe_string(broker, 'id')
-        #     request['client_order_id'] = brokerId + self.uuid()
-        # else:
-        #     request['client_order_id'] = clientOrderId
-        # }
+        if clientOrderId is None:
+            broker = self.safe_value(self.options, 'broker', {})
+            brokerId = self.safe_string(broker, 'id')
+            request['client_order_id'] = brokerId + self.uuid()
+        else:
+            request['client_order_id'] = clientOrderId
         if clientOrderId is not None:
             request['client_order_id'] = clientOrderId
             params = self.omit(params, ['clientOrderId', 'client_order_id'])
         method = None
         if market['linear']:
-            marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', 'isolated')
+            defaultMargin = 'cross' if market['future'] else 'isolated'
+            marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', defaultMargin)
             if marginType == 'isolated':
                 method = 'contractPrivatePostLinearSwapApiV1SwapOrder'
             elif marginType == 'cross':
@@ -3399,7 +3408,8 @@ class huobi(Exchange):
             market = self.market(symbol)
             request['contract_code'] = market['id']
             if market['linear']:
-                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', 'isolated')
+                defaultMargin = 'cross' if market['future'] else 'isolated'
+                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', defaultMargin)
                 if marginType == 'isolated':
                     method = 'contractPrivatePostLinearSwapApiV1SwapCancel'
                 elif marginType == 'cross':
@@ -3407,6 +3417,7 @@ class huobi(Exchange):
             elif market['inverse']:
                 if market['future']:
                     method = 'contractPrivatePostApiV1ContractCancel'
+                    request['symbol'] = market['settleId']
                 elif market['swap']:
                     method = 'contractPrivatePostSwapApiV1SwapCancel'
             else:
@@ -3448,8 +3459,8 @@ class huobi(Exchange):
         marketType, params = self.handle_market_type_and_params('cancelOrder', None, params)
         request = {
             # spot -----------------------------------------------------------
-            'order-ids': [],  # max 50 ids
-            'client-order-ids': [],  # max 50 ids
+            # 'order-ids': ids.jsoin(','),  # max 50
+            # 'client-order-ids': ','.join(ids),  # max 50
             # contracts ------------------------------------------------------
             # 'order_id': id,  # comma separated, max 10
             # 'client_order_id': clientOrderId,  # comma separated, max 10
@@ -3458,12 +3469,18 @@ class huobi(Exchange):
         }
         method = None
         if marketType == 'spot':
-            clientOrderIds = self.safe_string_2(params, 'client-order-id', 'clientOrderId')
-            clientOrderIds = self.safe_string_2(params, 'client-order-ids', 'clientOrderIds', clientOrderIds)
+            clientOrderIds = self.safe_value_2(params, 'client-order-id', 'clientOrderId')
+            clientOrderIds = self.safe_value_2(params, 'client-order-ids', 'clientOrderIds', clientOrderIds)
             if clientOrderIds is None:
-                request['order-ids'] = ids
+                if isinstance(clientOrderIds, basestring):
+                    request['order-ids'] = ids
+                else:
+                    request['order-ids'] = ','.join(ids)
             else:
-                request['client-order-ids'] = clientOrderIds
+                if isinstance(clientOrderIds, basestring):
+                    request['client-order-ids'] = clientOrderIds
+                else:
+                    request['client-order-ids'] = ','.join(clientOrderIds)
                 params = self.omit(params, ['client-order-id', 'client-order-ids', 'clientOrderId', 'clientOrderIds'])
             method = 'spotPrivatePostV1OrderOrdersBatchcancel'
         else:
@@ -3472,7 +3489,8 @@ class huobi(Exchange):
             market = self.market(symbol)
             request['contract_code'] = market['id']
             if market['linear']:
-                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', 'isolated')
+                defaultMargin = 'cross' if market['future'] else 'isolated'
+                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', defaultMargin)
                 if marginType == 'isolated':
                     method = 'contractPrivatePostLinearSwapApiV1SwapCancel'
                 elif marginType == 'cross':
@@ -3488,7 +3506,7 @@ class huobi(Exchange):
             clientOrderIds = self.safe_string_2(params, 'client_order_id', 'clientOrderId')
             clientOrderIds = self.safe_string_2(params, 'client_order_ids', 'clientOrderIds', clientOrderIds)
             if clientOrderIds is None:
-                request['order_id'] = ids
+                request['order_id'] = ','.join(ids)
             else:
                 request['client_order_id'] = clientOrderIds
                 params = self.omit(params, ['client_order_id', 'client_order_ids', 'clientOrderId', 'clientOrderIds'])
@@ -3577,7 +3595,8 @@ class huobi(Exchange):
             market = self.market(symbol)
             request['contract_code'] = market['id']
             if market['linear']:
-                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', 'isolated')
+                defaultMargin = 'cross' if market['future'] else 'isolated'
+                marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', defaultMargin)
                 if marginType == 'isolated':
                     method = 'contractPrivatePostLinearSwapApiV1SwapCancelallall'
                 elif marginType == 'cross':
@@ -3832,14 +3851,21 @@ class huobi(Exchange):
         feeCost = self.safe_number(transaction, 'fee')
         if feeCost is not None:
             feeCost = abs(feeCost)
+        address = self.safe_string(transaction, 'address')
+        network = self.safe_string_upper(transaction, 'chain')
         return {
             'info': transaction,
             'id': self.safe_string(transaction, 'id'),
             'txid': self.safe_string(transaction, 'tx-hash'),
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'address': self.safe_string(transaction, 'address'),
+            'network': network,
+            'address': address,
+            'addressTo': None,
+            'addressFrom': None,
             'tag': tag,
+            'tagTo': None,
+            'tagFrom': None,
             'type': type,
             'amount': self.safe_number(transaction, 'amount'),
             'currency': code,
@@ -4150,7 +4176,7 @@ class huobi(Exchange):
         # }
         #
         nextFundingRate = self.safe_number(fundingRate, 'estimated_rate')
-        previousFundingTimestamp = self.safe_integer(fundingRate, 'funding_time')
+        fundingTimestamp = self.safe_integer(fundingRate, 'funding_time')
         nextFundingTimestamp = self.safe_integer(fundingRate, 'next_funding_time')
         marketId = self.safe_string(fundingRate, 'contract_code')
         symbol = self.safe_symbol(marketId, market)
@@ -4163,12 +4189,15 @@ class huobi(Exchange):
             'estimatedSettlePrice': None,
             'timestamp': None,
             'datetime': None,
-            'previousFundingRate': self.safe_number(fundingRate, 'funding_rate'),
+            'fundingRate': self.safe_number(fundingRate, 'funding_rate'),
+            'fundingTimestamp': fundingTimestamp,
+            'fundingDatetime': self.iso8601(fundingTimestamp),
             'nextFundingRate': nextFundingRate,
-            'previousFundingTimestamp': previousFundingTimestamp,
             'nextFundingTimestamp': nextFundingTimestamp,
-            'previousFundingDatetime': self.iso8601(previousFundingTimestamp),
             'nextFundingDatetime': self.iso8601(nextFundingTimestamp),
+            'previousFundingRate': None,
+            'previousFundingTimestamp': None,
+            'previousFundingDatetime': None,
         }
 
     def fetch_funding_rate(self, symbol, params={}):
@@ -4313,7 +4342,6 @@ class huobi(Exchange):
     def fetch_funding_history(self, symbol=None, since=None, limit=None, params={}):
         self.load_markets()
         market = self.market(symbol)
-        marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', 'isolated')
         marketType, query = self.handle_market_type_and_params('fetchFundingHistory', market, params)
         method = None
         request = {
@@ -4342,10 +4370,12 @@ class huobi(Exchange):
             #   },
             #   ts: '1641189898425'
             # }
+            defaultMargin = 'cross' if market['future'] else 'isolated'
+            marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', defaultMargin)
             if marginType == 'isolated':
                 request['margin_account'] = market['id']
             else:
-                request['margin_account'] = market['quote']
+                request['margin_account'] = market['quoteId']
         else:
             if marketType == 'swap':
                 method = 'contractPrivatePostSwapApiV1SwapFinancialRecordExact'
@@ -4383,13 +4413,14 @@ class huobi(Exchange):
             raise ArgumentsRequired(self.id + ' setLeverage() requires a symbol argument')
         self.load_markets()
         market = self.market(symbol)
-        marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', 'isolated')
         marketType, query = self.handle_market_type_and_params('fetchPosition', market, params)
         method = None
         if market['linear']:
+            defaultMargin = 'cross' if market['future'] else 'isolated'
+            marginType = self.safe_string_2(self.options, 'defaultMarginType', 'marginType', defaultMargin)
             method = self.get_supported_mapping(marginType, {
                 'isolated': 'contractPrivatePostLinearSwapApiV1SwapSwitchLeverRate',
-                'cross': 'contractPrivatePostLinearSwapCrossApiV1SwapSwitchLeverRate',
+                'cross': 'contractPrivatePostLinearSwapApiV1SwapCrossSwitchLeverRate',
             })
             #
             #     {
@@ -4426,8 +4457,8 @@ class huobi(Exchange):
         request = {
             'lever_rate': leverage,
         }
-        if marketType == 'future':
-            request['symbol'] = market['settle']
+        if marketType == 'future' and market['inverse']:
+            request['symbol'] = market['settleId']
         else:
             request['contract_code'] = market['id']
         response = getattr(self, method)(self.extend(request, query))

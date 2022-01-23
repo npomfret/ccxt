@@ -16,6 +16,7 @@ from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidAddress
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
+from ccxt.base.errors import NotSupported
 from ccxt.base.errors import RateLimitExceeded
 from ccxt.base.decimal_to_precision import TICK_SIZE
 from ccxt.base.precise import Precise
@@ -51,13 +52,11 @@ class mexc(Exchange):
                 'fetchDeposits': True,
                 'fetchFundingRateHistory': True,
                 'fetchMarkets': True,
-                'fetchMarketsByType': True,
                 'fetchMyTrades': True,
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
-                'fetchOrdersByState': True,
                 'fetchOrderTrades': True,
                 'fetchPosition': True,
                 'fetchPositions': True,
@@ -78,6 +77,7 @@ class mexc(Exchange):
                 '30m': '30m',
                 '1h': '1h',
                 '1d': '1d',
+                '1w': '1w',
                 '1M': '1M',
             },
             'urls': {
@@ -246,8 +246,10 @@ class mexc(Exchange):
             'commonCurrencies': {
                 'BYN': 'BeyondFi',
                 'COFI': 'COFIX',  # conflict with CoinFi
+                'DFI': 'DfiStarter',
                 'DFT': 'dFuture',
                 'DRK': 'DRK',
+                'EGC': 'Egoras Credit',
                 'FLUX1': 'FLUX',  # switched places
                 'FLUX': 'FLUX1',  # switched places
                 'FREE': 'FreeRossDAO',  # conflict with FREE Coin
@@ -260,11 +262,14 @@ class mexc(Exchange):
                 'exact': {
                     '400': BadRequest,  # Invalid parameter
                     '401': AuthenticationError,  # Invalid signature, fail to pass the validation
+                    '403': PermissionDenied,  # {"msg":"no permission to access the endpoint","code":403}
                     '429': RateLimitExceeded,  # too many requests, rate limit rule is violated
                     '1000': PermissionDenied,  # {"success":false,"code":1000,"message":"Please open contract account first!"}
                     '1002': InvalidOrder,  # {"success":false,"code":1002,"message":"Contract not allow place order!"}
                     '10072': AuthenticationError,  # Invalid access key
                     '10073': AuthenticationError,  # Invalid request time
+                    '10075': PermissionDenied,  # {"msg":"IP [xxx.xxx.xxx.xxx] not in the ip white list","code":10075}
+                    '10101': InsufficientFunds,  # {"code":10101,"msg":"Insufficient balance"}
                     '10216': InvalidAddress,  # {"code":10216,"msg":"No available deposit address"}
                     '10232': BadSymbol,  # {"code":10232,"msg":"The currency not exist"}
                     '30000': BadSymbol,  # Trading is suspended for the requested symbol
@@ -286,13 +291,12 @@ class mexc(Exchange):
         })
 
     async def fetch_time(self, params={}):
-        defaultType = self.safe_string_2(self.options, 'fetchMarkets', 'defaultType', 'spot')
-        type = self.safe_string(params, 'type', defaultType)
-        query = self.omit(params, 'type')
-        method = 'spotPublicGetCommonTimestamp'
-        if type == 'contract':
-            method = 'contractPublicGetPing'
-        response = await getattr(self, method)(query)
+        marketType, query = self.handle_market_type_and_params('fetchTime', None, params)
+        method = self.get_supported_mapping(marketType, {
+            'spot': 'spotPublicGetCommonTimestamp',
+            'swap': 'contractPublicGetPing',
+        })
+        response = await getattr(self, method)(self.extend(query))
         #
         # spot
         #
@@ -364,6 +368,8 @@ class mexc(Exchange):
             currencyWithdrawMax = None
             networks = {}
             chains = self.safe_value(currency, 'coins', [])
+            depositEnabled = False
+            withdrawEnabled = False
             for j in range(0, len(chains)):
                 chain = chains[j]
                 networkId = self.safe_string(chain, 'chain')
@@ -382,11 +388,17 @@ class mexc(Exchange):
                     currencyWithdrawMin = withdrawMin
                 if Precise.string_lt(currencyWithdrawMax, withdrawMax):
                     currencyWithdrawMax = withdrawMax
+                if isDepositEnabled:
+                    depositEnabled = True
+                if isWithdrawEnabled:
+                    withdrawEnabled = True
                 networks[network] = {
                     'info': chain,
                     'id': networkId,
                     'network': network,
                     'active': active,
+                    'deposit': isDepositEnabled,
+                    'withdraw': isWithdrawEnabled,
                     'fee': self.safe_number(chain, 'fee'),
                     'precision': precision,
                     'limits': {
@@ -409,6 +421,8 @@ class mexc(Exchange):
                 'info': currency,
                 'name': name,
                 'active': currencyActive,
+                'deposit': depositEnabled,
+                'withdraw': withdrawEnabled,
                 'fee': currencyFee,
                 'precision': currencyPrecision,
                 'limits': {
@@ -646,12 +660,11 @@ class mexc(Exchange):
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
-        defaultType = self.safe_string_2(self.options, 'fetchTickers', 'defaultType', 'spot')
-        type = self.safe_string(params, 'type', defaultType)
-        query = self.omit(params, 'type')
-        method = 'spotPublicGetMarketTicker'
-        if type == 'swap':
-            method = 'contractPublicGetTicker'
+        marketType, query = self.handle_market_type_and_params('fetchTickers', None, params)
+        method = self.get_supported_mapping(marketType, {
+            'spot': 'spotPublicGetMarketTicker',
+            'swap': 'contractPublicGetTicker',
+        })
         response = await getattr(self, method)(self.extend(query))
         #
         #     {
@@ -792,24 +805,22 @@ class mexc(Exchange):
         timestamp = self.safe_integer_2(ticker, 'time', 'timestamp')
         marketId = self.safe_string(ticker, 'symbol')
         symbol = self.safe_symbol(marketId, market, '_')
-        baseVolume = self.safe_number_2(ticker, 'volume', 'volume24')
-        quoteVolume = self.safe_number(ticker, 'amount24')
-        open = self.safe_number(ticker, 'open')
-        lastString = self.safe_string_2(ticker, 'last', 'lastPrice')
-        last = self.parse_number(lastString)
-        change = self.safe_number(ticker, 'riseFallValue')
+        baseVolume = self.safe_string_2(ticker, 'volume', 'volume24')
+        quoteVolume = self.safe_string(ticker, 'amount24')
+        open = self.safe_string(ticker, 'open')
+        last = self.safe_string_2(ticker, 'last', 'lastPrice')
+        change = self.safe_string(ticker, 'riseFallValue')
         riseFallRate = self.safe_string(ticker, 'riseFallRate')
-        percentageString = Precise.string_add(riseFallRate, '1')
-        percentage = self.parse_number(percentageString)
+        percentage = Precise.string_add(riseFallRate, '1')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number_2(ticker, 'high', 'high24Price'),
-            'low': self.safe_number_2(ticker, 'low', 'lower24Price'),
-            'bid': self.safe_number_2(ticker, 'bid', 'bid1'),
+            'high': self.safe_string_2(ticker, 'high', 'high24Price'),
+            'low': self.safe_string_2(ticker, 'low', 'lower24Price'),
+            'bid': self.safe_string_2(ticker, 'bid', 'bid1'),
             'bidVolume': None,
-            'ask': self.safe_number_2(ticker, 'ask', 'ask1'),
+            'ask': self.safe_string_2(ticker, 'ask', 'ask1'),
             'askVolume': None,
             'vwap': None,
             'open': open,
@@ -822,7 +833,7 @@ class mexc(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -981,11 +992,6 @@ class mexc(Exchange):
         amountString = self.safe_string_2(trade, 'quantity', 'trade_quantity')
         amountString = self.safe_string(trade, 'v', amountString)
         costString = self.safe_string(trade, 'amount')
-        if costString is None:
-            costString = Precise.string_mul(priceString, amountString)
-        price = self.parse_number(priceString)
-        amount = self.parse_number(amountString)
-        cost = self.parse_number(costString)
         side = self.safe_string_2(trade, 'trade_type', 'T')
         if (side == 'BID') or (side == '1'):
             side = 'buy'
@@ -996,19 +1002,19 @@ class mexc(Exchange):
             id = self.safe_string(trade, 't', id)
             if id is not None:
                 id += '-' + market['id'] + '-' + amountString
-        feeCost = self.safe_number(trade, 'fee')
+        feeCostString = self.safe_string(trade, 'fee')
         fee = None
-        if feeCost is not None:
+        if feeCostString is not None:
             feeCurrencyId = self.safe_string(trade, 'fee_currency')
             feeCurrencyCode = self.safe_currency_code(feeCurrencyId)
             fee = {
-                'cost': feeCost,
+                'cost': feeCostString,
                 'currency': feeCurrencyCode,
             }
         orderId = self.safe_string(trade, 'order_id')
         isTaker = self.safe_value(trade, 'is_taker', True)
         takerOrMaker = 'taker' if isTaker else 'maker'
-        return {
+        return self.safe_trade({
             'info': trade,
             'id': id,
             'order': orderId,
@@ -1018,20 +1024,23 @@ class mexc(Exchange):
             'type': None,
             'side': side,
             'takerOrMaker': takerOrMaker,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
+            'price': priceString,
+            'amount': amountString,
+            'cost': costString,
             'fee': fee,
-        }
+        }, market)
 
     async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
         options = self.safe_value(self.options, 'timeframes', {})
         timeframes = self.safe_value(options, market['type'], {})
+        timeframeValue = self.safe_string(timeframes, timeframe)
+        if timeframeValue is None:
+            raise NotSupported(self.id + ' fetchOHLCV() does not support ' + timeframe + ' timeframe for ' + market['type'] + ' markets')
         request = {
             'symbol': market['id'],
-            'interval': timeframes[timeframe],
+            'interval': timeframeValue,
         }
         method = None
         if market['spot']:
@@ -1109,16 +1118,13 @@ class mexc(Exchange):
 
     async def fetch_balance(self, params={}):
         await self.load_markets()
-        defaultType = self.safe_string_2(self.options, 'fetchBalance', 'defaultType', 'spot')
-        type = self.safe_string(params, 'type', defaultType)
-        spot = (type == 'spot')
-        swap = (type == 'swap')
-        method = None
-        if spot:
-            method = 'spotPrivateGetAccountInfo'
-        elif swap:
-            method = 'contractPrivateGetAccountAssets'
-        query = self.omit(params, 'type')
+        marketType, query = self.handle_market_type_and_params('fetchBalance', None, params)
+        method = self.get_supported_mapping(marketType, {
+            'spot': 'spotPrivateGetAccountInfo',
+            'margin': 'spotPrivateGetAccountInfo',
+            'swap': 'contractPrivateGetAccountAssets',
+        })
+        spot = (marketType == 'spot')
         response = await getattr(self, method)(query)
         #
         # spot
@@ -1143,10 +1149,11 @@ class mexc(Exchange):
         #     }
         #
         data = self.safe_value(response, 'data', {})
+        currentTime = self.milliseconds()
         result = {
             'info': response,
-            'timestamp': None,
-            'datetime': None,
+            'timestamp': currentTime,
+            'datetime': self.iso8601(currentTime),
         }
         if spot:
             currencyIds = list(data.keys())
@@ -1400,28 +1407,35 @@ class mexc(Exchange):
             network = self.safe_network(networkId)
         code = self.safe_currency_code(currencyId, currency)
         status = self.parse_transaction_status(self.safe_string(transaction, 'state'))
-        amount = self.safe_number(transaction, 'amount')
+        amountString = self.safe_string(transaction, 'amount')
         address = self.safe_string(transaction, 'address')
         txid = self.safe_string(transaction, 'tx_id')
         fee = None
-        feeCost = self.safe_number(transaction, 'fee')
-        if feeCost is not None:
+        feeCostString = self.safe_string(transaction, 'fee')
+        if feeCostString is not None:
             fee = {
-                'cost': feeCost,
+                'cost': self.parse_number(feeCostString),
                 'currency': code,
             }
+        if type == 'withdrawal':
+            # mexc withdrawal amount includes the fee
+            amountString = Precise.string_sub(amountString, feeCostString)
         return {
             'info': transaction,
             'id': id,
             'txid': txid,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'address': address,
-            'tag': None,
-            'type': type,
-            'amount': amount,
-            'currency': code,
             'network': network,
+            'address': address,
+            'addressTo': None,
+            'addressFrom': None,
+            'tag': None,
+            'tagTo': None,
+            'tagFrom': None,
+            'type': type,
+            'amount': self.parse_number(amountString),
+            'currency': code,
             'status': status,
             'updated': updated,
             'fee': fee,
@@ -1961,8 +1975,19 @@ class mexc(Exchange):
             request['chain'] = network
             params = self.omit(params, ['network', 'chain'])
         response = await self.spotPrivatePostAssetWithdraw(self.extend(request, params))
+        #
+        #     {
+        #         "code":200,
+        #         "data": {
+        #             "withdrawId":"25fb2831fb6d4fc7aa4094612a26c81d"
+        #         }
+        #     }
+        #
         data = self.safe_value(response, 'data', {})
-        return self.parse_transaction(data, currency)
+        return {
+            'info': data,
+            'id': self.data(response, 'withdrawId'),
+        }
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         section, access = api

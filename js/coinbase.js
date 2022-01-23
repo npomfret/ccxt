@@ -440,8 +440,13 @@ module.exports = class coinbase extends Exchange {
             'txid': id,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
+            'network': undefined,
             'address': undefined,
+            'addressTo': undefined,
+            'addressFrom': undefined,
             'tag': undefined,
+            'tagTo': undefined,
+            'tagFrom': undefined,
             'type': type,
             'amount': amount,
             'currency': currency,
@@ -557,6 +562,20 @@ module.exports = class coinbase extends Exchange {
                         'quoteId': quoteId,
                         'type': 'spot',
                         'spot': true,
+                        'margin': false,
+                        'future': false,
+                        'swap': false,
+                        'option': false,
+                        'optionType': undefined,
+                        'strike': undefined,
+                        'linear': undefined,
+                        'inverse': undefined,
+                        'contract': false,
+                        'contractSize': undefined,
+                        'settle': undefined,
+                        'settleId': undefined,
+                        'expiry': undefined,
+                        'expiryDatetime': undefined,
                         'active': undefined,
                         'info': quoteCurrency,
                         'precision': {
@@ -654,6 +673,8 @@ module.exports = class coinbase extends Exchange {
                 'type': type,
                 'name': name,
                 'active': true,
+                'deposit': undefined,
+                'withdraw': undefined,
                 'fee': undefined,
                 'precision': undefined,
                 'limits': {
@@ -745,17 +766,14 @@ module.exports = class coinbase extends Exchange {
         let bid = undefined;
         let last = undefined;
         const timestamp = this.milliseconds ();
-        if (typeof ticker === 'string') {
-            const inverted = Precise.stringDiv ('1', ticker); // the currency requested, USD or other, is the base currency
-            last = this.parseNumber (inverted);
-        } else {
+        if (typeof ticker !== 'string') {
             const [ spot, buy, sell ] = ticker;
             const spotData = this.safeValue (spot, 'data', {});
             const buyData = this.safeValue (buy, 'data', {});
             const sellData = this.safeValue (sell, 'data', {});
-            last = this.safeNumber (spotData, 'amount');
-            bid = this.safeNumber (buyData, 'amount');
-            ask = this.safeNumber (sellData, 'amount');
+            last = this.safeString (spotData, 'amount');
+            bid = this.safeString (buyData, 'amount');
+            ask = this.safeString (sellData, 'amount');
         }
         return this.safeTicker ({
             'symbol': symbol,
@@ -778,7 +796,7 @@ module.exports = class coinbase extends Exchange {
             'baseVolume': undefined,
             'quoteVolume': undefined,
             'info': ticker,
-        });
+        }, market, false);
     }
 
     async fetchBalance (params = {}) {

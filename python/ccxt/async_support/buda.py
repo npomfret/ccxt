@@ -155,6 +155,27 @@ class buda(Exchange):
     async def fetch_currency_info(self, currency, currencies=None):
         if not currencies:
             response = await self.publicGetCurrencies()
+            #
+            #     {
+            #         "currencies":[
+            #             {
+            #                 "id":"BTC",
+            #                 "symbol":"฿",
+            #                 "managed":true,
+            #                 "input_decimals":8,
+            #                 "display_decimals":8,
+            #                 "timezone":"UTC",
+            #                 "deposit_minimum":["0.0","BTC"],
+            #                 "withdrawal_minimum":["0.00001","BTC"],
+            #                 "max_digits_for_decimals":6,
+            #                 "crypto":true,
+            #                 "address_explorer":"https://blockchair.com/bitcoin/address/",
+            #                 "tx_explorer":"https://blockchair.com/bitcoin/transaction/",
+            #                 "amount_to_micro_multiplier":1000000000000
+            #             }
+            #         ]
+            #     }
+            #
             currencies = self.safe_value(response, 'currencies')
         for i in range(0, len(currencies)):
             currencyInfo = currencies[i]
@@ -217,22 +238,50 @@ class buda(Exchange):
 
     async def fetch_currencies(self, params={}):
         response = await self.publicGetCurrencies()
+        #
+        #     {
+        #         "currencies":[
+        #             {
+        #                 "id":"BTC",
+        #                 "symbol":"฿",
+        #                 "managed":true,
+        #                 "input_decimals":8,
+        #                 "display_decimals":8,
+        #                 "timezone":"UTC",
+        #                 "deposit_minimum":["0.0","BTC"],
+        #                 "withdrawal_minimum":["0.00001","BTC"],
+        #                 "max_digits_for_decimals":6,
+        #                 "crypto":true,
+        #                 "address_explorer":"https://blockchair.com/bitcoin/address/",
+        #                 "tx_explorer":"https://blockchair.com/bitcoin/transaction/",
+        #                 "amount_to_micro_multiplier":1000000000000
+        #             }
+        #         ]
+        #     }
+        #
         currencies = response['currencies']
         result = {}
         for i in range(0, len(currencies)):
             currency = currencies[i]
-            if not currency['managed']:
+            managed = self.safe_value(currency, 'managed', False)
+            if not managed:
                 continue
             id = self.safe_string(currency, 'id')
             code = self.safe_currency_code(id)
             precision = self.safe_number(currency, 'input_decimals')
             minimum = math.pow(10, -precision)
+            depositMinimum = self.safe_value(currency, 'deposit_minimum', [])
+            withdrawalMinimum = self.safe_value(currency, 'withdrawal_minimum', [])
+            minDeposit = self.safe_number(depositMinimum, 0)
+            minWithdraw = self.safe_number(withdrawalMinimum, 0)
             result[code] = {
                 'id': id,
                 'code': code,
                 'info': currency,
                 'name': None,
                 'active': True,
+                'deposit': None,
+                'withdraw': None,
                 'fee': None,
                 'precision': precision,
                 'limits': {
@@ -241,11 +290,11 @@ class buda(Exchange):
                         'max': None,
                     },
                     'deposit': {
-                        'min': float(currency['deposit_minimum'][0]),
+                        'min': minDeposit,
                         'max': None,
                     },
                     'withdraw': {
-                        'min': float(currency['withdrawal_minimum'][0]),
+                        'min': minWithdraw,
                     },
                 },
             }
@@ -297,41 +346,67 @@ class buda(Exchange):
             'market': market['id'],
         }
         response = await self.publicGetMarketsMarketTicker(self.extend(request, params))
+        #
+        #     {
+        #         "ticker":{
+        #             "market_id":"ETH-BTC",
+        #             "last_price":["0.07300001","BTC"],
+        #             "min_ask":["0.07716895","BTC"],
+        #             "max_bid":["0.0754966","BTC"],
+        #             "volume":["0.168965697","ETH"],
+        #             "price_variation_24h":"-0.046",
+        #             "price_variation_7d":"-0.085"
+        #         }
+        #     }
+        #
         ticker = self.safe_value(response, 'ticker')
         return self.parse_ticker(ticker, market)
 
     def parse_ticker(self, ticker, market=None):
+        #
+        # fetchTicker
+        #
+        #     {
+        #         "market_id":"ETH-BTC",
+        #         "last_price":["0.07300001","BTC"],
+        #         "min_ask":["0.07716895","BTC"],
+        #         "max_bid":["0.0754966","BTC"],
+        #         "volume":["0.168965697","ETH"],
+        #         "price_variation_24h":"-0.046",
+        #         "price_variation_7d":"-0.085"
+        #     }
+        #
         timestamp = self.milliseconds()
-        symbol = None
-        if market is not None:
-            symbol = market['symbol']
-        last = float(ticker['last_price'][0])
-        percentage = float(ticker['price_variation_24h'])
-        open = float(self.price_to_precision(symbol, last / (percentage + 1)))
-        change = last - open
-        average = self.sum(last, open) / 2
-        return {
+        marketId = self.safe_string(ticker, 'market_id')
+        symbol = self.safe_symbol(marketId, market, '-')
+        lastPrice = self.safe_value(ticker, 'last_price', [])
+        last = self.safe_number(lastPrice, 0)
+        percentage = self.safe_number(ticker, 'price_variation_24h')
+        maxBid = self.safe_value(ticker, 'max_bid', [])
+        minAsk = self.safe_value(ticker, 'min_ask', [])
+        baseVolume = self.safe_value(ticker, 'volume', [])
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'high': None,
             'low': None,
-            'bid': float(ticker['max_bid'][0]),
+            'bid': self.safe_number(maxBid, 0),
             'bidVolume': None,
-            'ask': float(ticker['min_ask'][0]),
+            'ask': self.safe_number(minAsk, 0),
             'askVolume': None,
             'vwap': None,
-            'open': open,
+            'open': None,
             'close': last,
             'last': last,
-            'previousClose': open,
-            'change': change,
+            'previousClose': None,
+            'change': None,
             'percentage': percentage * 100,
-            'average': average,
-            'baseVolume': float(ticker['volume'][0]),
+            'average': None,
+            'baseVolume': self.safe_number(baseVolume, 0),
             'quoteVolume': None,
             'info': ticker,
-        }
+        }, market)
 
     async def fetch_trades(self, symbol, since=None, limit=None, params={}):
         await self.load_markets()
@@ -665,7 +740,13 @@ class buda(Exchange):
             'txid': txid,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
+            'network': None,
             'address': address,
+            'addressTo': None,
+            'addressFrom': None,
+            'tag': None,
+            'tagTo': None,
+            'tagFrom': None,
             'type': type,
             'amount': amount,
             'currency': code,

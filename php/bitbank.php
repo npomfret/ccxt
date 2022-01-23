@@ -18,17 +18,35 @@ class bitbank extends Exchange {
             'countries' => array( 'JP' ),
             'version' => 'v1',
             'has' => array(
+                'spot' => true,
+                'swap' => false,
+                'future' => false,
+                'option' => false,
                 'cancelOrder' => true,
                 'createOrder' => true,
                 'fetchBalance' => true,
                 'fetchDepositAddress' => true,
+                'fetchFundingHistory' => false,
+                'fetchFundingRate' => false,
+                'fetchFundingRateHistory' => false,
+                'fetchFundingRates' => false,
+                'fetchIndexOHLCV' => false,
+                'fetchIsolatedPositions' => false,
+                'fetchLeverage' => false,
+                'fetchMarkOHLCV' => false,
                 'fetchMyTrades' => true,
                 'fetchOHLCV' => true,
                 'fetchOpenOrders' => true,
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
+                'fetchPositions' => false,
+                'fetchPositionsRisk' => false,
+                'fetchPremiumIndexOHLCV' => false,
                 'fetchTicker' => true,
                 'fetchTrades' => true,
+                'reduceMargin' => false,
+                'setLeverage' => false,
+                'setPositionMode' => false,
                 'withdraw' => true,
             ),
             'timeframes' => array(
@@ -146,47 +164,61 @@ class bitbank extends Exchange {
             $quoteId = $this->safe_string($entry, 'quote_asset');
             $base = $this->safe_currency_code($baseId);
             $quote = $this->safe_currency_code($quoteId);
-            $symbol = $base . '/' . $quote;
             $maker = $this->safe_number($entry, 'maker_fee_rate_quote');
             $taker = $this->safe_number($entry, 'taker_fee_rate_quote');
             $pricePrecisionString = $this->safe_string($entry, 'price_digits');
             $priceLimit = $this->parse_precision($pricePrecisionString);
-            $precision = array(
-                'price' => intval($pricePrecisionString),
-                'amount' => $this->safe_integer($entry, 'amount_digits'),
-            );
-            $active = $this->safe_value($entry, 'is_enabled');
             $minAmountString = $this->safe_string($entry, 'unit_amount');
             $minCost = Precise::string_mul($minAmountString, $priceLimit);
-            $limits = array(
-                'amount' => array(
-                    'min' => $this->safe_number($entry, 'unit_amount'),
-                    'max' => $this->safe_number($entry, 'limit_max_amount'),
-                ),
-                'price' => array(
-                    'min' => $this->parse_number($priceLimit),
-                    'max' => null,
-                ),
-                'cost' => array(
-                    'min' => $this->parse_number($minCost),
-                    'max' => null,
-                ),
-            );
             $result[] = array(
-                'info' => $entry,
                 'id' => $id,
-                'symbol' => $symbol,
-                'baseId' => $baseId,
-                'quoteId' => $quoteId,
+                'symbol' => $base . '/' . $quote,
                 'base' => $base,
                 'quote' => $quote,
-                'precision' => $precision,
-                'limits' => $limits,
+                'settle' => null,
+                'baseId' => $baseId,
+                'quoteId' => $quoteId,
+                'settleId' => null,
                 'type' => 'spot',
                 'spot' => true,
-                'active' => $active,
+                'margin' => false,
+                'swap' => false,
+                'future' => false,
+                'option' => false,
+                'active' => $this->safe_value($entry, 'is_enabled'),
+                'contract' => false,
+                'linear' => null,
+                'inverse' => null,
                 'maker' => $maker,
                 'taker' => $taker,
+                'contractSize' => null,
+                'expiry' => null,
+                'expiryDatetime' => null,
+                'strike' => null,
+                'optionType' => null,
+                'precision' => array(
+                    'price' => intval($pricePrecisionString),
+                    'amount' => $this->safe_integer($entry, 'amount_digits'),
+                ),
+                'limits' => array(
+                    'leverage' => array(
+                        'min' => null,
+                        'max' => null,
+                    ),
+                    'amount' => array(
+                        'min' => $this->safe_number($entry, 'unit_amount'),
+                        'max' => $this->safe_number($entry, 'limit_max_amount'),
+                    ),
+                    'price' => array(
+                        'min' => $this->parse_number($priceLimit),
+                        'max' => null,
+                    ),
+                    'cost' => array(
+                        'min' => $this->parse_number($minCost),
+                        'max' => null,
+                    ),
+                ),
+                'info' => $entry,
             );
         }
         return $result;
@@ -195,16 +227,16 @@ class bitbank extends Exchange {
     public function parse_ticker($ticker, $market = null) {
         $symbol = $this->safe_symbol(null, $market);
         $timestamp = $this->safe_integer($ticker, 'timestamp');
-        $last = $this->safe_number($ticker, 'last');
+        $last = $this->safe_string($ticker, 'last');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_number($ticker, 'high'),
-            'low' => $this->safe_number($ticker, 'low'),
-            'bid' => $this->safe_number($ticker, 'buy'),
+            'high' => $this->safe_string($ticker, 'high'),
+            'low' => $this->safe_string($ticker, 'low'),
+            'bid' => $this->safe_string($ticker, 'buy'),
             'bidVolume' => null,
-            'ask' => $this->safe_number($ticker, 'sell'),
+            'ask' => $this->safe_string($ticker, 'sell'),
             'askVolume' => null,
             'vwap' => null,
             'open' => null,
@@ -214,10 +246,10 @@ class bitbank extends Exchange {
             'change' => null,
             'percentage' => null,
             'average' => null,
-            'baseVolume' => $this->safe_number($ticker, 'vol'),
+            'baseVolume' => $this->safe_string($ticker, 'vol'),
             'quoteVolume' => null,
             'info' => $ticker,
-        ), $market);
+        ), $market, false);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {

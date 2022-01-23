@@ -260,6 +260,8 @@ class coinbasepro extends Exchange {
                 'type' => $this->safe_string($details, 'type'),
                 'name' => $name,
                 'active' => $active,
+                'deposit' => null,
+                'withdraw' => null,
                 'fee' => null,
                 'precision' => $precision,
                 'limits' => array(
@@ -330,6 +332,20 @@ class coinbasepro extends Exchange {
                 'quote' => $quote,
                 'type' => 'spot',
                 'spot' => true,
+                'margin' => false,
+                'future' => false,
+                'swap' => false,
+                'option' => false,
+                'optionType' => null,
+                'strike' => null,
+                'linear' => null,
+                'inverse' => null,
+                'contract' => false,
+                'contractSize' => null,
+                'settle' => null,
+                'settleId' => null,
+                'expiry' => null,
+                'expiryDatetime' => null,
                 'active' => $active,
                 'precision' => $precision,
                 'limits' => array(
@@ -484,17 +500,17 @@ class coinbasepro extends Exchange {
         $volume = null;
         $symbol = ($market === null) ? null : $market['symbol'];
         if (gettype($ticker) === 'array' && count(array_filter(array_keys($ticker), 'is_string')) == 0) {
-            $last = $this->safe_number($ticker, 4);
+            $last = $this->safe_string($ticker, 4);
             $timestamp = $this->milliseconds();
         } else {
             $timestamp = $this->parse8601($this->safe_value($ticker, 'time'));
-            $bid = $this->safe_number($ticker, 'bid');
-            $ask = $this->safe_number($ticker, 'ask');
-            $high = $this->safe_number($ticker, 'high');
-            $low = $this->safe_number($ticker, 'low');
-            $open = $this->safe_number($ticker, 'open');
-            $last = $this->safe_number_2($ticker, 'price', 'last');
-            $volume = $this->safe_number($ticker, 'volume');
+            $bid = $this->safe_string($ticker, 'bid');
+            $ask = $this->safe_string($ticker, 'ask');
+            $high = $this->safe_string($ticker, 'high');
+            $low = $this->safe_string($ticker, 'low');
+            $open = $this->safe_string($ticker, 'open');
+            $last = $this->safe_string_2($ticker, 'price', 'last');
+            $volume = $this->safe_string($ticker, 'volume');
         }
         return $this->safe_ticker(array(
             'symbol' => $symbol,
@@ -517,7 +533,7 @@ class coinbasepro extends Exchange {
             'baseVolume' => $volume,
             'quoteVolume' => null,
             'info' => $ticker,
-        ));
+        ), $market, false);
     }
 
     public function fetch_tickers($symbols = null, $params = array ()) {
@@ -1313,8 +1329,13 @@ class coinbasepro extends Exchange {
             'txid' => $txid,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
+            'network' => null,
             'address' => $address,
+            'addressTo' => null,
+            'addressFrom' => null,
             'tag' => $tag,
+            'tagTo' => null,
+            'tagFrom' => null,
             'type' => $type,
             'amount' => $amount,
             'currency' => $code,

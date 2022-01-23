@@ -21,6 +21,9 @@ class hitbtc3 extends Exchange {
             'version' => '3',
             'pro' => true,
             'has' => array(
+                'fetchTradingFees' => true,
+                'fetchOrderBooks' => true,
+                'cancelAllOrders' => true,
                 'cancelOrder' => true,
                 'CORS' => false,
                 'createOrder' => true,
@@ -29,7 +32,7 @@ class hitbtc3 extends Exchange {
                 'fetchClosedOrders' => true,
                 'fetchCurrencies' => true,
                 'fetchDepositAddress' => true,
-                'fetchDeposits' => false,
+                'fetchDeposits' => true,
                 'fetchFundingRateHistory' => true,
                 'fetchMarkets' => true,
                 'fetchMyTrades' => true,
@@ -45,7 +48,7 @@ class hitbtc3 extends Exchange {
                 'fetchTrades' => true,
                 'fetchTradingFee' => true,
                 'fetchTransactions' => true,
-                'fetchWithdrawals' => false,
+                'fetchWithdrawals' => true,
                 'withdraw' => true,
                 'transfer' => true,
             ),
@@ -460,6 +463,8 @@ class hitbtc3 extends Exchange {
             $rawNetworks = $this->safe_value($entry, 'networks', array());
             $networks = array();
             $fee = null;
+            $depositEnabled = null;
+            $withdrawEnabled = null;
             for ($j = 0; $j < count($rawNetworks); $j++) {
                 $rawNetwork = $rawNetworks[$j];
                 $networkId = $this->safe_string($rawNetwork, 'protocol');
@@ -473,12 +478,24 @@ class hitbtc3 extends Exchange {
                 $payoutEnabledNetwork = $this->safe_value($entry, 'payout_enabled', false);
                 $transferEnabledNetwork = $this->safe_value($entry, 'transfer_enabled', false);
                 $active = $payinEnabledNetwork && $payoutEnabledNetwork && $transferEnabledNetwork;
+                if ($payinEnabledNetwork && !$depositEnabled) {
+                    $depositEnabled = true;
+                } else if (!$payinEnabledNetwork) {
+                    $depositEnabled = false;
+                }
+                if ($payoutEnabledNetwork && !$withdrawEnabled) {
+                    $withdrawEnabled = true;
+                } else if (!$payoutEnabledNetwork) {
+                    $withdrawEnabled = false;
+                }
                 $networks[$network] = array(
                     'info' => $rawNetwork,
                     'id' => $networkId,
                     'network' => $network,
                     'fee' => $fee,
                     'active' => $active,
+                    'deposit' => $payinEnabledNetwork,
+                    'withdraw' => $payoutEnabledNetwork,
                     'precision' => $precision,
                     'limits' => array(
                         'withdraw' => array(
@@ -497,6 +514,8 @@ class hitbtc3 extends Exchange {
                 'precision' => $precision,
                 'name' => $name,
                 'active' => $active,
+                'deposit' => $depositEnabled,
+                'withdraw' => $withdrawEnabled,
                 'networks' => $networks,
                 'fee' => ($networksLength <= 1) ? $fee : null,
                 'limits' => array(
@@ -652,22 +671,21 @@ class hitbtc3 extends Exchange {
         //
         $timestamp = $this->parse8601($ticker['timestamp']);
         $symbol = $this->safe_symbol(null, $market);
-        $baseVolume = $this->safe_number($ticker, 'volume');
-        $quoteVolume = $this->safe_number($ticker, 'volume_quote');
-        $open = $this->safe_number($ticker, 'open');
-        $last = $this->safe_number($ticker, 'last');
-        $vwap = $this->vwap($baseVolume, $quoteVolume);
+        $baseVolume = $this->safe_string($ticker, 'volume');
+        $quoteVolume = $this->safe_string($ticker, 'volume_quote');
+        $open = $this->safe_string($ticker, 'open');
+        $last = $this->safe_string($ticker, 'last');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_number($ticker, 'high'),
-            'low' => $this->safe_number($ticker, 'low'),
-            'bid' => $this->safe_number($ticker, 'bid'),
+            'high' => $this->safe_string($ticker, 'high'),
+            'low' => $this->safe_string($ticker, 'low'),
+            'bid' => $this->safe_string($ticker, 'bid'),
             'bidVolume' => null,
-            'ask' => $this->safe_number($ticker, 'ask'),
+            'ask' => $this->safe_string($ticker, 'ask'),
             'askVolume' => null,
-            'vwap' => $vwap,
+            'vwap' => null,
             'open' => $open,
             'close' => $last,
             'last' => $last,
@@ -678,7 +696,7 @@ class hitbtc3 extends Exchange {
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
-        ), $market);
+        ), $market, false);
     }
 
     public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
@@ -938,6 +956,7 @@ class hitbtc3 extends Exchange {
             'txid' => $txhash,
             'code' => $code,
             'amount' => $amount,
+            'network' => null,
             'address' => $address,
             'addressFrom' => $addressFrom,
             'addressTo' => $addressTo,

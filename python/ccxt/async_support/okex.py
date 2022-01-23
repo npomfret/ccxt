@@ -83,12 +83,10 @@ class okex(Exchange):
                 'fetchLedgerEntry': None,
                 'fetchLeverage': True,
                 'fetchMarkets': True,
-                'fetchMarketsByType': True,
                 'fetchMarkOHLCV': True,
                 'fetchMyBuys': None,
                 'fetchMySells': None,
                 'fetchMyTrades': True,
-                'fetchNetworkDepositAddress': None,
                 'fetchOHLCV': True,
                 'fetchOpenOrder': None,
                 'fetchOpenOrders': True,
@@ -96,10 +94,7 @@ class okex(Exchange):
                 'fetchOrderBook': True,
                 'fetchOrderBooks': None,
                 'fetchOrders': None,
-                'fetchOrdersByState': None,
-                'fetchOrdersByStatus': None,
                 'fetchOrderTrades': True,
-                'fetchPartiallyFilledOrders': None,
                 'fetchPosition': True,
                 'fetchPositions': True,
                 'fetchPositionsRisk': None,
@@ -107,7 +102,6 @@ class okex(Exchange):
                 'fetchStatus': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
-                'fetchTickersByType': True,
                 'fetchTime': True,
                 'fetchTrades': True,
                 'fetchTradingFee': True,
@@ -115,8 +109,6 @@ class okex(Exchange):
                 'fetchTradingLimits': None,
                 'fetchTransactions': None,
                 'fetchTransfers': None,
-                'fetchWithdrawAddress': None,
-                'fetchWithdrawAddressesByNetwork': None,
                 'fetchWithdrawal': None,
                 'fetchWithdrawals': True,
                 'fetchWithdrawalWhitelist': None,
@@ -127,7 +119,6 @@ class okex(Exchange):
                 'setPositionMode': True,
                 'signIn': None,
                 'transfer': True,
-                'transferOut': False,
                 'withdraw': True,
             },
             'timeframes': {
@@ -207,6 +198,9 @@ class okex(Exchange):
                         'rubik/stat/option/open-interest-volume-strike': 4,
                         'rubik/stat/option/taker-block-volume': 4,
                         'system/status': 100,
+                        'asset/lending-rate-summary': 5 / 3,
+                        'asset/lending-rate-history': 5 / 3,
+                        'market/exchange-rate': 20,
                     },
                 },
                 'private': {
@@ -225,6 +219,9 @@ class okex(Exchange):
                         'account/interest-accrued': 4,
                         'account/interest-rate': 4,
                         'account/max-withdrawal': 1,
+                        'account/risk-state': 2,
+                        'account/borrow-repay-history': 4,
+                        'account/interest-limits': 4,
                         'asset/asset-valuation': 1 / 5,
                         'asset/deposit-address': 5 / 3,
                         'asset/balances': 5 / 3,
@@ -235,6 +232,8 @@ class okex(Exchange):
                         'asset/bills': 5 / 3,
                         'asset/piggy-balance': 5 / 3,
                         'asset/deposit-lightning': 5,
+                        'asset/lending-history': 5 / 3,
+                        'asset/saving-balance': 5 / 3,
                         'trade/order': 1 / 3,
                         'trade/orders-pending': 1,
                         'trade/orders-history': 0.5,
@@ -247,16 +246,26 @@ class okex(Exchange):
                         'asset/subaccount/bills': 5 / 3,
                         'users/subaccount/list': 10,
                         'users/subaccount/apikey': 10,
+                        # broker
+                        'broker/nd/info': 10,
+                        'broker/nd/subaccount-info': 10,
+                        'asset/broker/nd/subaccount-deposit-address': 4,
+                        'asset/broker/nd/subaccount-deposit-history': 4,
+                        'broker/nd/rebate-daily': 1,
                     },
                     'post': {
                         'account/set-position-mode': 4,
                         'account/set-leverage': 1,
                         'account/position/margin-balance': 1,
                         'account/set-greeks': 4,
+                        'account/set-isolated-mode': 4,
+                        'account/simulated_margin': 10,
+                        'account/borrow-repay': 5 / 3,
                         'asset/transfer': 10,
                         'asset/withdrawal': 5 / 3,
                         'asset/purchase_redempt': 5 / 3,
                         'asset/withdrawal-lightning': 5,
+                        'asset/set-lending-rate': 5 / 3,
                         'trade/order': 1 / 3,
                         'trade/batch-orders': 1 / 15,
                         'trade/cancel-order': 1 / 3,
@@ -271,6 +280,12 @@ class okex(Exchange):
                         'users/subaccount/modify-apikey': 10,
                         'users/subaccount/apikey': 10,
                         'asset/subaccount/transfer': 10,
+                        # broker
+                        'broker/nd/create-subaccount': 10,
+                        'broker/nd/delete-subaccount': 10,
+                        'broker/nd/set-subaccount-level': 4,
+                        'broker/nd/set-subaccount-fee-rate': 4,
+                        'asset/broker/nd/subaccount-deposit-address': 4,
                     },
                 },
             },
@@ -361,8 +376,8 @@ class okex(Exchange):
                     '51009': AccountSuspended,  # Order placement function is blocked by the platform
                     '51010': InsufficientFunds,  # Account level too low
                     '51011': InvalidOrder,  # Duplicated order ID
-                    '51012': ExchangeError,  # Token does not exist
-                    '51014': ExchangeError,  # Index does not exist
+                    '51012': BadSymbol,  # Token does not exist
+                    '51014': BadSymbol,  # Index does not exist
                     '51015': BadSymbol,  # Instrument ID does not match instrument type
                     '51016': InvalidOrder,  # Duplicated client order ID
                     '51017': ExchangeError,  # Borrow amount exceeds the limit
@@ -772,8 +787,8 @@ class okex(Exchange):
             parts = underlying.split('-')
             baseId = self.safe_string(parts, 0)
             quoteId = self.safe_string(parts, 1)
-        inverse = baseId == settleCurrency
-        linear = quoteId == settleCurrency
+        inverse = (baseId == settleCurrency) if contract else None
+        linear = (quoteId == settleCurrency) if contract else None
         base = self.safe_currency_code(baseId)
         quote = self.safe_currency_code(quoteId)
         symbol = base + '/' + quote
@@ -945,6 +960,8 @@ class okex(Exchange):
             chains = dataByCurrencyId[currencyId]
             networks = {}
             currencyActive = False
+            depositEnabled = None
+            withdrawEnabled = None
             for j in range(0, len(chains)):
                 chain = chains[j]
                 canDeposit = self.safe_value(chain, 'canDep')
@@ -953,6 +970,14 @@ class okex(Exchange):
                 active = True if (canDeposit and canWithdraw and canInternal) else False
                 currencyActive = active if (currencyActive is None) else currencyActive
                 networkId = self.safe_string(chain, 'chain')
+                if canDeposit and not depositEnabled:
+                    depositEnabled = True
+                elif not canDeposit:
+                    depositEnabled = False
+                if canWithdraw and not withdrawEnabled:
+                    withdrawEnabled = True
+                elif not canWithdraw:
+                    withdrawEnabled = False
                 if networkId.find('-') >= 0:
                     parts = networkId.split('-')
                     chainPart = self.safe_string(parts, 1, networkId)
@@ -970,6 +995,8 @@ class okex(Exchange):
                         'id': networkId,
                         'network': network,
                         'active': active,
+                        'deposit': canDeposit,
+                        'withdraw': canWithdraw,
                         'fee': self.safe_number(chain, 'minFee'),
                         'precision': None,
                         'limits': {
@@ -985,6 +1012,8 @@ class okex(Exchange):
                 'id': currencyId,
                 'name': None,
                 'active': currencyActive,
+                'deposit': depositEnabled,
+                'withdraw': withdrawEnabled,
                 'fee': None,
                 'precision': precision,
                 'limits': {
@@ -1063,7 +1092,7 @@ class okex(Exchange):
         quoteVolume = self.safe_number(ticker, 'volCcy24h')
         baseVolume = self.safe_number(ticker, 'vol24h')
         vwap = self.vwap(baseVolume, quoteVolume)
-        return {
+        return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -1084,7 +1113,7 @@ class okex(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }
+        }, market)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
@@ -1503,20 +1532,16 @@ class okex(Exchange):
 
     async def fetch_balance(self, params={}):
         await self.load_markets()
-        defaultType = self.safe_string(self.options, 'defaultType')
-        options = self.safe_value(self.options, 'fetchBalance', {})
-        type = self.safe_string(options, 'type', defaultType)
-        type = self.safe_string(params, 'type', type)
-        params = self.omit(params, 'type')
+        marketType, query = self.handle_market_type_and_params('fetchBalance', None, params)
         method = None
-        if type == 'funding':
+        if marketType == 'funding':
             method = 'privateGetAssetBalances'
         else:
             method = 'privateGetAccountBalance'
         request = {
             # 'ccy': 'BTC,ETH',  # comma-separated list of currency ids
         }
-        response = await getattr(self, method)(self.extend(request, params))
+        response = await getattr(self, method)(self.extend(request, query))
         #
         #     {
         #         "code":"0",
@@ -1619,7 +1644,7 @@ class okex(Exchange):
         #         "msg":""
         #     }
         #
-        return self.parse_balance_by_type(type, response)
+        return self.parse_balance_by_type(marketType, response)
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
@@ -2761,6 +2786,7 @@ class okex(Exchange):
             'id': id,
             'currency': code,
             'amount': amount,
+            'network': None,
             'addressFrom': addressFrom,
             'addressTo': addressTo,
             'address': address,
@@ -3182,10 +3208,11 @@ class okex(Exchange):
         #
         # in the response above nextFundingRate is actually two funding rates from now
         #
-        nextFundingRateTimestamp = self.safe_integer(fundingRate, 'fundingTime')
+        nextFundingRateTimestamp = self.safe_integer(fundingRate, 'nextFundingTime')
         marketId = self.safe_string(fundingRate, 'instId')
         symbol = self.safe_symbol(marketId, market)
-        nextFundingRate = self.safe_number(fundingRate, 'fundingRate')
+        nextFundingRate = self.safe_number(fundingRate, 'nextFundingRate')
+        fundingTime = self.safe_integer(fundingRate, 'fundingTime')
         # https://www.okex.com/support/hc/en-us/articles/360053909272-Ⅸ-Introduction-to-perpetual-swap-funding-fee
         # > The current interest is 0.
         return {
@@ -3197,12 +3224,15 @@ class okex(Exchange):
             'estimatedSettlePrice': None,
             'timestamp': None,
             'datetime': None,
-            'previousFundingRate': None,
+            'fundingRate': self.safe_number(fundingRate, 'fundingRate'),
+            'fundingTimestamp': fundingTime,
+            'fundingDatetime': self.iso8601(fundingTime),
             'nextFundingRate': nextFundingRate,
-            'previousFundingTimestamp': None,
             'nextFundingTimestamp': nextFundingRateTimestamp,
-            'previousFundingDatetime': None,
             'nextFundingDatetime': self.iso8601(nextFundingRateTimestamp),
+            'previousFundingRate': None,
+            'previousFundingTimestamp': None,
+            'previousFundingDatetime': None,
         }
 
     async def fetch_funding_rate(self, symbol, params={}):

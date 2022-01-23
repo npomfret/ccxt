@@ -5,6 +5,7 @@
 
 from ccxt.async_support.base.exchange import Exchange
 from ccxt.base.errors import ExchangeError
+from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import PermissionDenied
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import BadRequest
@@ -262,6 +263,7 @@ class cryptocom(Exchange):
                     '40005': BadRequest,
                     '40006': BadRequest,
                     '40007': BadRequest,
+                    '40101': AuthenticationError,
                     '50001': BadRequest,
                 },
             },
@@ -332,8 +334,12 @@ class cryptocom(Exchange):
                 'margin': margin,
                 'future': False,
                 'swap': False,
+                'option': False,
+                'optionType': None,
+                'strike': None,
                 'expiry': None,
                 'expiryDatetime': None,
+                'contract': False,
                 'contractSize': None,
                 'active': None,
                 'precision': precision,
@@ -429,8 +435,12 @@ class cryptocom(Exchange):
                 'margin': False,
                 'future': future,
                 'swap': swap,
+                'option': False,
+                'optionType': None,
+                'strike': None,
                 'expiry': expiry,
                 'expiryDatetime': self.iso8601(expiry),
+                'contract': True,
                 'contractSize': contractSize,
                 'active': active,
                 'precision': {
@@ -1009,6 +1019,8 @@ class cryptocom(Exchange):
         if since is not None:
             # maximum date range is one day
             request['start_ts'] = since
+            endTimestamp = self.sum(since, 24 * 60 * 60 * 1000)
+            request['end_ts'] = endTimestamp
         if limit is not None:
             request['page_size'] = limit
         marketType, query = self.handle_market_type_and_params('fetchMyTrades', market, params)
@@ -1355,17 +1367,17 @@ class cryptocom(Exchange):
         marketId = self.safe_string(ticker, 'i')
         market = self.safe_market(marketId, market, '_')
         symbol = market['symbol']
-        last = self.safe_number(ticker, 'a')
-        relativeChange = self.safe_number(ticker, 'c')
+        last = self.safe_string(ticker, 'a')
+        relativeChange = self.safe_string(ticker, 'c')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'h'),
-            'low': self.safe_number(ticker, 'l'),
-            'bid': self.safe_number(ticker, 'b'),
+            'high': self.safe_string(ticker, 'h'),
+            'low': self.safe_string(ticker, 'l'),
+            'bid': self.safe_string(ticker, 'b'),
             'bidVolume': None,
-            'ask': self.safe_number(ticker, 'k'),
+            'ask': self.safe_string(ticker, 'k'),
             'askVolume': None,
             'vwap': None,
             'open': None,
@@ -1373,12 +1385,12 @@ class cryptocom(Exchange):
             'last': last,
             'previousClose': None,
             'change': None,
-            'percentage': relativeChange * 100,
+            'percentage': relativeChange,
             'average': None,
-            'baseVolume': self.safe_number(ticker, 'v'),
+            'baseVolume': self.safe_string(ticker, 'v'),
             'quoteVolume': None,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     def parse_trade(self, trade, market=None):
         #
@@ -1654,6 +1666,7 @@ class cryptocom(Exchange):
             'txid': txId,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
+            'network': None,
             'address': address,
             'addressTo': address,
             'addressFrom': None,
@@ -1690,6 +1703,7 @@ class cryptocom(Exchange):
                 strSortKey = strSortKey + str(paramsKeys[i]) + str(requestParams[paramsKeys[i]])
             payload = path + nonce + self.apiKey + strSortKey + nonce
             signature = self.hmac(self.encode(payload), self.encode(self.secret))
+            paramsKeysLength = len(paramsKeys)
             body = self.json({
                 'id': nonce,
                 'method': path,
@@ -1698,6 +1712,15 @@ class cryptocom(Exchange):
                 'sig': signature,
                 'nonce': nonce,
             })
+            # fix issue https://github.com/ccxt/ccxt/issues/11179
+            # php always encodes dictionaries as arrays
+            # if an array is empty, php will put it in square brackets
+            # python and js will put it in curly brackets
+            # the code below checks and replaces those brackets in empty requests
+            if paramsKeysLength == 0:
+                paramsString = '{}'
+                arrayString = '[]'
+                body = body.replace(arrayString, paramsString)
             headers = {
                 'Content-Type': 'application/json',
             }
@@ -1705,9 +1728,7 @@ class cryptocom(Exchange):
 
     def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):
         errorCode = self.safe_string(response, 'code')
-        message = self.safe_string(response, 'message')
-        if errorCode in self.exceptions['exact']:
-            Exception = self.exceptions['exact'][errorCode]
-            raise Exception(self.id + ' ' + message)
         if errorCode != '0':
-            raise ExchangeError(self.id + ' ' + message)
+            feedback = self.id + ' ' + body
+            self.throw_exactly_matched_exception(self.exceptions['exact'], errorCode, feedback)
+            raise ExchangeError(self.id + ' ' + body)

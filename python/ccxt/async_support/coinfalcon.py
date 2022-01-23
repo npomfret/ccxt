@@ -134,41 +134,75 @@ class coinfalcon(Exchange):
         return result
 
     def parse_ticker(self, ticker, market=None):
+        #
+        #     {
+        #         "name":"ETH-BTC",
+        #         "precision":6,
+        #         "min_volume":"0.00000001",
+        #         "min_price":"0.000001",
+        #         "volume":"0.000452",
+        #         "last_price":"0.079059",
+        #         "highest_bid":"0.073472",
+        #         "lowest_ask":"0.079059",
+        #         "change_in_24h":"8.9",
+        #         "size_precision":8,
+        #         "price_precision":6
+        #     }
+        #
         marketId = self.safe_string(ticker, 'name')
-        symbol = self.safe_symbol(marketId, market, '-')
+        market = self.safe_market(marketId, market, '-')
         timestamp = self.milliseconds()
-        last = self.safe_number(ticker, 'last_price')
-        return {
-            'symbol': symbol,
+        last = self.safe_string(ticker, 'last_price')
+        return self.safe_ticker({
+            'symbol': market['symbol'],
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'high': None,
             'low': None,
-            'bid': None,
+            'bid': self.safe_string(ticker, 'highest_bid'),
             'bidVolume': None,
-            'ask': None,
+            'ask': self.safe_string(ticker, 'lowest_ask'),
             'askVolume': None,
             'vwap': None,
             'open': None,
             'close': last,
             'last': last,
             'previousClose': None,
-            'change': self.safe_number(ticker, 'change_in_24h'),
+            'change': self.safe_string(ticker, 'change_in_24h'),
             'percentage': None,
             'average': None,
             'baseVolume': None,
-            'quoteVolume': self.safe_number(ticker, 'volume'),
+            'quoteVolume': self.safe_string(ticker, 'volume'),
             'info': ticker,
-        }
+        }, market, False)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
-        tickers = await self.fetch_tickers(params)
+        tickers = await self.fetch_tickers([symbol], params)
         return tickers[symbol]
 
     async def fetch_tickers(self, symbols=None, params={}):
         await self.load_markets()
         response = await self.publicGetMarkets(params)
+        #
+        #     {
+        #         "data":[
+        #             {
+        #                 "name":"ETH-BTC",
+        #                 "precision":6,
+        #                 "min_volume":"0.00000001",
+        #                 "min_price":"0.000001",
+        #                 "volume":"0.000452",
+        #                 "last_price":"0.079059",
+        #                 "highest_bid":"0.073472",
+        #                 "lowest_ask":"0.079059",
+        #                 "change_in_24h":"8.9",
+        #                 "size_precision":8,
+        #                 "price_precision":6
+        #             }
+        #         ]
+        #     }
+        #
         tickers = self.safe_value(response, 'data')
         result = {}
         for i in range(0, len(tickers)):
@@ -599,8 +633,13 @@ class coinfalcon(Exchange):
             'txid': txid,
             'timestamp': None,
             'datetime': None,
+            'network': None,
             'address': address,
+            'addressTo': None,
+            'addressFrom': None,
             'tag': tag,
+            'tagTo': None,
+            'tagFrom': None,
             'type': type,
             'amount': amount,
             'currency': code,

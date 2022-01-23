@@ -156,6 +156,7 @@ class bibox(Exchange):
                 'NFT': 'NFT Protocol',
                 'PAI': 'PCHAIN',
                 'REVO': 'Revo Network',
+                'STAR': 'Starbase',
                 'TERN': 'Ternio-ERC20',
             },
         })
@@ -225,8 +226,8 @@ class bibox(Exchange):
             spot = True
             areaId = self.safe_integer(market, 'area_id')
             if areaId == 16:
-                type = None
-                spot = False
+                # TODO: update to v3 api
+                continue
             precision = {
                 'amount': self.safe_number(market, 'amount_scale'),
                 'price': self.safe_number(market, 'decimal'),
@@ -241,7 +242,21 @@ class bibox(Exchange):
                 'quoteId': quoteId,
                 'type': type,
                 'spot': spot,
-                'active': True,
+                'margin': False,
+                'future': False,
+                'swap': False,
+                'option': False,
+                'optionType': None,
+                'strike': None,
+                'linear': None,
+                'inverse': None,
+                'contract': False,
+                'contractSize': None,
+                'settle': None,
+                'settleId': None,
+                'expiry': None,
+                'expiryDatetime': None,
+                'active': None,
                 'info': market,
                 'precision': precision,
                 'limits': {
@@ -273,23 +288,22 @@ class bibox(Exchange):
             base = self.safe_currency_code(baseId)
             quote = self.safe_currency_code(quoteId)
             symbol = base + '/' + quote
-        last = self.safe_number(ticker, 'last')
-        change = self.safe_number(ticker, 'change')
-        baseVolume = self.safe_number_2(ticker, 'vol', 'vol24H')
+        last = self.safe_string(ticker, 'last')
+        change = self.safe_string(ticker, 'change')
+        baseVolume = self.safe_string_2(ticker, 'vol', 'vol24H')
         percentage = self.safe_string(ticker, 'percent')
         if percentage is not None:
             percentage = percentage.replace('%', '')
-            percentage = self.parse_number(percentage)
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high'),
-            'low': self.safe_number(ticker, 'low'),
-            'bid': self.safe_number(ticker, 'buy'),
-            'bidVolume': None,
-            'ask': self.safe_number(ticker, 'sell'),
-            'askVolume': None,
+            'high': self.safe_string(ticker, 'high'),
+            'low': self.safe_string(ticker, 'low'),
+            'bid': self.safe_string(ticker, 'buy'),
+            'bidVolume': self.safe_string(ticker, 'buy_amount'),
+            'ask': self.safe_string(ticker, 'sell'),
+            'askVolume': self.safe_string(ticker, 'sell_amount'),
             'vwap': None,
             'open': None,
             'close': last,
@@ -299,9 +313,9 @@ class bibox(Exchange):
             'percentage': percentage,
             'average': None,
             'baseVolume': baseVolume,
-            'quoteVolume': self.safe_number(ticker, 'amount'),
+            'quoteVolume': self.safe_string(ticker, 'amount'),
             'info': ticker,
-        }, market)
+        }, market, False)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
@@ -488,6 +502,8 @@ class bibox(Exchange):
                 'info': currency,
                 'name': name,
                 'active': active,
+                'deposit': deposit,
+                'withdraw': withdraw,
                 'fee': None,
                 'precision': precision,
                 'limits': {
@@ -802,8 +818,13 @@ class bibox(Exchange):
             'txid': None,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
+            'network': None,
             'address': address,
+            'addressTo': None,
+            'addressFrom': None,
             'tag': tag,
+            'tagTo': None,
+            'tagFrom': None,
             'type': type,
             'amount': amount,
             'currency': code,
