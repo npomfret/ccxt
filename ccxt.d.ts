@@ -485,7 +485,7 @@ declare module 'ccxt' {
     export class eqonex extends Exchange {}
     export class equos extends eqonex {}
     export class exmo extends Exchange {}
-    export class flowbtc extends Exchange {}
+    export class flowbtc extends ndax {}
     export class fmfwio extends hitbtc {}
     export class ftx extends Exchange {}
     export class ftxus extends ftx {}
@@ -536,6 +536,7 @@ declare module 'ccxt' {
     export class wavesexchange extends Exchange {}
     export class wazirx extends Exchange {}
     export class whitebit extends Exchange {}
+    export class woo extends Exchange {}
     export class xena extends Exchange {}
     export class yobit extends Exchange {}
     export class zaif extends Exchange {}
@@ -657,6 +658,7 @@ declare module 'ccxt' {
         | 'wavesexchange'
         | 'wazirx'
         | 'whitebit'
+        | 'woo'
         | 'xena'
         | 'yobit'
         | 'zaif'

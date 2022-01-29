@@ -18,21 +18,49 @@ module.exports = class wavesexchange extends Exchange {
             'certified': true,
             'pro': false,
             'has': {
+                'CORS': undefined,
+                'spot': true,
+                'margin': false,
+                'swap': false,
+                'future': false,
+                'option': false,
+                'addMargin': false,
                 'cancelOrder': true,
                 'createMarketOrder': undefined,
                 'createOrder': true,
+                'createReduceOnlyOrder': false,
                 'fetchBalance': true,
+                'fetchBorrowRate': false,
+                'fetchBorrowRateHistory': false,
+                'fetchBorrowRates': false,
+                'fetchBorrowRatesPerSymbol': false,
                 'fetchClosedOrders': true,
                 'fetchDepositAddress': true,
+                'fetchFundingHistory': false,
+                'fetchFundingRate': false,
+                'fetchFundingRateHistory': false,
+                'fetchFundingRates': false,
+                'fetchIndexOHLCV': false,
+                'fetchIsolatedPositions': false,
+                'fetchLeverage': false,
                 'fetchMarkets': true,
+                'fetchMarkOHLCV': false,
                 'fetchMyTrades': true,
                 'fetchOHLCV': true,
                 'fetchOpenOrders': true,
-                'fetchOrderBook': true,
                 'fetchOrder': true,
+                'fetchOrderBook': true,
                 'fetchOrders': true,
+                'fetchPosition': false,
+                'fetchPositions': false,
+                'fetchPositionsRisk': false,
+                'fetchPremiumIndexOHLCV': false,
                 'fetchTicker': true,
                 'fetchTrades': true,
+                'reduceMargin': false,
+                'setLeverage': false,
+                'setMarginMode': false,
+                'setPositionMode': false,
                 'signIn': true,
                 'withdraw': true,
             },
@@ -433,11 +461,11 @@ module.exports = class wavesexchange extends Exchange {
                 'swap': false,
                 'future': false,
                 'option': false,
+                'active': undefined,
                 'contract': false,
                 'linear': undefined,
                 'inverse': undefined,
                 'contractSize': undefined,
-                'active': undefined,
                 'expiry': undefined,
                 'expiryDatetime': undefined,
                 'strike': undefined,
@@ -661,13 +689,13 @@ module.exports = class wavesexchange extends Exchange {
             symbol = market['symbol'];
         }
         const data = this.safeValue (ticker, 'data', {});
-        const last = this.safeNumber (data, 'lastPrice');
-        const low = this.safeNumber (data, 'low');
-        const high = this.safeNumber (data, 'high');
-        const vwap = this.safeNumber (data, 'weightedAveragePrice');
-        const baseVolume = this.safeNumber (data, 'volume');
-        const quoteVolume = this.safeNumber (data, 'quoteVolume');
-        const open = this.safeNumber (data, 'firstPrice');
+        const last = this.safeString (data, 'lastPrice');
+        const low = this.safeString (data, 'low');
+        const high = this.safeString (data, 'high');
+        const vwap = this.safeString (data, 'weightedAveragePrice');
+        const baseVolume = this.safeString (data, 'volume');
+        const quoteVolume = this.safeString (data, 'quoteVolume');
+        const open = this.safeString (data, 'firstPrice');
         return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
@@ -689,7 +717,7 @@ module.exports = class wavesexchange extends Exchange {
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market);
+        }, market, false);
     }
 
     async fetchTicker (symbol, params = {}) {

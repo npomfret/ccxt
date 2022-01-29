@@ -24,23 +24,26 @@ module.exports = class huobi extends Exchange {
             'hostname': 'api.huobi.pro', // api.testnet.huobi.pro
             'pro': true,
             'has': {
-                // 'margin': true,
+                'CORS': undefined,
+                'spot': true,
+                'margin': true,
                 'swap': true,
                 'future': true,
+                'option': undefined,
                 'addMargin': undefined,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
                 'cancelOrders': true,
-                'CORS': undefined,
                 'createDepositAddress': undefined,
                 'createOrder': true,
-                'createReduceOnlyOrder': undefined,
+                'createReduceOnlyOrder': false,
                 'deposit': undefined,
                 'fetchAccounts': true,
                 'fetchAllTradingFees': undefined,
                 'fetchBalance': true,
                 'fetchBidsAsks': undefined,
                 'fetchBorrowRate': true,
+                'fetchBorrowRateHistories': undefined,
                 'fetchBorrowRateHistory': undefined,
                 'fetchBorrowRates': true,
                 'fetchBorrowRatesPerSymbol': true,
@@ -58,13 +61,13 @@ module.exports = class huobi extends Exchange {
                 'fetchFundingHistory': true,
                 'fetchFundingRate': true,
                 'fetchFundingRateHistory': true,
-                'fetchFundingRates': undefined,
+                'fetchFundingRates': true,
                 'fetchIndexOHLCV': true,
-                'fetchIsolatedPositions': undefined,
+                'fetchIsolatedPositions': false,
                 'fetchL3OrderBook': undefined,
                 'fetchLedger': undefined,
                 'fetchLedgerEntry': undefined,
-                'fetchLeverage': undefined,
+                'fetchLeverage': false,
                 'fetchMarkets': true,
                 'fetchMarkOHLCV': true,
                 'fetchMyBuys': undefined,
@@ -80,7 +83,7 @@ module.exports = class huobi extends Exchange {
                 'fetchOrderTrades': true,
                 'fetchPosition': true,
                 'fetchPositions': true,
-                'fetchPositionsRisk': undefined,
+                'fetchPositionsRisk': false,
                 'fetchPremiumIndexOHLCV': true,
                 'fetchStatus': undefined,
                 'fetchTicker': true,
@@ -99,8 +102,8 @@ module.exports = class huobi extends Exchange {
                 'loadLeverageBrackets': undefined,
                 'reduceMargin': undefined,
                 'setLeverage': true,
-                'setMarginMode': undefined,
-                'setPositionMode': undefined,
+                'setMarginMode': false,
+                'setPositionMode': false,
                 'signIn': undefined,
                 'transfer': true,
                 'withdraw': true,
@@ -1242,18 +1245,13 @@ module.exports = class huobi extends Exchange {
                 pricePrecision = this.safeNumber (market, 'price_tick');
                 amountPrecision = 1;
             }
-            const precision = {
-                'amount': amountPrecision,
-                'price': pricePrecision,
-                'cost': costPrecision,
-            };
             let maker = undefined;
             let taker = undefined;
             if (spot) {
                 maker = (base === 'OMG') ? 0 : 0.2 / 100;
                 taker = (base === 'OMG') ? 0 : 0.2 / 100;
             }
-            const minAmount = this.safeNumber (market, 'min-order-amt', Math.pow (10, -precision['amount']));
+            const minAmount = this.safeNumber (market, 'min-order-amt');
             const maxAmount = this.safeNumber (market, 'max-order-amt');
             const minCost = this.safeNumber (market, 'min-order-value', 0);
             let active = undefined;
@@ -1264,6 +1262,9 @@ module.exports = class huobi extends Exchange {
                 const contractStatus = this.safeInteger (market, 'contract_status');
                 active = (contractStatus === 1);
             }
+            const leverageRatio = this.safeString (market, 'leverage-ratio', '1');
+            const superLeverageRatio = this.safeString (market, 'super-margin-leverage-ratio', '1');
+            const hasLeverage = Precise.stringGt (leverageRatio, '1') || Precise.stringGt (superLeverageRatio, '1');
             // 0 Delisting
             // 1 Listing
             // 2 Pending Listing
@@ -1284,35 +1285,44 @@ module.exports = class huobi extends Exchange {
                 'quoteId': quoteId,
                 'settleId': settleId,
                 'type': type,
-                'contract': contract,
                 'spot': spot,
-                'future': future,
+                'margin': (spot && hasLeverage),
                 'swap': swap,
+                'future': future,
+                'option': false,
+                'active': active,
+                'contract': contract,
                 'linear': linear,
                 'inverse': inverse,
-                'expiry': expiry,
-                'expiryDatetime': this.iso8601 (expiry),
-                'contractSize': contractSize,
-                'active': active,
-                'precision': precision,
                 'taker': taker,
                 'maker': maker,
+                'contractSize': contractSize,
+                'expiry': expiry,
+                'expiryDatetime': this.iso8601 (expiry),
+                'strike': undefined,
+                'optionType': undefined,
+                'precision': {
+                    'amount': amountPrecision,
+                    'price': pricePrecision,
+                    'cost': costPrecision,
+                },
                 'limits': {
+                    'leverage': {
+                        'min': this.parseNumber ('1'),
+                        'max': this.parseNumber (leverageRatio),
+                        'superMax': this.parseNumber (superLeverageRatio),
+                    },
                     'amount': {
                         'min': minAmount,
                         'max': maxAmount,
                     },
                     'price': {
-                        'min': pricePrecision,
+                        'min': undefined,
                         'max': undefined,
                     },
                     'cost': {
                         'min': minCost,
                         'max': undefined,
-                    },
-                    'leverage': {
-                        'max': this.safeNumber (market, 'leverage-ratio', 1),
-                        'superMax': this.safeNumber (market, 'super-margin-leverage-ratio', 1),
                     },
                 },
                 'info': market,
@@ -4477,6 +4487,44 @@ module.exports = class huobi extends Exchange {
         //
         const result = this.safeValue (response, 'data', {});
         return this.parseFundingRate (result, market);
+    }
+
+    async fetchFundingRates (symbols, params = {}) {
+        await this.loadMarkets ();
+        const options = this.safeValue (this.options, 'fetchFundingRates', {});
+        const defaultSubType = this.safeString (this.options, 'defaultSubType', 'inverse');
+        let subType = this.safeString (options, 'subType', defaultSubType);
+        subType = this.safeString (params, 'subType', subType);
+        const request = {
+            // 'contract_code': market['id'],
+        };
+        const method = this.getSupportedMapping (subType, {
+            'linear': 'contractPublicGetLinearSwapApiV1SwapBatchFundingRate',
+            'inverse': 'contractPublicGetSwapApiV1SwapBatchFundingRate',
+        });
+        params = this.omit (params, 'subType');
+        const response = await this[method] (this.extend (request, params));
+        //
+        //     {
+        //         "status": "ok",
+        //         "data": [
+        //             {
+        //                 "estimated_rate": "0.000100000000000000",
+        //                 "funding_rate": "0.000100000000000000",
+        //                 "contract_code": "MANA-USDT",
+        //                 "symbol": "MANA",
+        //                 "fee_asset": "USDT",
+        //                 "funding_time": "1643356800000",
+        //                 "next_funding_time": "1643385600000",
+        //                 "trade_partition":"USDT"
+        //             },
+        //         ],
+        //         "ts": 1643346173103
+        //     }
+        //
+        const data = this.safeValue (response, 'data', []);
+        const result = this.parseFundingRates (data);
+        return this.filterByArray (result, 'symbol', symbols);
     }
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {

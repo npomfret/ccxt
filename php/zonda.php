@@ -17,6 +17,7 @@ class zonda extends Exchange {
             'countries' => array( 'EE' ), // Estonia
             'rateLimit' => 1000,
             'has' => array(
+                'CORS' => true,
                 'spot' => true,
                 'margin' => false,
                 'swap' => false,
@@ -24,7 +25,6 @@ class zonda extends Exchange {
                 'option' => false,
                 'addMargin' => false,
                 'cancelOrder' => true,
-                'CORS' => true,
                 'createOrder' => true,
                 'createReduceOnlyOrder' => false,
                 'fetchBalance' => true,
@@ -511,9 +511,9 @@ class zonda extends Exchange {
         //       }
         //
         $open = $this->safe_string($ticker, 'r24h');
-        $high = $this->safe_number($ticker, 'h');
-        $low = $this->safe_number($ticker, 'l');
-        $volume = $this->safe_number($ticker, 'v');
+        $high = $this->safe_string($ticker, 'h');
+        $low = $this->safe_string($ticker, 'l');
+        $volume = $this->safe_string($ticker, 'v');
         $marketId = $this->safe_string($ticker, 'm');
         $market = $this->safe_market($marketId, $market, '-');
         $symbol = $market['symbol'];

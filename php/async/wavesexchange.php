@@ -24,21 +24,49 @@ class wavesexchange extends Exchange {
             'certified' => true,
             'pro' => false,
             'has' => array(
+                'CORS' => null,
+                'spot' => true,
+                'margin' => false,
+                'swap' => false,
+                'future' => false,
+                'option' => false,
+                'addMargin' => false,
                 'cancelOrder' => true,
                 'createMarketOrder' => null,
                 'createOrder' => true,
+                'createReduceOnlyOrder' => false,
                 'fetchBalance' => true,
+                'fetchBorrowRate' => false,
+                'fetchBorrowRateHistory' => false,
+                'fetchBorrowRates' => false,
+                'fetchBorrowRatesPerSymbol' => false,
                 'fetchClosedOrders' => true,
                 'fetchDepositAddress' => true,
+                'fetchFundingHistory' => false,
+                'fetchFundingRate' => false,
+                'fetchFundingRateHistory' => false,
+                'fetchFundingRates' => false,
+                'fetchIndexOHLCV' => false,
+                'fetchIsolatedPositions' => false,
+                'fetchLeverage' => false,
                 'fetchMarkets' => true,
+                'fetchMarkOHLCV' => false,
                 'fetchMyTrades' => true,
                 'fetchOHLCV' => true,
                 'fetchOpenOrders' => true,
-                'fetchOrderBook' => true,
                 'fetchOrder' => true,
+                'fetchOrderBook' => true,
                 'fetchOrders' => true,
+                'fetchPosition' => false,
+                'fetchPositions' => false,
+                'fetchPositionsRisk' => false,
+                'fetchPremiumIndexOHLCV' => false,
                 'fetchTicker' => true,
                 'fetchTrades' => true,
+                'reduceMargin' => false,
+                'setLeverage' => false,
+                'setMarginMode' => false,
+                'setPositionMode' => false,
                 'signIn' => true,
                 'withdraw' => true,
             ),
@@ -439,11 +467,11 @@ class wavesexchange extends Exchange {
                 'swap' => false,
                 'future' => false,
                 'option' => false,
+                'active' => null,
                 'contract' => false,
                 'linear' => null,
                 'inverse' => null,
                 'contractSize' => null,
-                'active' => null,
                 'expiry' => null,
                 'expiryDatetime' => null,
                 'strike' => null,
@@ -667,13 +695,13 @@ class wavesexchange extends Exchange {
             $symbol = $market['symbol'];
         }
         $data = $this->safe_value($ticker, 'data', array());
-        $last = $this->safe_number($data, 'lastPrice');
-        $low = $this->safe_number($data, 'low');
-        $high = $this->safe_number($data, 'high');
-        $vwap = $this->safe_number($data, 'weightedAveragePrice');
-        $baseVolume = $this->safe_number($data, 'volume');
-        $quoteVolume = $this->safe_number($data, 'quoteVolume');
-        $open = $this->safe_number($data, 'firstPrice');
+        $last = $this->safe_string($data, 'lastPrice');
+        $low = $this->safe_string($data, 'low');
+        $high = $this->safe_string($data, 'high');
+        $vwap = $this->safe_string($data, 'weightedAveragePrice');
+        $baseVolume = $this->safe_string($data, 'volume');
+        $quoteVolume = $this->safe_string($data, 'quoteVolume');
+        $open = $this->safe_string($data, 'firstPrice');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
@@ -695,7 +723,7 @@ class wavesexchange extends Exchange {
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
-        ), $market);
+        ), $market, false);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {

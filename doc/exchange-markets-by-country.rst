@@ -135,14 +135,14 @@ The ccxt library currently supports the following cryptocurrency exchange market
      
    * - Brazil
      - .. image:: https://user-images.githubusercontent.com/51840849/87443317-01c0d080-c5fe-11ea-95c2-9ebe1a8fafd9.jpg
-          :target: https://www.flowbtc.com.br
+          :target: https://one.ndax.io/bfQiSL
           :alt: flowbtc
      
      - flowbtc
-     - `flowBTC <https://www.flowbtc.com.br>`__
-     - .. image:: https://img.shields.io/badge/1-lightgray
+     - `flowBTC <https://one.ndax.io/bfQiSL>`__
+     - .. image:: https://img.shields.io/badge/*-lightgray
           :target: https://www.flowbtc.com.br/api.html
-          :alt: API Version 1
+          :alt: API Version *
      
    * - Brazil
      - .. image:: https://user-images.githubusercontent.com/1294454/27837060-e7c58714-60ea-11e7-9192-f05e86adb83f.jpg
@@ -241,6 +241,17 @@ The ccxt library currently supports the following cryptocurrency exchange market
      - `Latoken <https://latoken.com/invite?r=mvgp2djk>`__
      - .. image:: https://img.shields.io/badge/1-lightgray
           :target: https://api.latoken.com
+          :alt: API Version 1
+     
+   * - Cayman Islands
+     - .. image:: https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg
+          :target: https://referral.woo.org/BAJS6oNmZb3vi3RGA
+          :alt: woo
+     
+     - woo
+     - `WOO X <https://referral.woo.org/BAJS6oNmZb3vi3RGA>`__
+     - .. image:: https://img.shields.io/badge/1-lightgray
+          :target: https://docs.woo.org/
           :alt: API Version 1
      
    * - Chile

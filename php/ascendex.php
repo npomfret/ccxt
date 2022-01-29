@@ -23,36 +23,50 @@ class ascendex extends Exchange {
             'certified' => true,
             // new metainfo interface
             'has' => array(
+                'CORS' => null,
                 'spot' => true,
                 'margin' => null,
                 'swap' => true,
                 'future' => false,
                 'option' => false,
+                'addMargin' => true,
                 'cancelAllOrders' => true,
                 'cancelOrder' => true,
-                'CORS' => null,
                 'createOrder' => true,
+                'createReduceOnlyOrder' => true,
                 'fetchAccounts' => true,
                 'fetchBalance' => true,
                 'fetchClosedOrders' => true,
                 'fetchCurrencies' => true,
                 'fetchDepositAddress' => true,
                 'fetchDeposits' => true,
+                'fetchFundingHistory' => false,
+                'fetchFundingRate' => false,
+                'fetchFundingRateHistory' => false,
                 'fetchFundingRates' => true,
+                'fetchIndexOHLCV' => false,
+                'fetchIsolatedPositions' => false,
+                'fetchLeverage' => false,
                 'fetchMarkets' => true,
+                'fetchMarkOHLCV' => false,
                 'fetchOHLCV' => true,
                 'fetchOpenOrders' => true,
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
                 'fetchOrders' => false,
+                'fetchPosition' => false,
                 'fetchPositions' => true,
+                'fetchPositionsRisk' => false,
+                'fetchPremiumIndexOHLCV' => false,
                 'fetchTicker' => true,
                 'fetchTickers' => true,
                 'fetchTrades' => true,
                 'fetchTransactions' => true,
                 'fetchWithdrawals' => true,
+                'reduceMargin' => true,
                 'setLeverage' => true,
                 'setMarginMode' => true,
+                'setPositionMode' => false,
             ),
             'timeframes' => array(
                 '1m' => '1',
@@ -1152,6 +1166,12 @@ class ascendex extends Exchange {
         $account = $this->safe_value($this->accounts, 0, array());
         $accountGroup = $this->safe_value($account, 'id');
         $clientOrderId = $this->safe_string_2($params, 'clientOrderId', 'id');
+        $reduceOnly = $this->safe_value($params, 'execInst');
+        if ($reduceOnly !== null) {
+            if (($style !== 'swap')) {
+                throw new InvalidOrder($this->id . ' createOrder() does not support $reduceOnly for ' . $style . ' orders, $reduceOnly orders are supported for perpetuals only');
+            }
+        }
         $request = array(
             'account-group' => $accountGroup,
             'account-category' => $accountCategory,
@@ -1262,6 +1282,13 @@ class ascendex extends Exchange {
         $data = $this->safe_value($response, 'data', array());
         $order = $this->safe_value_2($data, 'order', 'info', array());
         return $this->parse_order($order, $market);
+    }
+
+    public function create_reduce_only_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
+        $request = array(
+            'execInst' => 'reduceOnly',
+        );
+        return $this->create_order($symbol, $type, $side, $amount, $price, array_merge($request, $params));
     }
 
     public function fetch_order($id, $symbol = null, $params = array ()) {
@@ -2137,6 +2164,46 @@ class ascendex extends Exchange {
         $contracts = $this->safe_value($data, 'contracts', array());
         $result = $this->parse_funding_rates($contracts);
         return $this->filter_by_array($result, 'symbol', $symbols);
+    }
+
+    public function modify_margin_helper($symbol, $amount, $type, $params = array ()) {
+        $this->load_markets();
+        $this->load_accounts();
+        $market = $this->market($symbol);
+        $account = $this->safe_value($this->accounts, 0, array());
+        $accountGroup = $this->safe_string($account, 'id');
+        $amount = $this->number_to_string($amount);
+        $request = array(
+            'account-group' => $accountGroup,
+            'symbol' => $market['id'],
+            'amount' => $amount,
+        );
+        $response = $this->v2PrivateAccountGroupPostFuturesIsolatedPositionMargin (array_merge($request, $params));
+        //
+        // Can only change margin for perpetual futures isolated margin positions
+        //
+        //     {
+        //          "code" => 0
+        //     }
+        //
+        $errorCode = $this->safe_string($response, 'code');
+        $status = ($errorCode === '0') ? 'ok' : 'failed';
+        return array(
+            'info' => $response,
+            'type' => $type,
+            'amount' => $amount,
+            'code' => $market['quote'],
+            'symbol' => $market['symbol'],
+            'status' => $status,
+        );
+    }
+
+    public function reduce_margin($symbol, $amount, $params = array ()) {
+        return $this->modify_margin_helper($symbol, $amount, 'reduce', $params);
+    }
+
+    public function add_margin($symbol, $amount, $params = array ()) {
+        return $this->modify_margin_helper($symbol, $amount, 'add', $params);
     }
 
     public function set_leverage($leverage, $symbol = null, $params = array ()) {

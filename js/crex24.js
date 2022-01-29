@@ -3,7 +3,7 @@
 //  ---------------------------------------------------------------------------
 
 const Exchange = require ('./base/Exchange');
-const { ExchangeError, BadRequest, InvalidNonce, RequestTimeout, ExchangeNotAvailable, InsufficientFunds, OrderNotFound, InvalidOrder, DDoSProtection, AuthenticationError, BadSymbol, AccountSuspended } = require ('./base/errors');
+const { ExchangeError, BadRequest, InvalidNonce, RequestTimeout, ExchangeNotAvailable, InsufficientFunds, OrderNotFound, InvalidOrder, DDoSProtection, AuthenticationError, BadSymbol, AccountSuspended, ArgumentsRequired } = require ('./base/errors');
 const { TICK_SIZE } = require ('./base/functions/number');
 
 //  ---------------------------------------------------------------------------
@@ -18,9 +18,15 @@ module.exports = class crex24 extends Exchange {
             'version': 'v2',
             // new metainfo interface
             'has': {
+                'CORS': undefined,
+                'spot': true,
+                'margin': undefined,
+                'swap': undefined,
+                'future': undefined,
+                'option': undefined,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
-                'CORS': undefined,
+                'cancelOrders': true,
                 'createOrder': true,
                 'editOrder': true,
                 'fetchBalance': true,
@@ -797,6 +803,10 @@ module.exports = class crex24 extends Exchange {
         //         "childOrderId": null
         //     }
         //
+        // cancelOrder, cancelOrders, cancelAllOrders
+        //
+        //  465448358
+        //
         const status = this.parseOrderStatus (this.safeString (order, 'status'));
         const marketId = this.safeString (order, 'instrument');
         const symbol = this.safeSymbol (marketId, market, '-');
@@ -805,7 +815,7 @@ module.exports = class crex24 extends Exchange {
         const amount = this.safeString (order, 'volume');
         const remaining = this.safeString (order, 'remainingVolume');
         const lastTradeTimestamp = this.parse8601 (this.safeString (order, 'lastUpdate'));
-        const id = this.safeString (order, 'id');
+        const id = this.safeString (order, 'id', order); // if order was integer
         const type = this.safeString (order, 'type');
         const side = this.safeString (order, 'side');
         const timeInForce = this.safeString (order, 'timeInForce');
@@ -1109,12 +1119,22 @@ module.exports = class crex24 extends Exchange {
     }
 
     async cancelOrder (id, symbol = undefined, params = {}) {
+        const response = await this.cancelOrders ([ id ], symbol, params);
+        return this.safeValue (response, 0);
+    }
+
+    async cancelOrders (ids, symbol = undefined, params = {}) {
+        if (!Array.isArray (ids)) {
+            throw new ArgumentsRequired (this.id + ' cancelOrders ids argument should be an array');
+        }
         await this.loadMarkets ();
         const request = {
-            'ids': [
-                parseInt (id),
-            ],
+            'ids': [],
         };
+        for (let i = 0; i < ids.length; i++) {
+            const id = parseInt (ids[i]);
+            request['ids'].push (id);
+        }
         const response = await this.tradingPostCancelOrdersById (this.extend (request, params));
         //
         //     [
@@ -1122,18 +1142,35 @@ module.exports = class crex24 extends Exchange {
         //         468364313
         //     ]
         //
-        return this.parseOrder (response);
+        return this.parseOrders (response);
     }
 
-    async cancelAllOrders (symbol = undefined, params = {}) {
-        const response = await this.tradingPostCancelAllOrders (params);
-        //
-        //     [
-        //         465448358,
-        //         468364313
-        //     ]
-        //
-        return response;
+    async cancelAllOrders (symbol = undefined, params = {}) { // TODO: atm, this doesnt accept an array as symbol argument, because of unification (however, exchange allows multiple symbols)
+        let response = undefined;
+        let market = undefined;
+        if (symbol === undefined) {
+            response = await this.tradingPostCancelAllOrders (params);
+            //
+            //     [
+            //         465448358,
+            //         468364313
+            //     ]
+            //
+        } else {
+            await this.loadMarkets ();
+            market = this.market (symbol);
+            const request = {
+                'instruments': [ market['id'] ],
+            };
+            response = await this.tradingPostCancelOrdersByInstrument (this.extend (request, params));
+            //
+            //     [
+            //         465441234,
+            //         468364321
+            //     ]
+            //
+        }
+        return this.parseOrders (response, market, undefined, undefined, params);
     }
 
     async fetchOrderTrades (id, symbol = undefined, since = undefined, limit = undefined, params = {}) {

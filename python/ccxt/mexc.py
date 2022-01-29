@@ -33,6 +33,7 @@ class mexc(Exchange):
             'version': 'v2',
             'certified': True,
             'has': {
+                'CORS': None,
                 'spot': True,
                 'margin': None,
                 'swap': True,
@@ -43,6 +44,7 @@ class mexc(Exchange):
                 'cancelOrder': True,
                 'createMarketOrder': False,
                 'createOrder': True,
+                'createReduceOnlyOrder': False,
                 'fetchBalance': True,
                 'fetchCanceledOrders': True,
                 'fetchClosedOrders': True,
@@ -50,8 +52,14 @@ class mexc(Exchange):
                 'fetchDepositAddress': True,
                 'fetchDepositAddressesByNetwork': True,
                 'fetchDeposits': True,
+                'fetchFundingRate': True,
                 'fetchFundingRateHistory': True,
+                'fetchFundingRates': False,
+                'fetchIndexOHLCV': True,
+                'fetchIsolatedPositions': None,
+                'fetchLeverage': None,
                 'fetchMarkets': True,
+                'fetchMarkOHLCV': True,
                 'fetchMyTrades': True,
                 'fetchOHLCV': True,
                 'fetchOpenOrders': True,
@@ -60,6 +68,8 @@ class mexc(Exchange):
                 'fetchOrderTrades': True,
                 'fetchPosition': True,
                 'fetchPositions': True,
+                'fetchPositionsRisk': False,
+                'fetchPremiumIndexOHLCV': True,
                 'fetchStatus': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
@@ -68,6 +78,7 @@ class mexc(Exchange):
                 'fetchWithdrawals': True,
                 'reduceMargin': True,
                 'setLeverage': True,
+                'setMarginMode': False,
                 'withdraw': True,
             },
             'timeframes': {
@@ -529,13 +540,13 @@ class mexc(Exchange):
                 'swap': True,
                 'future': False,
                 'option': False,
+                'active': (state == '0'),
                 'contract': True,
                 'linear': True,
                 'inverse': False,
                 'taker': self.safe_number(market, 'takerFeeRate'),
                 'maker': self.safe_number(market, 'makerFeeRate'),
                 'contractSize': self.safe_number(market, 'contractSize'),
-                'active': (state == '0'),
                 'expiry': None,
                 'expiryDatetime': None,
                 'strike': None,
@@ -599,23 +610,19 @@ class mexc(Exchange):
             baseId, quoteId = id.split('_')
             base = self.safe_currency_code(baseId)
             quote = self.safe_currency_code(quoteId)
-            symbol = base + '/' + quote
-            priceScale = self.safe_integer(market, 'price_scale')
-            quantityScale = self.safe_integer(market, 'quantity_scale')
-            pricePrecision = 1 / math.pow(10, priceScale)
-            quantityPrecision = 1 / math.pow(10, quantityScale)
+            priceScale = self.safe_string(market, 'price_scale')
+            quantityScale = self.safe_string(market, 'quantity_scale')
             state = self.safe_string(market, 'state')
-            type = 'spot'
             result.append({
                 'id': id,
-                'symbol': symbol,
+                'symbol': base + '/' + quote,
                 'base': base,
                 'quote': quote,
                 'settle': None,
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'settleId': None,
-                'type': type,
+                'type': 'spot',
                 'spot': True,
                 'margin': False,
                 'swap': False,
@@ -633,8 +640,8 @@ class mexc(Exchange):
                 'strike': None,
                 'optionType': None,
                 'precision': {
-                    'price': pricePrecision,
-                    'amount': quantityPrecision,
+                    'price': self.parse_precision(priceScale),
+                    'amount': self.parse_precision(quantityScale),
                 },
                 'limits': {
                     'leverage': {
@@ -1116,6 +1123,24 @@ class mexc(Exchange):
             self.safe_number(ohlcv, 5),
         ]
 
+    def fetch_premium_index_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        request = {
+            'price': 'premiumIndex',
+        }
+        return self.fetch_ohlcv(symbol, timeframe, since, limit, self.extend(request, params))
+
+    def fetch_index_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        request = {
+            'price': 'index',
+        }
+        return self.fetch_ohlcv(symbol, timeframe, since, limit, self.extend(request, params))
+
+    def fetch_mark_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        request = {
+            'price': 'mark',
+        }
+        return self.fetch_ohlcv(symbol, timeframe, since, limit, self.extend(request, params))
+
     def fetch_balance(self, params={}):
         self.load_markets()
         marketType, query = self.handle_market_type_and_params('fetchBalance', None, params)
@@ -1444,6 +1469,7 @@ class mexc(Exchange):
     def parse_transaction_status(self, status):
         statuses = {
             'WAIT': 'pending',
+            'WAIT_PACKAGING': 'pending',
             'SUCCESS': 'ok',
         }
         return self.safe_string(statuses, status, status)
@@ -1986,7 +2012,7 @@ class mexc(Exchange):
         data = self.safe_value(response, 'data', {})
         return {
             'info': data,
-            'id': self.data(response, 'withdrawId'),
+            'id': self.safe_string(data, 'withdrawId'),
         }
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
@@ -2038,6 +2064,69 @@ class mexc(Exchange):
             feedback = self.id + ' ' + body
             self.throw_exactly_matched_exception(self.exceptions['exact'], responseCode, feedback)
             raise ExchangeError(feedback)
+
+    def parse_funding_rate(self, fundingRate, market=None):
+        #
+        #     {
+        #         "symbol": "BTC_USDT",
+        #         "fundingRate": 0.000014,
+        #         "maxFundingRate": 0.003,
+        #         "minFundingRate": -0.003,
+        #         "collectCycle": 8,
+        #         "nextSettleTime": 1643241600000,
+        #         "timestamp": 1643240373359
+        #     }
+        #
+        nextFundingRate = self.safe_number(fundingRate, 'fundingRate')
+        nextFundingTimestamp = self.safe_integer(fundingRate, 'nextSettleTime')
+        marketId = self.safe_string(fundingRate, 'symbol')
+        symbol = self.safe_symbol(marketId, market)
+        timestamp = self.safe_integer(fundingRate, 'timestamp')
+        datetime = self.iso8601(timestamp)
+        return {
+            'info': fundingRate,
+            'symbol': symbol,
+            'markPrice': None,
+            'indexPrice': None,
+            'interestRate': None,
+            'estimatedSettlePrice': None,
+            'timestamp': timestamp,
+            'datetime': datetime,
+            'fundingRate': None,
+            'fundingTimestamp': None,
+            'fundingDatetime': None,
+            'nextFundingRate': nextFundingRate,
+            'nextFundingTimestamp': nextFundingTimestamp,
+            'nextFundingDatetime': self.iso8601(nextFundingTimestamp),
+            'previousFundingRate': None,
+            'previousFundingTimestamp': None,
+            'previousFundingDatetime': None,
+        }
+
+    def fetch_funding_rate(self, symbol, params={}):
+        self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'symbol': market['id'],
+        }
+        response = self.contractPublicGetFundingRateSymbol(self.extend(request, params))
+        #
+        #     {
+        #         "success": True,
+        #         "code": 0,
+        #         "data": {
+        #             "symbol": "BTC_USDT",
+        #             "fundingRate": 0.000014,
+        #             "maxFundingRate": 0.003,
+        #             "minFundingRate": -0.003,
+        #             "collectCycle": 8,
+        #             "nextSettleTime": 1643241600000,
+        #             "timestamp": 1643240373359
+        #         }
+        #     }
+        #
+        result = self.safe_value(response, 'data', {})
+        return self.parse_funding_rate(result, market)
 
     def fetch_funding_rate_history(self, symbol=None, since=None, limit=None, params={}):
         #

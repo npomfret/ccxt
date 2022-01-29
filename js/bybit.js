@@ -20,12 +20,14 @@ module.exports = class bybit extends Exchange {
             'rateLimit': 100,
             'hostname': 'bybit.com', // bybit.com, bytick.com
             'has': {
+                'CORS': true,
+                'spot': true,
                 'margin': false,
                 'swap': true,
                 'future': true,
+                'option': undefined,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
-                'CORS': true,
                 'createOrder': true,
                 'editOrder': true,
                 'fetchBalance': true,
@@ -570,6 +572,7 @@ module.exports = class bybit extends Exchange {
                     '30068': ExchangeError, // exit value must be positive
                     '30074': InvalidOrder, // can't create the stop order, because you expect the order will be triggered when the LastPrice(or IndexPrice、 MarkPrice, determined by trigger_by) is raising to stop_px, but the LastPrice(or IndexPrice、 MarkPrice) is already equal to or greater than stop_px, please adjust base_price or stop_px
                     '30075': InvalidOrder, // can't create the stop order, because you expect the order will be triggered when the LastPrice(or IndexPrice、 MarkPrice, determined by trigger_by) is falling to stop_px, but the LastPrice(or IndexPrice、 MarkPrice) is already equal to or less than stop_px, please adjust base_price or stop_px
+                    // '30084': BadRequest, // Isolated not modified, see handleErrors below
                     '33004': AuthenticationError, // apikey already expired
                     '34026': ExchangeError, // the limit is no change
                 },
@@ -952,26 +955,23 @@ module.exports = class bybit extends Exchange {
         const timestamp = undefined;
         const marketId = this.safeString (ticker, 'symbol');
         const symbol = this.safeSymbol (marketId, market);
-        const last = this.safeNumber (ticker, 'last_price');
-        const open = this.safeNumber (ticker, 'prev_price_24h');
-        let percentage = this.safeNumber (ticker, 'price_24h_pcnt');
-        if (percentage !== undefined) {
-            percentage *= 100;
-        }
-        const baseVolume = this.safeNumber (ticker, 'turnover_24h');
-        const quoteVolume = this.safeNumber (ticker, 'volume_24h');
-        const vwap = this.vwap (baseVolume, quoteVolume);
+        const last = this.safeString (ticker, 'last_price');
+        const open = this.safeString (ticker, 'prev_price_24h');
+        let percentage = this.safeString (ticker, 'price_24h_pcnt');
+        percentage = Precise.stringMul (percentage, '100');
+        const baseVolume = this.safeString (ticker, 'turnover_24h');
+        const quoteVolume = this.safeString (ticker, 'volume_24h');
         return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeNumber (ticker, 'high_price_24h'),
-            'low': this.safeNumber (ticker, 'low_price_24h'),
-            'bid': this.safeNumber (ticker, 'bid_price'),
+            'high': this.safeString (ticker, 'high_price_24h'),
+            'low': this.safeString (ticker, 'low_price_24h'),
+            'bid': this.safeString (ticker, 'bid_price'),
             'bidVolume': undefined,
-            'ask': this.safeNumber (ticker, 'ask_price'),
+            'ask': this.safeString (ticker, 'ask_price'),
             'askVolume': undefined,
-            'vwap': vwap,
+            'vwap': undefined,
             'open': open,
             'close': last,
             'last': last,
@@ -982,7 +982,7 @@ module.exports = class bybit extends Exchange {
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market);
+        }, market, false);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -2885,7 +2885,21 @@ module.exports = class bybit extends Exchange {
             'buy_leverage': leverage,
             'sell_leverage': leverage,
         };
-        return await this[method] (this.extend (request, params));
+        const response = await this[method] (this.extend (request, params));
+        //
+        //     {
+        //         "ret_code": 0,
+        //         "ret_msg": "OK",
+        //         "ext_code": "",
+        //         "ext_info": "",
+        //         "result": null,
+        //         "time_now": "1585881597.006026",
+        //         "rate_limit_status": 74,
+        //         "rate_limit_reset_ms": 1585881597004,
+        //         "rate_limit": 75
+        //     }
+        //
+        return response;
     }
 
     async setLeverage (leverage, symbol = undefined, params = {}) {
@@ -3043,6 +3057,14 @@ module.exports = class bybit extends Exchange {
         //
         const errorCode = this.safeString2 (response, 'ret_code', 'retCode');
         if (errorCode !== '0') {
+            if (errorCode === '30084') {
+                // not an error
+                // https://github.com/ccxt/ccxt/issues/11268
+                // https://github.com/ccxt/ccxt/pull/11624
+                // POST https://api.bybit.com/v2/private/position/switch-isolated 200 OK
+                // {"ret_code":30084,"ret_msg":"Isolated not modified","ext_code":"","ext_info":"","result":null,"time_now":"1642005219.937988","rate_limit_status":73,"rate_limit_reset_ms":1642005219894,"rate_limit":75}
+                return undefined;
+            }
             const feedback = this.id + ' ' + body;
             this.throwExactlyMatchedException (this.exceptions['exact'], errorCode, feedback);
             this.throwBroadlyMatchedException (this.exceptions['broad'], body, feedback);

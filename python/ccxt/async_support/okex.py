@@ -4,6 +4,13 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
+
+# -----------------------------------------------------------------------------
+
+try:
+    basestring  # Python 3
+except NameError:
+    basestring = str  # Python 2
 import hashlib
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
@@ -41,14 +48,16 @@ class okex(Exchange):
             'pro': True,
             'certified': True,
             'has': {
+                'CORS': None,
+                'spot': True,
                 'margin': True,
                 'swap': True,
                 'future': True,
+                'option': None,
                 'addMargin': True,
                 'cancelAllOrders': None,
                 'cancelOrder': True,
-                'cancelOrders': None,
-                'CORS': None,
+                'cancelOrders': True,
                 'createDepositAddress': None,
                 'createOrder': True,
                 'createReduceOnlyOrder': None,
@@ -58,6 +67,7 @@ class okex(Exchange):
                 'fetchBalance': True,
                 'fetchBidsAsks': None,
                 'fetchBorrowRate': True,
+                'fetchBorrowRateHistories': None,
                 'fetchBorrowRateHistory': None,
                 'fetchBorrowRates': True,
                 'fetchBorrowRatesPerSymbol': False,
@@ -331,7 +341,7 @@ class okex(Exchange):
                     '50011': RateLimitExceeded,  # Request too frequent
                     '50012': ExchangeError,  # Account status invalid
                     '50013': ExchangeNotAvailable,  # System is busy, please try again later
-                    '50014': ExchangeError,  # Parameter {0} can not be empty
+                    '50014': BadRequest,  # Parameter {0} can not be empty
                     '50015': ExchangeError,  # Either parameter {0} or {1} is required
                     '50016': ExchangeError,  # Parameter {0} does not match parameter {1}
                     '50017': ExchangeError,  # The position is frozen due to ADL. Operation restricted
@@ -341,14 +351,14 @@ class okex(Exchange):
                     '50021': ExchangeError,  # Currency {0} is frozen due to liquidation. Operation restricted
                     '50022': ExchangeError,  # The account is frozen due to liquidation. Operation restricted
                     '50023': ExchangeError,  # Funding fee frozen. Operation restricted
-                    '50024': ExchangeError,  # Parameter {0} and {1} can not exist at the same time
+                    '50024': BadRequest,  # Parameter {0} and {1} can not exist at the same time
                     '50025': ExchangeError,  # Parameter {0} count exceeds the limit {1}
                     '50026': ExchangeError,  # System error
-                    '50027': ExchangeError,  # The account is restricted from trading
+                    '50027': PermissionDenied,  # The account is restricted from trading
                     '50028': ExchangeError,  # Unable to take the order, please reach out to support center for details
                     # API Class
                     '50100': ExchangeError,  # API frozen, please contact customer service
-                    '50101': ExchangeError,  # Broker id of APIKey does not match current environment
+                    '50101': AuthenticationError,  # Broker id of APIKey does not match current environment
                     '50102': InvalidNonce,  # Timestamp request expired
                     '50103': AuthenticationError,  # Request header "OK_ACCESS_KEY" can not be empty
                     '50104': AuthenticationError,  # Request header "OK_ACCESS_PASSPHRASE" can not be empty
@@ -780,19 +790,19 @@ class okex(Exchange):
         contract = swap or futures or option
         baseId = self.safe_string(market, 'baseCcy')
         quoteId = self.safe_string(market, 'quoteCcy')
-        settleCurrency = self.safe_string(market, 'settleCcy')
-        settle = self.safe_currency_code(settleCurrency)
+        settleId = self.safe_string(market, 'settleCcy')
+        settle = self.safe_currency_code(settleId)
         underlying = self.safe_string(market, 'uly')
         if (underlying is not None) and not spot:
             parts = underlying.split('-')
             baseId = self.safe_string(parts, 0)
             quoteId = self.safe_string(parts, 1)
-        inverse = (baseId == settleCurrency) if contract else None
-        linear = (quoteId == settleCurrency) if contract else None
         base = self.safe_currency_code(baseId)
         quote = self.safe_currency_code(quoteId)
         symbol = base + '/' + quote
         expiry = None
+        strikePrice = None
+        optionType = None
         if contract:
             symbol = symbol + ':' + settle
             expiry = self.safe_integer(market, 'expTime')
@@ -803,62 +813,63 @@ class okex(Exchange):
                 strikePrice = self.safe_string(market, 'stk')
                 optionType = self.safe_string(market, 'optType')
                 symbol = symbol + '-' + strikePrice + '-' + optionType
+                optionType = 'put' if (optionType == 'P') else 'call'
         tickSize = self.safe_string(market, 'tickSz')
-        precision = {
-            'amount': self.safe_number(market, 'lotSz'),
-            'price': self.parse_number(tickSize),
-        }
         minAmountString = self.safe_string(market, 'minSz')
         minAmount = self.parse_number(minAmountString)
-        minCost = None
-        if (minAmount is not None) and (tickSize is not None):
-            minCost = self.parse_number(Precise.string_mul(tickSize, minAmountString))
-        active = True
         fees = self.safe_value_2(self.fees, type, 'trading', {})
-        contractSize = None
-        if contract:
-            contractSize = self.safe_number(market, 'ctVal')
-        leverage = self.safe_number(market, 'lever', 1)
+        precisionPrice = self.parse_number(tickSize)
+        maxLeverage = self.safe_string(market, 'lever', '1')
+        if maxLeverage == '':
+            maxLeverage = '1'
+        maxLeverage = Precise.string_max(maxLeverage, '1')
         return self.extend(fees, {
             'id': id,
             'symbol': symbol,
             'base': base,
             'quote': quote,
+            'settle': settle,
             'baseId': baseId,
             'quoteId': quoteId,
-            'settleId': settleCurrency,
-            'settle': settle,
-            'info': market,
+            'settleId': settleId,
             'type': type,
             'spot': spot,
-            'futures': futures,
+            'margin': spot and (Precise.string_gt(maxLeverage, '1')),
             'swap': swap,
-            'contract': contract,
+            'futures': futures,
             'option': option,
-            'linear': linear,
-            'inverse': inverse,
-            'active': active,
-            'contractSize': contractSize,
-            'precision': precision,
+            'active': True,
+            'contract': contract,
+            'linear': (quoteId == settleId) if contract else None,
+            'inverse': (baseId == settleId) if contract else None,
+            'contractSize': self.safe_number(market, 'ctVal') if contract else None,
             'expiry': expiry,
             'expiryDatetime': self.iso8601(expiry),
+            'strike': strikePrice,
+            'optionType': optionType,
+            'precision': {
+                'price': precisionPrice,
+                'amount': self.safe_number(market, 'lotSz'),
+            },
             'limits': {
+                'leverage': {
+                    'min': self.parse_number('1'),
+                    'max': self.parse_number(maxLeverage),
+                },
                 'amount': {
                     'min': minAmount,
                     'max': None,
                 },
                 'price': {
-                    'min': precision['price'],
+                    'min': precisionPrice,
                     'max': None,
                 },
                 'cost': {
-                    'min': minCost,
+                    'min': None,
                     'max': None,
                 },
-                'leverage': {
-                    'max': leverage,
-                },
             },
+            'info': market,
         })
 
     async def fetch_markets_by_type(self, type, params={}):
@@ -1087,22 +1098,21 @@ class okex(Exchange):
         marketId = self.safe_string(ticker, 'instId')
         market = self.safe_market(marketId, market, '-')
         symbol = market['symbol']
-        last = self.safe_number(ticker, 'last')
-        open = self.safe_number(ticker, 'open24h')
-        quoteVolume = self.safe_number(ticker, 'volCcy24h')
-        baseVolume = self.safe_number(ticker, 'vol24h')
-        vwap = self.vwap(baseVolume, quoteVolume)
+        last = self.safe_string(ticker, 'last')
+        open = self.safe_string(ticker, 'open24h')
+        quoteVolume = self.safe_string(ticker, 'volCcy24h')
+        baseVolume = self.safe_string(ticker, 'vol24h')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high24h'),
-            'low': self.safe_number(ticker, 'low24h'),
-            'bid': self.safe_number(ticker, 'bidPx'),
-            'bidVolume': self.safe_number(ticker, 'bidSz'),
-            'ask': self.safe_number(ticker, 'askPx'),
-            'askVolume': self.safe_number(ticker, 'askSz'),
-            'vwap': vwap,
+            'high': self.safe_string(ticker, 'high24h'),
+            'low': self.safe_string(ticker, 'low24h'),
+            'bid': self.safe_string(ticker, 'bidPx'),
+            'bidVolume': self.safe_string(ticker, 'bidSz'),
+            'ask': self.safe_string(ticker, 'askPx'),
+            'askVolume': self.safe_string(ticker, 'askSz'),
+            'vwap': None,
             'open': open,
             'close': last,
             'last': last,
@@ -1113,7 +1123,7 @@ class okex(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     async def fetch_ticker(self, symbol, params={}):
         await self.load_markets()
@@ -1797,6 +1807,57 @@ class okex(Exchange):
         data = self.safe_value(response, 'data', [])
         order = self.safe_value(data, 0)
         return self.parse_order(order, market)
+
+    async def cancel_orders(self, ids, symbol=None, params={}):
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' canelOrders() requires a symbol argument')
+        await self.load_markets()
+        market = self.market(symbol)
+        request = []
+        clientOrderId = self.safe_value_2(params, 'clOrdId', 'clientOrderId')
+        if clientOrderId is None:
+            if isinstance(ids, basestring):
+                orderIds = ids.split(',')
+                for i in range(0, len(orderIds)):
+                    request.append({
+                        'instId': market['id'],
+                        'ordId': orderIds[i],
+                    })
+            else:
+                for i in range(0, len(ids)):
+                    request.append({
+                        'instId': market['id'],
+                        'ordId': ids[i],
+                    })
+        elif isinstance(clientOrderId, list):
+            for i in range(0, len(clientOrderId)):
+                request.append({
+                    'instId': market['id'],
+                    'clOrdId': clientOrderId[i],
+                })
+        elif isinstance(clientOrderId, basestring):
+            request.append({
+                'instId': market['id'],
+                'clOrdId': clientOrderId,
+            })
+        response = await self.privatePostTradeCancelBatchOrders(request)  # dont self.extend with params, otherwise ARRAY will be turned into OBJECT
+        #
+        # {
+        #     "code": "0",
+        #     "data": [
+        #         {
+        #             "clOrdId": "e123456789ec4dBC1123456ba123b45e",
+        #             "ordId": "405071912345641543",
+        #             "sCode": "0",
+        #             "sMsg": ""
+        #         },
+        #         ...
+        #     ],
+        #     "msg": ""
+        # }
+        #
+        ordersData = self.safe_value(response, 'data', [])
+        return self.parse_orders(ordersData, market, None, None, params)
 
     def parse_order_status(self, status):
         statuses = {
@@ -3593,7 +3654,7 @@ class okex(Exchange):
 
     def set_sandbox_mode(self, enable):
         if enable:
-            self.headers['x-simulated-trading'] = 1
+            self.headers['x-simulated-trading'] = '1'
         elif 'x-simulated-trading' in self.headers:
             self.headers = self.omit(self.headers, 'x-simulated-trading')
 

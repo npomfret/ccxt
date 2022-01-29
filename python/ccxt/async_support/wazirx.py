@@ -26,28 +26,37 @@ class wazirx(Exchange):
             'version': 'v2',
             'rateLimit': 100,
             'has': {
+                'CORS': False,
+                'spot': True,
+                'margin': None,  # exists but currently unimplemented
+                'swap': False,
+                'future': False,
+                'option': False,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
-                'CORS': False,
                 'createOrder': True,
-                'fetchCurrencies': False,
                 'fetchBalance': True,
                 'fetchBidsAsks': False,
                 'fetchClosedOrders': False,
+                'fetchCurrencies': False,
                 'fetchDepositAddress': False,
+                'fetchDepositAddressesByNetwork': False,
                 'fetchDeposits': True,
                 'fetchFundingFees': False,
                 'fetchFundingHistory': False,
                 'fetchFundingRate': False,
+                'fetchFundingRateHistory': False,
                 'fetchFundingRates': False,
+                'fetchIndexOHLCV': False,
                 'fetchMarkets': True,
+                'fetchMarkOHLCV': False,
                 'fetchMyTrades': False,
                 'fetchOHLCV': False,
                 'fetchOpenOrders': True,
                 'fetchOrder': True,
-                'fetchOrders': True,
                 'fetchOrderBook': True,
-                'fetchPositions': False,
+                'fetchOrders': True,
+                'fetchPremiumIndexOHLCV': False,
                 'fetchStatus': True,
                 'fetchTicker': True,
                 'fetchTickers': True,
@@ -56,12 +65,10 @@ class wazirx(Exchange):
                 'fetchTradingFee': False,
                 'fetchTradingFees': False,
                 'fetchTransactions': False,
-                'fetchWithdrawals': False,
-                'setLeverage': False,
-                'withdraw': False,
-                'fetchDepositAddressesByNetwork': False,
-                'transfer': False,
                 'fetchTransfers': False,
+                'fetchWithdrawals': False,
+                'transfer': False,
+                'withdraw': False,
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/148647666-c109c20b-f8ac-472f-91c3-5f658cb90f49.jpeg',
@@ -163,7 +170,6 @@ class wazirx(Exchange):
             quoteId = self.safe_string(entry, 'quoteAsset')
             base = self.safe_currency_code(baseId)
             quote = self.safe_currency_code(quoteId)
-            symbol = base + '/' + quote
             isSpot = self.safe_value(entry, 'isSpotTradingAllowed')
             filters = self.safe_value(entry, 'filters')
             minPrice = None
@@ -175,59 +181,58 @@ class wazirx(Exchange):
             fee = self.safe_value(self.fees, quote, {})
             takerString = self.safe_string(fee, 'taker', '0.2')
             takerString = Precise.string_div(takerString, '100')
-            taker = self.parse_number(takerString)
             makerString = self.safe_string(fee, 'maker', '0.2')
             makerString = Precise.string_div(makerString, '100')
-            maker = self.parse_number(makerString)
             status = self.safe_string(entry, 'status')
-            active = status == 'trading'
-            limits = {
-                'price': {
-                    'min': minPrice,
-                    'max': None,
-                },
-                'amount': {
-                    'min': None,
-                    'max': None,
-                },
-                'cost': {
-                    'min': None,
-                    'max': None,
-                },
-            }
-            precision = {
-                'price': self.safe_integer(entry, 'quoteAssetPrecision'),
-                'amount': self.safe_integer(entry, 'baseAssetPrecision'),
-            }
             result.append({
-                'info': entry,
-                'symbol': symbol,
                 'id': id,
+                'symbol': base + '/' + quote,
                 'base': base,
                 'quote': quote,
+                'settle': None,
                 'baseId': baseId,
-                'maker': maker,
-                'taker': taker,
                 'quoteId': quoteId,
-                'limits': limits,
-                'precision': precision,
+                'settleId': None,
                 'type': 'spot',
                 'spot': isSpot,
                 'margin': False,
-                'future': False,
                 'swap': False,
+                'future': False,
                 'option': False,
-                'optionType': None,
-                'strike': None,
+                'active': (status == 'trading'),
+                'contract': False,
                 'linear': None,
                 'inverse': None,
-                'contract': False,
+                'maker': self.parse_number(makerString),
+                'taker': self.parse_number(takerString),
                 'contractSize': None,
-                'settle': None,
-                'settleId': None,
                 'expiry': None,
                 'expiryDatetime': None,
-                'active': active,
+                'strike': None,
+                'optionType': None,
+                'precision': {
+                    'price': self.safe_integer(entry, 'quoteAssetPrecision'),
+                    'amount': self.safe_integer(entry, 'baseAssetPrecision'),
+                },
+                'limits': {
+                    'leverage': {
+                        'min': None,
+                        'max': None,
+                    },
+                    'price': {
+                        'min': minPrice,
+                        'max': None,
+                    },
+                    'amount': {
+                        'min': None,
+                        'max': None,
+                    },
+                    'cost': {
+                        'min': None,
+                        'max': None,
+                    },
+                },
+                'info': entry,
             })
         return result
 

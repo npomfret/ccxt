@@ -27,14 +27,16 @@ class binance extends Exchange {
             'pro' => true,
             // new metainfo interface
             'has' => array(
+                'CORS' => null,
+                'spot' => true,
                 'margin' => true,
                 'swap' => true,
                 'future' => true,
+                'option' => null,
                 'addMargin' => true,
                 'cancelAllOrders' => true,
                 'cancelOrder' => true,
                 'cancelOrders' => null,
-                'CORS' => null,
                 'createDepositAddress' => null,
                 'createOrder' => true,
                 'createReduceOnlyOrder' => true,
@@ -44,6 +46,7 @@ class binance extends Exchange {
                 'fetchBalance' => true,
                 'fetchBidsAsks' => true,
                 'fetchBorrowRate' => true,
+                'fetchBorrowRateHistories' => true,
                 'fetchBorrowRateHistory' => true,
                 'fetchBorrowRates' => false,
                 'fetchBorrowRatesPerSymbol' => false,
@@ -1075,22 +1078,22 @@ class binance extends Exchange {
                     '-3044' => '\\ccxt\\DDoSProtection', // array("code":-3044,"msg":"System busy.")
                     '-3045' => '\\ccxt\\ExchangeError', // array("code":-3045,"msg":"The system doesn't have enough asset now.")
                     '-3999' => '\\ccxt\\ExchangeError', // array("code":-3999,"msg":"This function is only available for invited users.")
-                    '-4001 ' => '\\ccxt\\BadRequest', // array("code":-4001 ,"msg":"Invalid operation.")
-                    '-4002 ' => '\\ccxt\\BadRequest', // array("code":-4002 ,"msg":"Invalid get.")
-                    '-4003 ' => '\\ccxt\\BadRequest', // array("code":-4003 ,"msg":"Your input email is invalid.")
+                    '-4001' => '\\ccxt\\BadRequest', // array("code":-4001 ,"msg":"Invalid operation.")
+                    '-4002' => '\\ccxt\\BadRequest', // array("code":-4002 ,"msg":"Invalid get.")
+                    '-4003' => '\\ccxt\\BadRequest', // array("code":-4003 ,"msg":"Your input email is invalid.")
                     '-4004' => '\\ccxt\\AuthenticationError', // array("code":-4004,"msg":"You don't login or auth.")
-                    '-4005 ' => '\\ccxt\\RateLimitExceeded', // array("code":-4005 ,"msg":"Too many new requests.")
-                    '-4006 ' => '\\ccxt\\BadRequest', // array("code":-4006 ,"msg":"Support main account only.")
-                    '-4007 ' => '\\ccxt\\BadRequest', // array("code":-4007 ,"msg":"Address validation is not passed.")
-                    '-4008 ' => '\\ccxt\\BadRequest', // array("code":-4008 ,"msg":"Address tag validation is not passed.")
-                    '-4010 ' => '\\ccxt\\BadRequest', // array("code":-4010 ,"msg":"White list mail has been confirmed.") // [TODO] possible bug => it should probably be "has not been confirmed"
-                    '-4011 ' => '\\ccxt\\BadRequest', // array("code":-4011 ,"msg":"White list mail is invalid.")
-                    '-4012 ' => '\\ccxt\\BadRequest', // array("code":-4012 ,"msg":"White list is not opened.")
-                    '-4013 ' => '\\ccxt\\AuthenticationError', // array("code":-4013 ,"msg":"2FA is not opened.")
-                    '-4014 ' => '\\ccxt\\PermissionDenied', // array("code":-4014 ,"msg":"Withdraw is not allowed within 2 min login.")
-                    '-4015 ' => '\\ccxt\\ExchangeError', // array("code":-4015 ,"msg":"Withdraw is limited.")
-                    '-4016 ' => '\\ccxt\\PermissionDenied', // array("code":-4016 ,"msg":"Within 24 hours after password modification, withdrawal is prohibited.")
-                    '-4017 ' => '\\ccxt\\PermissionDenied', // array("code":-4017 ,"msg":"Within 24 hours after the release of 2FA, withdrawal is prohibited.")
+                    '-4005' => '\\ccxt\\RateLimitExceeded', // array("code":-4005 ,"msg":"Too many new requests.")
+                    '-4006' => '\\ccxt\\BadRequest', // array("code":-4006 ,"msg":"Support main account only.")
+                    '-4007' => '\\ccxt\\BadRequest', // array("code":-4007 ,"msg":"Address validation is not passed.")
+                    '-4008' => '\\ccxt\\BadRequest', // array("code":-4008 ,"msg":"Address tag validation is not passed.")
+                    '-4010' => '\\ccxt\\BadRequest', // array("code":-4010 ,"msg":"White list mail has been confirmed.") // [TODO] possible bug => it should probably be "has not been confirmed"
+                    '-4011' => '\\ccxt\\BadRequest', // array("code":-4011 ,"msg":"White list mail is invalid.")
+                    '-4012' => '\\ccxt\\BadRequest', // array("code":-4012 ,"msg":"White list is not opened.")
+                    '-4013' => '\\ccxt\\AuthenticationError', // array("code":-4013 ,"msg":"2FA is not opened.")
+                    '-4014' => '\\ccxt\\PermissionDenied', // array("code":-4014 ,"msg":"Withdraw is not allowed within 2 min login.")
+                    '-4015' => '\\ccxt\\ExchangeError', // array("code":-4015 ,"msg":"Withdraw is limited.")
+                    '-4016' => '\\ccxt\\PermissionDenied', // array("code":-4016 ,"msg":"Within 24 hours after password modification, withdrawal is prohibited.")
+                    '-4017' => '\\ccxt\\PermissionDenied', // array("code":-4017 ,"msg":"Within 24 hours after the release of 2FA, withdrawal is prohibited.")
                     '-4018' => '\\ccxt\\BadSymbol', // array("code":-4018,"msg":"We don't have this asset.")
                     '-4019' => '\\ccxt\\BadSymbol', // array("code":-4019,"msg":"Current asset is not open for withdrawal.")
                     '-4021' => '\\ccxt\\BadRequest', // array("code":-4021,"msg":"Asset withdrawal must be an %s multiple of %s.")
@@ -1364,7 +1367,7 @@ class binance extends Exchange {
         }
         $response = yield $this->$method ($query);
         //
-        // $spot / $margin
+        // $spot / margin
         //
         //     {
         //         "timezone":"UTC",
@@ -1523,10 +1526,13 @@ class binance extends Exchange {
             $lowercaseId = $this->safe_string_lower($market, 'symbol');
             $baseId = $this->safe_string($market, 'baseAsset');
             $quoteId = $this->safe_string($market, 'quoteAsset');
+            $settleId = $this->safe_string($market, 'marginAsset');
             $base = $this->safe_currency_code($baseId);
             $quote = $this->safe_currency_code($quoteId);
+            $settle = $this->safe_currency_code($settleId);
+            $contract = $future || $delivery;
             $contractType = $this->safe_string($market, 'contractType');
-            $idSymbol = ($future || $delivery) && ($contractType !== 'PERPETUAL');
+            $idSymbol = $contract && ($contractType !== 'PERPETUAL');
             $symbol = null;
             $expiry = null;
             if ($idSymbol) {
@@ -1537,51 +1543,52 @@ class binance extends Exchange {
             }
             $filters = $this->safe_value($market, 'filters', array());
             $filtersByType = $this->index_by($filters, 'filterType');
-            $precision = array(
-                'base' => $this->safe_integer($market, 'baseAssetPrecision'),
-                'quote' => $this->safe_integer($market, 'quotePrecision'),
-                'amount' => $this->safe_integer($market, 'quantityPrecision'),
-                'price' => $this->safe_integer($market, 'pricePrecision'),
-            );
             $status = $this->safe_string_2($market, 'status', 'contractStatus');
-            $active = ($status === 'TRADING');
-            $margin = $this->safe_value($market, 'isMarginTradingAllowed', false);
             $contractSize = null;
             $fees = $this->fees;
-            if ($future || $delivery) {
+            if ($contract) {
                 $contractSize = $this->safe_number($market, 'contractSize', $this->parse_number('1'));
                 $fees = $this->fees[$type];
             }
-            $maker = $fees['trading']['maker'];
-            $taker = $fees['trading']['taker'];
-            $settleId = $this->safe_string($market, 'marginAsset');
-            $settle = $this->safe_currency_code($settleId);
+            $isMarginTradingAllowed = $this->safe_value($market, 'isMarginTradingAllowed', false);
             $entry = array(
                 'id' => $id,
                 'lowercaseId' => $lowercaseId,
                 'symbol' => $symbol,
                 'base' => $base,
                 'quote' => $quote,
+                'settle' => $settle,
                 'baseId' => $baseId,
                 'quoteId' => $quoteId,
-                'info' => $market,
-                'spot' => $spot,
+                'settleId' => $settleId,
                 'type' => $type,
-                'margin' => $margin,
+                'spot' => $spot,
+                'margin' => $spot && $isMarginTradingAllowed,
                 'future' => $future,
                 'delivery' => $delivery,
-                'linear' => $future,
-                'inverse' => $delivery,
+                'option' => false,
+                'active' => ($status === 'TRADING'),
+                'contract' => $contract,
+                'linear' => $contract ? $future : null,
+                'inverse' => $contract ? $delivery : null,
+                'taker' => $fees['trading']['taker'],
+                'maker' => $fees['trading']['maker'],
+                'contractSize' => $contractSize,
                 'expiry' => $expiry,
                 'expiryDatetime' => $this->iso8601($expiry),
-                'settleId' => $settleId,
-                'settle' => $settle,
-                'active' => $active,
-                'precision' => $precision,
-                'contractSize' => $contractSize,
-                'maker' => $maker,
-                'taker' => $taker,
+                'strike' => null,
+                'optionType' => null,
+                'precision' => array(
+                    'price' => $this->safe_integer($market, 'pricePrecision'),
+                    'amount' => $this->safe_integer($market, 'quantityPrecision'),
+                    'base' => $this->safe_integer($market, 'baseAssetPrecision'),
+                    'quote' => $this->safe_integer($market, 'quotePrecision'),
+                ),
                 'limits' => array(
+                    'leverage' => array(
+                        'min' => null,
+                        'max' => null,
+                    ),
                     'amount' => array(
                         'min' => null,
                         'max' => null,
@@ -1595,6 +1602,7 @@ class binance extends Exchange {
                         'max' => null,
                     ),
                 ),
+                'info' => $market,
             );
             if (is_array($filtersByType) && array_key_exists('PRICE_FILTER', $filtersByType)) {
                 $filter = $this->safe_value($filtersByType, 'PRICE_FILTER', array());
@@ -1994,39 +2002,39 @@ class binance extends Exchange {
         $timestamp = $this->safe_integer($ticker, 'closeTime');
         $marketId = $this->safe_string($ticker, 'symbol');
         $symbol = $this->safe_symbol($marketId, $market);
-        $last = $this->safe_number($ticker, 'lastPrice');
+        $last = $this->safe_string($ticker, 'lastPrice');
         $isCoinm = (is_array($ticker) && array_key_exists('baseVolume', $ticker));
         $baseVolume = null;
         $quoteVolume = null;
         if ($isCoinm) {
-            $baseVolume = $this->safe_number($ticker, 'baseVolume');
-            $quoteVolume = $this->safe_number($ticker, 'volume');
+            $baseVolume = $this->safe_string($ticker, 'baseVolume');
+            $quoteVolume = $this->safe_string($ticker, 'volume');
         } else {
-            $baseVolume = $this->safe_number($ticker, 'volume');
-            $quoteVolume = $this->safe_number($ticker, 'quoteVolume');
+            $baseVolume = $this->safe_string($ticker, 'volume');
+            $quoteVolume = $this->safe_string($ticker, 'quoteVolume');
         }
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_number($ticker, 'highPrice'),
-            'low' => $this->safe_number($ticker, 'lowPrice'),
-            'bid' => $this->safe_number($ticker, 'bidPrice'),
-            'bidVolume' => $this->safe_number($ticker, 'bidQty'),
-            'ask' => $this->safe_number($ticker, 'askPrice'),
-            'askVolume' => $this->safe_number($ticker, 'askQty'),
-            'vwap' => $this->safe_number($ticker, 'weightedAvgPrice'),
-            'open' => $this->safe_number($ticker, 'openPrice'),
+            'high' => $this->safe_string($ticker, 'highPrice'),
+            'low' => $this->safe_string($ticker, 'lowPrice'),
+            'bid' => $this->safe_string($ticker, 'bidPrice'),
+            'bidVolume' => $this->safe_string($ticker, 'bidQty'),
+            'ask' => $this->safe_string($ticker, 'askPrice'),
+            'askVolume' => $this->safe_string($ticker, 'askQty'),
+            'vwap' => $this->safe_string($ticker, 'weightedAvgPrice'),
+            'open' => $this->safe_string($ticker, 'openPrice'),
             'close' => $last,
             'last' => $last,
-            'previousClose' => $this->safe_number($ticker, 'prevClosePrice'), // previous day close
-            'change' => $this->safe_number($ticker, 'priceChange'),
-            'percentage' => $this->safe_number($ticker, 'priceChangePercent'),
+            'previousClose' => $this->safe_string($ticker, 'prevClosePrice'), // previous day close
+            'change' => $this->safe_string($ticker, 'priceChange'),
+            'percentage' => $this->safe_string($ticker, 'priceChangePercent'),
             'average' => null,
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
-        ), $market);
+        ), $market, false);
     }
 
     public function fetch_status($params = array ()) {
@@ -5046,26 +5054,16 @@ class binance extends Exchange {
             $this->check_required_credentials();
             $query = null;
             $recvWindow = $this->safe_integer($this->options, 'recvWindow', 5000);
+            $extendedParams = array_merge(array(
+                'timestamp' => $this->nonce(),
+                'recvWindow' => $recvWindow,
+            ), $params);
             if (($api === 'sapi') && ($path === 'asset/dust')) {
-                $query = $this->urlencode_with_array_repeat(array_merge(array(
-                    'timestamp' => $this->nonce(),
-                    'recvWindow' => $recvWindow,
-                ), $params));
-            } else if (($path === 'batchOrders') || (mb_strpos($path, 'sub-account') !== false)) {
-                $query = $this->rawencode(array_merge(array(
-                    'timestamp' => $this->nonce(),
-                    'recvWindow' => $recvWindow,
-                ), $params));
-            } else if ($giftcard) {
-                $query = $this->urlencode(array(
-                    'timestamp' => $this->nonce(),
-                    'recvWindow' => $recvWindow,
-                ));
+                $query = $this->urlencode_with_array_repeat($extendedParams);
+            } else if (($path === 'batchOrders') || (mb_strpos($path, 'sub-account') !== false) || ($path === 'capital/withdraw/apply')) {
+                $query = $this->rawencode($extendedParams);
             } else {
-                $query = $this->urlencode(array_merge(array(
-                    'timestamp' => $this->nonce(),
-                    'recvWindow' => $recvWindow,
-                ), $params));
+                $query = $this->urlencode($extendedParams);
             }
             $signature = $this->hmac($this->encode($query), $this->encode($this->secret));
             $query .= '&' . 'signature=' . $signature;

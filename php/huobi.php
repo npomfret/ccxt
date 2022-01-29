@@ -31,23 +31,26 @@ class huobi extends Exchange {
             'hostname' => 'api.huobi.pro', // api.testnet.huobi.pro
             'pro' => true,
             'has' => array(
-                // 'margin' => true,
+                'CORS' => null,
+                'spot' => true,
+                'margin' => true,
                 'swap' => true,
                 'future' => true,
+                'option' => null,
                 'addMargin' => null,
                 'cancelAllOrders' => true,
                 'cancelOrder' => true,
                 'cancelOrders' => true,
-                'CORS' => null,
                 'createDepositAddress' => null,
                 'createOrder' => true,
-                'createReduceOnlyOrder' => null,
+                'createReduceOnlyOrder' => false,
                 'deposit' => null,
                 'fetchAccounts' => true,
                 'fetchAllTradingFees' => null,
                 'fetchBalance' => true,
                 'fetchBidsAsks' => null,
                 'fetchBorrowRate' => true,
+                'fetchBorrowRateHistories' => null,
                 'fetchBorrowRateHistory' => null,
                 'fetchBorrowRates' => true,
                 'fetchBorrowRatesPerSymbol' => true,
@@ -65,13 +68,13 @@ class huobi extends Exchange {
                 'fetchFundingHistory' => true,
                 'fetchFundingRate' => true,
                 'fetchFundingRateHistory' => true,
-                'fetchFundingRates' => null,
+                'fetchFundingRates' => true,
                 'fetchIndexOHLCV' => true,
-                'fetchIsolatedPositions' => null,
+                'fetchIsolatedPositions' => false,
                 'fetchL3OrderBook' => null,
                 'fetchLedger' => null,
                 'fetchLedgerEntry' => null,
-                'fetchLeverage' => null,
+                'fetchLeverage' => false,
                 'fetchMarkets' => true,
                 'fetchMarkOHLCV' => true,
                 'fetchMyBuys' => null,
@@ -87,7 +90,7 @@ class huobi extends Exchange {
                 'fetchOrderTrades' => true,
                 'fetchPosition' => true,
                 'fetchPositions' => true,
-                'fetchPositionsRisk' => null,
+                'fetchPositionsRisk' => false,
                 'fetchPremiumIndexOHLCV' => true,
                 'fetchStatus' => null,
                 'fetchTicker' => true,
@@ -106,8 +109,8 @@ class huobi extends Exchange {
                 'loadLeverageBrackets' => null,
                 'reduceMargin' => null,
                 'setLeverage' => true,
-                'setMarginMode' => null,
-                'setPositionMode' => null,
+                'setMarginMode' => false,
+                'setPositionMode' => false,
                 'signIn' => null,
                 'transfer' => true,
                 'withdraw' => true,
@@ -1088,12 +1091,12 @@ class huobi extends Exchange {
         //             array(
         //                 "base-currency":"xrp3s",
         //                 "quote-currency":"usdt",
-        //                 "price-$precision":4,
-        //                 "amount-$precision":4,
+        //                 "price-precision":4,
+        //                 "amount-precision":4,
         //                 "symbol-partition":"innovation",
         //                 "symbol":"xrp3susdt",
         //                 "state":"online",
-        //                 "value-$precision":8,
+        //                 "value-precision":8,
         //                 "min-order-amt":0.01,
         //                 "max-order-amt":1616.4353,
         //                 "min-order-value":5,
@@ -1249,18 +1252,13 @@ class huobi extends Exchange {
                 $pricePrecision = $this->safe_number($market, 'price_tick');
                 $amountPrecision = 1;
             }
-            $precision = array(
-                'amount' => $amountPrecision,
-                'price' => $pricePrecision,
-                'cost' => $costPrecision,
-            );
             $maker = null;
             $taker = null;
             if ($spot) {
                 $maker = ($base === 'OMG') ? 0 : 0.2 / 100;
                 $taker = ($base === 'OMG') ? 0 : 0.2 / 100;
             }
-            $minAmount = $this->safe_number($market, 'min-order-amt', pow(10, -$precision['amount']));
+            $minAmount = $this->safe_number($market, 'min-order-amt');
             $maxAmount = $this->safe_number($market, 'max-order-amt');
             $minCost = $this->safe_number($market, 'min-order-value', 0);
             $active = null;
@@ -1271,6 +1269,9 @@ class huobi extends Exchange {
                 $contractStatus = $this->safe_integer($market, 'contract_status');
                 $active = ($contractStatus === 1);
             }
+            $leverageRatio = $this->safe_string($market, 'leverage-ratio', '1');
+            $superLeverageRatio = $this->safe_string($market, 'super-margin-leverage-ratio', '1');
+            $hasLeverage = Precise::string_gt($leverageRatio, '1') || Precise::string_gt($superLeverageRatio, '1');
             // 0 Delisting
             // 1 Listing
             // 2 Pending Listing
@@ -1291,35 +1292,44 @@ class huobi extends Exchange {
                 'quoteId' => $quoteId,
                 'settleId' => $settleId,
                 'type' => $type,
-                'contract' => $contract,
                 'spot' => $spot,
-                'future' => $future,
+                'margin' => ($spot && $hasLeverage),
                 'swap' => $swap,
+                'future' => $future,
+                'option' => false,
+                'active' => $active,
+                'contract' => $contract,
                 'linear' => $linear,
                 'inverse' => $inverse,
-                'expiry' => $expiry,
-                'expiryDatetime' => $this->iso8601($expiry),
-                'contractSize' => $contractSize,
-                'active' => $active,
-                'precision' => $precision,
                 'taker' => $taker,
                 'maker' => $maker,
+                'contractSize' => $contractSize,
+                'expiry' => $expiry,
+                'expiryDatetime' => $this->iso8601($expiry),
+                'strike' => null,
+                'optionType' => null,
+                'precision' => array(
+                    'amount' => $amountPrecision,
+                    'price' => $pricePrecision,
+                    'cost' => $costPrecision,
+                ),
                 'limits' => array(
+                    'leverage' => array(
+                        'min' => $this->parse_number('1'),
+                        'max' => $this->parse_number($leverageRatio),
+                        'superMax' => $this->parse_number($superLeverageRatio),
+                    ),
                     'amount' => array(
                         'min' => $minAmount,
                         'max' => $maxAmount,
                     ),
                     'price' => array(
-                        'min' => $pricePrecision,
+                        'min' => null,
                         'max' => null,
                     ),
                     'cost' => array(
                         'min' => $minCost,
                         'max' => null,
-                    ),
-                    'leverage' => array(
-                        'max' => $this->safe_number($market, 'leverage-ratio', 1),
-                        'superMax' => $this->safe_number($market, 'super-margin-leverage-ratio', 1),
                     ),
                 ),
                 'info' => $market,
@@ -4484,6 +4494,44 @@ class huobi extends Exchange {
         //
         $result = $this->safe_value($response, 'data', array());
         return $this->parse_funding_rate($result, $market);
+    }
+
+    public function fetch_funding_rates($symbols, $params = array ()) {
+        $this->load_markets();
+        $options = $this->safe_value($this->options, 'fetchFundingRates', array());
+        $defaultSubType = $this->safe_string($this->options, 'defaultSubType', 'inverse');
+        $subType = $this->safe_string($options, 'subType', $defaultSubType);
+        $subType = $this->safe_string($params, 'subType', $subType);
+        $request = array(
+            // 'contract_code' => market['id'],
+        );
+        $method = $this->get_supported_mapping($subType, array(
+            'linear' => 'contractPublicGetLinearSwapApiV1SwapBatchFundingRate',
+            'inverse' => 'contractPublicGetSwapApiV1SwapBatchFundingRate',
+        ));
+        $params = $this->omit($params, 'subType');
+        $response = $this->$method (array_merge($request, $params));
+        //
+        //     {
+        //         "status" => "ok",
+        //         "data" => array(
+        //             array(
+        //                 "estimated_rate" => "0.000100000000000000",
+        //                 "funding_rate" => "0.000100000000000000",
+        //                 "contract_code" => "MANA-USDT",
+        //                 "symbol" => "MANA",
+        //                 "fee_asset" => "USDT",
+        //                 "funding_time" => "1643356800000",
+        //                 "next_funding_time" => "1643385600000",
+        //                 "trade_partition":"USDT"
+        //             ),
+        //         ),
+        //         "ts" => 1643346173103
+        //     }
+        //
+        $data = $this->safe_value($response, 'data', array());
+        $result = $this->parse_funding_rates($data);
+        return $this->filter_by_array($result, 'symbol', $symbols);
     }
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {

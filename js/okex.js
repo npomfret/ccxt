@@ -20,14 +20,16 @@ module.exports = class okex extends Exchange {
             'pro': true,
             'certified': true,
             'has': {
+                'CORS': undefined,
+                'spot': true,
                 'margin': true,
                 'swap': true,
                 'future': true,
+                'option': undefined,
                 'addMargin': true,
                 'cancelAllOrders': undefined,
                 'cancelOrder': true,
-                'cancelOrders': undefined,
-                'CORS': undefined,
+                'cancelOrders': true,
                 'createDepositAddress': undefined,
                 'createOrder': true,
                 'createReduceOnlyOrder': undefined,
@@ -37,6 +39,7 @@ module.exports = class okex extends Exchange {
                 'fetchBalance': true,
                 'fetchBidsAsks': undefined,
                 'fetchBorrowRate': true,
+                'fetchBorrowRateHistories': undefined,
                 'fetchBorrowRateHistory': undefined,
                 'fetchBorrowRates': true,
                 'fetchBorrowRatesPerSymbol': false,
@@ -310,7 +313,7 @@ module.exports = class okex extends Exchange {
                     '50011': RateLimitExceeded, // Request too frequent
                     '50012': ExchangeError, // Account status invalid
                     '50013': ExchangeNotAvailable, // System is busy, please try again later
-                    '50014': ExchangeError, // Parameter {0} can not be empty
+                    '50014': BadRequest, // Parameter {0} can not be empty
                     '50015': ExchangeError, // Either parameter {0} or {1} is required
                     '50016': ExchangeError, // Parameter {0} does not match parameter {1}
                     '50017': ExchangeError, // The position is frozen due to ADL. Operation restricted
@@ -320,14 +323,14 @@ module.exports = class okex extends Exchange {
                     '50021': ExchangeError, // Currency {0} is frozen due to liquidation. Operation restricted
                     '50022': ExchangeError, // The account is frozen due to liquidation. Operation restricted
                     '50023': ExchangeError, // Funding fee frozen. Operation restricted
-                    '50024': ExchangeError, // Parameter {0} and {1} can not exist at the same time
+                    '50024': BadRequest, // Parameter {0} and {1} can not exist at the same time
                     '50025': ExchangeError, // Parameter {0} count exceeds the limit {1}
                     '50026': ExchangeError, // System error
-                    '50027': ExchangeError, // The account is restricted from trading
+                    '50027': PermissionDenied, // The account is restricted from trading
                     '50028': ExchangeError, // Unable to take the order, please reach out to support center for details
                     // API Class
                     '50100': ExchangeError, // API frozen, please contact customer service
-                    '50101': ExchangeError, // Broker id of APIKey does not match current environment
+                    '50101': AuthenticationError, // Broker id of APIKey does not match current environment
                     '50102': InvalidNonce, // Timestamp request expired
                     '50103': AuthenticationError, // Request header "OK_ACCESS_KEY" can not be empty
                     '50104': AuthenticationError, // Request header "OK_ACCESS_PASSPHRASE" can not be empty
@@ -768,20 +771,20 @@ module.exports = class okex extends Exchange {
         const contract = swap || futures || option;
         let baseId = this.safeString (market, 'baseCcy');
         let quoteId = this.safeString (market, 'quoteCcy');
-        const settleCurrency = this.safeString (market, 'settleCcy');
-        const settle = this.safeCurrencyCode (settleCurrency);
+        const settleId = this.safeString (market, 'settleCcy');
+        const settle = this.safeCurrencyCode (settleId);
         const underlying = this.safeString (market, 'uly');
         if ((underlying !== undefined) && !spot) {
             const parts = underlying.split ('-');
             baseId = this.safeString (parts, 0);
             quoteId = this.safeString (parts, 1);
         }
-        const inverse = contract ? (baseId === settleCurrency) : undefined;
-        const linear = contract ? (quoteId === settleCurrency) : undefined;
         const base = this.safeCurrencyCode (baseId);
         const quote = this.safeCurrencyCode (quoteId);
         let symbol = base + '/' + quote;
         let expiry = undefined;
+        let strikePrice = undefined;
+        let optionType = undefined;
         if (contract) {
             symbol = symbol + ':' + settle;
             expiry = this.safeInteger (market, 'expTime');
@@ -790,69 +793,69 @@ module.exports = class okex extends Exchange {
                 symbol = symbol + '-' + ymd;
             }
             if (option) {
-                const strikePrice = this.safeString (market, 'stk');
-                const optionType = this.safeString (market, 'optType');
+                strikePrice = this.safeString (market, 'stk');
+                optionType = this.safeString (market, 'optType');
                 symbol = symbol + '-' + strikePrice + '-' + optionType;
+                optionType = (optionType === 'P') ? 'put' : 'call';
             }
         }
         const tickSize = this.safeString (market, 'tickSz');
-        const precision = {
-            'amount': this.safeNumber (market, 'lotSz'),
-            'price': this.parseNumber (tickSize),
-        };
         const minAmountString = this.safeString (market, 'minSz');
         const minAmount = this.parseNumber (minAmountString);
-        let minCost = undefined;
-        if ((minAmount !== undefined) && (tickSize !== undefined)) {
-            minCost = this.parseNumber (Precise.stringMul (tickSize, minAmountString));
-        }
-        const active = true;
         const fees = this.safeValue2 (this.fees, type, 'trading', {});
-        let contractSize = undefined;
-        if (contract) {
-            contractSize = this.safeNumber (market, 'ctVal');
+        const precisionPrice = this.parseNumber (tickSize);
+        let maxLeverage = this.safeString (market, 'lever', '1');
+        if (maxLeverage === '') {
+            maxLeverage = '1';
         }
-        const leverage = this.safeNumber (market, 'lever', 1);
+        maxLeverage = Precise.stringMax (maxLeverage, '1');
         return this.extend (fees, {
             'id': id,
             'symbol': symbol,
             'base': base,
             'quote': quote,
+            'settle': settle,
             'baseId': baseId,
             'quoteId': quoteId,
-            'settleId': settleCurrency,
-            'settle': settle,
-            'info': market,
+            'settleId': settleId,
             'type': type,
             'spot': spot,
-            'futures': futures,
+            'margin': spot && (Precise.stringGt (maxLeverage, '1')),
             'swap': swap,
-            'contract': contract,
+            'futures': futures,
             'option': option,
-            'linear': linear,
-            'inverse': inverse,
-            'active': active,
-            'contractSize': contractSize,
-            'precision': precision,
+            'active': true,
+            'contract': contract,
+            'linear': contract ? (quoteId === settleId) : undefined,
+            'inverse': contract ? (baseId === settleId) : undefined,
+            'contractSize': contract ? this.safeNumber (market, 'ctVal') : undefined,
             'expiry': expiry,
             'expiryDatetime': this.iso8601 (expiry),
+            'strike': strikePrice,
+            'optionType': optionType,
+            'precision': {
+                'price': precisionPrice,
+                'amount': this.safeNumber (market, 'lotSz'),
+            },
             'limits': {
+                'leverage': {
+                    'min': this.parseNumber ('1'),
+                    'max': this.parseNumber (maxLeverage),
+                },
                 'amount': {
                     'min': minAmount,
                     'max': undefined,
                 },
                 'price': {
-                    'min': precision['price'],
+                    'min': precisionPrice,
                     'max': undefined,
                 },
                 'cost': {
-                    'min': minCost,
+                    'min': undefined,
                     'max': undefined,
                 },
-                'leverage': {
-                    'max': leverage,
-                },
             },
+            'info': market,
         });
     }
 
@@ -1096,22 +1099,21 @@ module.exports = class okex extends Exchange {
         const marketId = this.safeString (ticker, 'instId');
         market = this.safeMarket (marketId, market, '-');
         const symbol = market['symbol'];
-        const last = this.safeNumber (ticker, 'last');
-        const open = this.safeNumber (ticker, 'open24h');
-        const quoteVolume = this.safeNumber (ticker, 'volCcy24h');
-        const baseVolume = this.safeNumber (ticker, 'vol24h');
-        const vwap = this.vwap (baseVolume, quoteVolume);
+        const last = this.safeString (ticker, 'last');
+        const open = this.safeString (ticker, 'open24h');
+        const quoteVolume = this.safeString (ticker, 'volCcy24h');
+        const baseVolume = this.safeString (ticker, 'vol24h');
         return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeNumber (ticker, 'high24h'),
-            'low': this.safeNumber (ticker, 'low24h'),
-            'bid': this.safeNumber (ticker, 'bidPx'),
-            'bidVolume': this.safeNumber (ticker, 'bidSz'),
-            'ask': this.safeNumber (ticker, 'askPx'),
-            'askVolume': this.safeNumber (ticker, 'askSz'),
-            'vwap': vwap,
+            'high': this.safeString (ticker, 'high24h'),
+            'low': this.safeString (ticker, 'low24h'),
+            'bid': this.safeString (ticker, 'bidPx'),
+            'bidVolume': this.safeString (ticker, 'bidSz'),
+            'ask': this.safeString (ticker, 'askPx'),
+            'askVolume': this.safeString (ticker, 'askSz'),
+            'vwap': undefined,
             'open': open,
             'close': last,
             'last': last,
@@ -1122,7 +1124,7 @@ module.exports = class okex extends Exchange {
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market);
+        }, market, false);
     }
 
     async fetchTicker (symbol, params = {}) {
@@ -1857,6 +1859,64 @@ module.exports = class okex extends Exchange {
         const data = this.safeValue (response, 'data', []);
         const order = this.safeValue (data, 0);
         return this.parseOrder (order, market);
+    }
+
+    async cancelOrders (ids, symbol = undefined, params = {}) { // TODO : the original endpoint signature differs, according to that you can skip individual symbol and assign ids in batch. At this moment, `params` is not being used too.
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' canelOrders() requires a symbol argument');
+        }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = [];
+        const clientOrderId = this.safeValue2 (params, 'clOrdId', 'clientOrderId');
+        if (clientOrderId === undefined) {
+            if (typeof ids === 'string') {
+                const orderIds = ids.split (',');
+                for (let i = 0; i < orderIds.length; i++) {
+                    request.push ({
+                        'instId': market['id'],
+                        'ordId': orderIds[i],
+                    });
+                }
+            } else {
+                for (let i = 0; i < ids.length; i++) {
+                    request.push ({
+                        'instId': market['id'],
+                        'ordId': ids[i],
+                    });
+                }
+            }
+        } else if (Array.isArray (clientOrderId)) {
+            for (let i = 0; i < clientOrderId.length; i++) {
+                request.push ({
+                    'instId': market['id'],
+                    'clOrdId': clientOrderId[i],
+                });
+            }
+        } else if (typeof clientOrderId === 'string') {
+            request.push ({
+                'instId': market['id'],
+                'clOrdId': clientOrderId,
+            });
+        }
+        const response = await this.privatePostTradeCancelBatchOrders (request); // dont extend with params, otherwise ARRAY will be turned into OBJECT
+        //
+        // {
+        //     "code": "0",
+        //     "data": [
+        //         {
+        //             "clOrdId": "e123456789ec4dBC1123456ba123b45e",
+        //             "ordId": "405071912345641543",
+        //             "sCode": "0",
+        //             "sMsg": ""
+        //         },
+        //         ...
+        //     ],
+        //     "msg": ""
+        // }
+        //
+        const ordersData = this.safeValue (response, 'data', []);
+        return this.parseOrders (ordersData, market, undefined, undefined, params);
     }
 
     parseOrderStatus (status) {
@@ -3756,7 +3816,7 @@ module.exports = class okex extends Exchange {
 
     setSandboxMode (enable) {
         if (enable) {
-            this.headers['x-simulated-trading'] = 1;
+            this.headers['x-simulated-trading'] = '1';
         } else if ('x-simulated-trading' in this.headers) {
             this.headers = this.omit (this.headers, 'x-simulated-trading');
         }

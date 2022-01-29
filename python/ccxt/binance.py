@@ -41,14 +41,16 @@ class binance(Exchange):
             'pro': True,
             # new metainfo interface
             'has': {
+                'CORS': None,
+                'spot': True,
                 'margin': True,
                 'swap': True,
                 'future': True,
+                'option': None,
                 'addMargin': True,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
                 'cancelOrders': None,
-                'CORS': None,
                 'createDepositAddress': None,
                 'createOrder': True,
                 'createReduceOnlyOrder': True,
@@ -58,6 +60,7 @@ class binance(Exchange):
                 'fetchBalance': True,
                 'fetchBidsAsks': True,
                 'fetchBorrowRate': True,
+                'fetchBorrowRateHistories': True,
                 'fetchBorrowRateHistory': True,
                 'fetchBorrowRates': False,
                 'fetchBorrowRatesPerSymbol': False,
@@ -1089,22 +1092,22 @@ class binance(Exchange):
                     '-3044': DDoSProtection,  # {"code":-3044,"msg":"System busy."}
                     '-3045': ExchangeError,  # {"code":-3045,"msg":"The system doesn't have enough asset now."}
                     '-3999': ExchangeError,  # {"code":-3999,"msg":"This function is only available for invited users."}
-                    '-4001 ': BadRequest,  # {"code":-4001 ,"msg":"Invalid operation."}
-                    '-4002 ': BadRequest,  # {"code":-4002 ,"msg":"Invalid get."}
-                    '-4003 ': BadRequest,  # {"code":-4003 ,"msg":"Your input email is invalid."}
+                    '-4001': BadRequest,  # {"code":-4001 ,"msg":"Invalid operation."}
+                    '-4002': BadRequest,  # {"code":-4002 ,"msg":"Invalid get."}
+                    '-4003': BadRequest,  # {"code":-4003 ,"msg":"Your input email is invalid."}
                     '-4004': AuthenticationError,  # {"code":-4004,"msg":"You don't login or auth."}
-                    '-4005 ': RateLimitExceeded,  # {"code":-4005 ,"msg":"Too many new requests."}
-                    '-4006 ': BadRequest,  # {"code":-4006 ,"msg":"Support main account only."}
-                    '-4007 ': BadRequest,  # {"code":-4007 ,"msg":"Address validation is not passed."}
-                    '-4008 ': BadRequest,  # {"code":-4008 ,"msg":"Address tag validation is not passed."}
-                    '-4010 ': BadRequest,  # {"code":-4010 ,"msg":"White list mail has been confirmed."}  # [TODO] possible bug: it should probably be "has not been confirmed"
-                    '-4011 ': BadRequest,  # {"code":-4011 ,"msg":"White list mail is invalid."}
-                    '-4012 ': BadRequest,  # {"code":-4012 ,"msg":"White list is not opened."}
-                    '-4013 ': AuthenticationError,  # {"code":-4013 ,"msg":"2FA is not opened."}
-                    '-4014 ': PermissionDenied,  # {"code":-4014 ,"msg":"Withdraw is not allowed within 2 min login."}
-                    '-4015 ': ExchangeError,  # {"code":-4015 ,"msg":"Withdraw is limited."}
-                    '-4016 ': PermissionDenied,  # {"code":-4016 ,"msg":"Within 24 hours after password modification, withdrawal is prohibited."}
-                    '-4017 ': PermissionDenied,  # {"code":-4017 ,"msg":"Within 24 hours after the release of 2FA, withdrawal is prohibited."}
+                    '-4005': RateLimitExceeded,  # {"code":-4005 ,"msg":"Too many new requests."}
+                    '-4006': BadRequest,  # {"code":-4006 ,"msg":"Support main account only."}
+                    '-4007': BadRequest,  # {"code":-4007 ,"msg":"Address validation is not passed."}
+                    '-4008': BadRequest,  # {"code":-4008 ,"msg":"Address tag validation is not passed."}
+                    '-4010': BadRequest,  # {"code":-4010 ,"msg":"White list mail has been confirmed."}  # [TODO] possible bug: it should probably be "has not been confirmed"
+                    '-4011': BadRequest,  # {"code":-4011 ,"msg":"White list mail is invalid."}
+                    '-4012': BadRequest,  # {"code":-4012 ,"msg":"White list is not opened."}
+                    '-4013': AuthenticationError,  # {"code":-4013 ,"msg":"2FA is not opened."}
+                    '-4014': PermissionDenied,  # {"code":-4014 ,"msg":"Withdraw is not allowed within 2 min login."}
+                    '-4015': ExchangeError,  # {"code":-4015 ,"msg":"Withdraw is limited."}
+                    '-4016': PermissionDenied,  # {"code":-4016 ,"msg":"Within 24 hours after password modification, withdrawal is prohibited."}
+                    '-4017': PermissionDenied,  # {"code":-4017 ,"msg":"Within 24 hours after the release of 2FA, withdrawal is prohibited."}
                     '-4018': BadSymbol,  # {"code":-4018,"msg":"We don't have self asset."}
                     '-4019': BadSymbol,  # {"code":-4019,"msg":"Current asset is not open for withdrawal."}
                     '-4021': BadRequest,  # {"code":-4021,"msg":"Asset withdrawal must be an %s multiple of %s."}
@@ -1520,10 +1523,13 @@ class binance(Exchange):
             lowercaseId = self.safe_string_lower(market, 'symbol')
             baseId = self.safe_string(market, 'baseAsset')
             quoteId = self.safe_string(market, 'quoteAsset')
+            settleId = self.safe_string(market, 'marginAsset')
             base = self.safe_currency_code(baseId)
             quote = self.safe_currency_code(quoteId)
+            settle = self.safe_currency_code(settleId)
+            contract = future or delivery
             contractType = self.safe_string(market, 'contractType')
-            idSymbol = (future or delivery) and (contractType != 'PERPETUAL')
+            idSymbol = contract and (contractType != 'PERPETUAL')
             symbol = None
             expiry = None
             if idSymbol:
@@ -1533,50 +1539,51 @@ class binance(Exchange):
                 symbol = base + '/' + quote
             filters = self.safe_value(market, 'filters', [])
             filtersByType = self.index_by(filters, 'filterType')
-            precision = {
-                'base': self.safe_integer(market, 'baseAssetPrecision'),
-                'quote': self.safe_integer(market, 'quotePrecision'),
-                'amount': self.safe_integer(market, 'quantityPrecision'),
-                'price': self.safe_integer(market, 'pricePrecision'),
-            }
             status = self.safe_string_2(market, 'status', 'contractStatus')
-            active = (status == 'TRADING')
-            margin = self.safe_value(market, 'isMarginTradingAllowed', False)
             contractSize = None
             fees = self.fees
-            if future or delivery:
+            if contract:
                 contractSize = self.safe_number(market, 'contractSize', self.parse_number('1'))
                 fees = self.fees[type]
-            maker = fees['trading']['maker']
-            taker = fees['trading']['taker']
-            settleId = self.safe_string(market, 'marginAsset')
-            settle = self.safe_currency_code(settleId)
+            isMarginTradingAllowed = self.safe_value(market, 'isMarginTradingAllowed', False)
             entry = {
                 'id': id,
                 'lowercaseId': lowercaseId,
                 'symbol': symbol,
                 'base': base,
                 'quote': quote,
+                'settle': settle,
                 'baseId': baseId,
                 'quoteId': quoteId,
-                'info': market,
-                'spot': spot,
+                'settleId': settleId,
                 'type': type,
-                'margin': margin,
+                'spot': spot,
+                'margin': spot and isMarginTradingAllowed,
                 'future': future,
                 'delivery': delivery,
-                'linear': future,
-                'inverse': delivery,
+                'option': False,
+                'active': (status == 'TRADING'),
+                'contract': contract,
+                'linear': future if contract else None,
+                'inverse': delivery if contract else None,
+                'taker': fees['trading']['taker'],
+                'maker': fees['trading']['maker'],
+                'contractSize': contractSize,
                 'expiry': expiry,
                 'expiryDatetime': self.iso8601(expiry),
-                'settleId': settleId,
-                'settle': settle,
-                'active': active,
-                'precision': precision,
-                'contractSize': contractSize,
-                'maker': maker,
-                'taker': taker,
+                'strike': None,
+                'optionType': None,
+                'precision': {
+                    'price': self.safe_integer(market, 'pricePrecision'),
+                    'amount': self.safe_integer(market, 'quantityPrecision'),
+                    'base': self.safe_integer(market, 'baseAssetPrecision'),
+                    'quote': self.safe_integer(market, 'quotePrecision'),
+                },
                 'limits': {
+                    'leverage': {
+                        'min': None,
+                        'max': None,
+                    },
                     'amount': {
                         'min': None,
                         'max': None,
@@ -1590,6 +1597,7 @@ class binance(Exchange):
                         'max': None,
                     },
                 },
+                'info': market,
             }
             if 'PRICE_FILTER' in filtersByType:
                 filter = self.safe_value(filtersByType, 'PRICE_FILTER', {})
@@ -1971,38 +1979,38 @@ class binance(Exchange):
         timestamp = self.safe_integer(ticker, 'closeTime')
         marketId = self.safe_string(ticker, 'symbol')
         symbol = self.safe_symbol(marketId, market)
-        last = self.safe_number(ticker, 'lastPrice')
+        last = self.safe_string(ticker, 'lastPrice')
         isCoinm = ('baseVolume' in ticker)
         baseVolume = None
         quoteVolume = None
         if isCoinm:
-            baseVolume = self.safe_number(ticker, 'baseVolume')
-            quoteVolume = self.safe_number(ticker, 'volume')
+            baseVolume = self.safe_string(ticker, 'baseVolume')
+            quoteVolume = self.safe_string(ticker, 'volume')
         else:
-            baseVolume = self.safe_number(ticker, 'volume')
-            quoteVolume = self.safe_number(ticker, 'quoteVolume')
+            baseVolume = self.safe_string(ticker, 'volume')
+            quoteVolume = self.safe_string(ticker, 'quoteVolume')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'highPrice'),
-            'low': self.safe_number(ticker, 'lowPrice'),
-            'bid': self.safe_number(ticker, 'bidPrice'),
-            'bidVolume': self.safe_number(ticker, 'bidQty'),
-            'ask': self.safe_number(ticker, 'askPrice'),
-            'askVolume': self.safe_number(ticker, 'askQty'),
-            'vwap': self.safe_number(ticker, 'weightedAvgPrice'),
-            'open': self.safe_number(ticker, 'openPrice'),
+            'high': self.safe_string(ticker, 'highPrice'),
+            'low': self.safe_string(ticker, 'lowPrice'),
+            'bid': self.safe_string(ticker, 'bidPrice'),
+            'bidVolume': self.safe_string(ticker, 'bidQty'),
+            'ask': self.safe_string(ticker, 'askPrice'),
+            'askVolume': self.safe_string(ticker, 'askQty'),
+            'vwap': self.safe_string(ticker, 'weightedAvgPrice'),
+            'open': self.safe_string(ticker, 'openPrice'),
             'close': last,
             'last': last,
-            'previousClose': self.safe_number(ticker, 'prevClosePrice'),  # previous day close
-            'change': self.safe_number(ticker, 'priceChange'),
-            'percentage': self.safe_number(ticker, 'priceChangePercent'),
+            'previousClose': self.safe_string(ticker, 'prevClosePrice'),  # previous day close
+            'change': self.safe_string(ticker, 'priceChange'),
+            'percentage': self.safe_string(ticker, 'priceChangePercent'),
             'average': None,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     def fetch_status(self, params={}):
         response = self.sapiGetSystemStatus(params)
@@ -4775,26 +4783,16 @@ class binance(Exchange):
             self.check_required_credentials()
             query = None
             recvWindow = self.safe_integer(self.options, 'recvWindow', 5000)
+            extendedParams = self.extend({
+                'timestamp': self.nonce(),
+                'recvWindow': recvWindow,
+            }, params)
             if (api == 'sapi') and (path == 'asset/dust'):
-                query = self.urlencode_with_array_repeat(self.extend({
-                    'timestamp': self.nonce(),
-                    'recvWindow': recvWindow,
-                }, params))
-            elif (path == 'batchOrders') or (path.find('sub-account') >= 0):
-                query = self.rawencode(self.extend({
-                    'timestamp': self.nonce(),
-                    'recvWindow': recvWindow,
-                }, params))
-            elif giftcard:
-                query = self.urlencode({
-                    'timestamp': self.nonce(),
-                    'recvWindow': recvWindow,
-                })
+                query = self.urlencode_with_array_repeat(extendedParams)
+            elif (path == 'batchOrders') or (path.find('sub-account') >= 0) or (path == 'capital/withdraw/apply'):
+                query = self.rawencode(extendedParams)
             else:
-                query = self.urlencode(self.extend({
-                    'timestamp': self.nonce(),
-                    'recvWindow': recvWindow,
-                }, params))
+                query = self.urlencode(extendedParams)
             signature = self.hmac(self.encode(query), self.encode(self.secret))
             query += '&' + 'signature=' + signature
             headers = {

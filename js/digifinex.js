@@ -16,6 +16,7 @@ module.exports = class digifinex extends Exchange {
             'version': 'v3',
             'rateLimit': 900, // 300 for posts
             'has': {
+                'CORS': undefined,
                 'spot': true,
                 'margin': undefined,
                 'swap': false,
@@ -258,8 +259,8 @@ module.exports = class digifinex extends Exchange {
             const currency = data[i];
             const id = this.safeString (currency, 'currency');
             const code = this.safeCurrencyCode (id);
-            const depositStatus = this.safeValue (currency, 'deposit_status', 1);
-            const withdrawStatus = this.safeValue (currency, 'withdraw_status', 1);
+            const depositStatus = this.safeInteger (currency, 'deposit_status', 1);
+            const withdrawStatus = this.safeInteger (currency, 'withdraw_status', 1);
             const deposit = depositStatus > 0;
             const withdraw = withdrawStatus > 0;
             const active = deposit && withdraw;

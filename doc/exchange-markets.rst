@@ -2,7 +2,7 @@
 Supported Exchanges
 ===================
 
-The CCXT library currently supports the following 114 cryptocurrency exchange markets and trading APIs:
+The CCXT library currently supports the following 115 cryptocurrency exchange markets and trading APIs:
 
 .. list-table::
    :header-rows: 1
@@ -794,17 +794,20 @@ The CCXT library currently supports the following 114 cryptocurrency exchange ma
      - 
      - 
    * - .. image:: https://user-images.githubusercontent.com/51840849/87443317-01c0d080-c5fe-11ea-95c2-9ebe1a8fafd9.jpg
-          :target: https://www.flowbtc.com.br
+          :target: https://one.ndax.io/bfQiSL
           :alt: flowbtc
      
      - flowbtc
-     - `flowBTC <https://www.flowbtc.com.br>`__
-     - .. image:: https://img.shields.io/badge/1-lightgray
+     - `flowBTC <https://one.ndax.io/bfQiSL>`__
+     - .. image:: https://img.shields.io/badge/*-lightgray
           :target: https://www.flowbtc.com.br/api.html
-          :alt: API Version 1
+          :alt: API Version *
      
      - 
-     - 
+     - .. image:: https://img.shields.io/badge/CCXT-Pro-black
+          :target: https://ccxt.pro
+          :alt: CCXT Pro
+     
    * - .. image:: https://user-images.githubusercontent.com/1294454/97296144-514fa300-1861-11eb-952b-3d55d492200b.jpg
           :target: https://fmfw.io/referral/da948b21d6c92d69
           :alt: fmfwio
@@ -1456,6 +1459,18 @@ The CCXT library currently supports the following 114 cryptocurrency exchange ma
      - .. image:: https://img.shields.io/badge/2-lightgray
           :target: https://github.com/whitebit-exchange/api-docs
           :alt: API Version 2
+     
+     - 
+     - 
+   * - .. image:: https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg
+          :target: https://referral.woo.org/BAJS6oNmZb3vi3RGA
+          :alt: woo
+     
+     - woo
+     - `WOO X <https://referral.woo.org/BAJS6oNmZb3vi3RGA>`__
+     - .. image:: https://img.shields.io/badge/1-lightgray
+          :target: https://docs.woo.org/
+          :alt: API Version 1
      
      - 
      - 

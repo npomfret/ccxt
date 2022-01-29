@@ -12,7 +12,6 @@ try:
 except NameError:
     basestring = str  # Python 2
 import hashlib
-import math
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import PermissionDenied
@@ -49,23 +48,26 @@ class huobi(Exchange):
             'hostname': 'api.huobi.pro',  # api.testnet.huobi.pro
             'pro': True,
             'has': {
-                # 'margin': True,
+                'CORS': None,
+                'spot': True,
+                'margin': True,
                 'swap': True,
                 'future': True,
+                'option': None,
                 'addMargin': None,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
                 'cancelOrders': True,
-                'CORS': None,
                 'createDepositAddress': None,
                 'createOrder': True,
-                'createReduceOnlyOrder': None,
+                'createReduceOnlyOrder': False,
                 'deposit': None,
                 'fetchAccounts': True,
                 'fetchAllTradingFees': None,
                 'fetchBalance': True,
                 'fetchBidsAsks': None,
                 'fetchBorrowRate': True,
+                'fetchBorrowRateHistories': None,
                 'fetchBorrowRateHistory': None,
                 'fetchBorrowRates': True,
                 'fetchBorrowRatesPerSymbol': True,
@@ -83,13 +85,13 @@ class huobi(Exchange):
                 'fetchFundingHistory': True,
                 'fetchFundingRate': True,
                 'fetchFundingRateHistory': True,
-                'fetchFundingRates': None,
+                'fetchFundingRates': True,
                 'fetchIndexOHLCV': True,
-                'fetchIsolatedPositions': None,
+                'fetchIsolatedPositions': False,
                 'fetchL3OrderBook': None,
                 'fetchLedger': None,
                 'fetchLedgerEntry': None,
-                'fetchLeverage': None,
+                'fetchLeverage': False,
                 'fetchMarkets': True,
                 'fetchMarkOHLCV': True,
                 'fetchMyBuys': None,
@@ -105,7 +107,7 @@ class huobi(Exchange):
                 'fetchOrderTrades': True,
                 'fetchPosition': True,
                 'fetchPositions': True,
-                'fetchPositionsRisk': None,
+                'fetchPositionsRisk': False,
                 'fetchPremiumIndexOHLCV': True,
                 'fetchStatus': None,
                 'fetchTicker': True,
@@ -124,8 +126,8 @@ class huobi(Exchange):
                 'loadLeverageBrackets': None,
                 'reduceMargin': None,
                 'setLeverage': True,
-                'setMarginMode': None,
-                'setPositionMode': None,
+                'setMarginMode': False,
+                'setPositionMode': False,
                 'signIn': None,
                 'transfer': True,
                 'withdraw': True,
@@ -1239,17 +1241,12 @@ class huobi(Exchange):
             else:
                 pricePrecision = self.safe_number(market, 'price_tick')
                 amountPrecision = 1
-            precision = {
-                'amount': amountPrecision,
-                'price': pricePrecision,
-                'cost': costPrecision,
-            }
             maker = None
             taker = None
             if spot:
                 maker = 0 if (base == 'OMG') else 0.2 / 100
                 taker = 0 if (base == 'OMG') else 0.2 / 100
-            minAmount = self.safe_number(market, 'min-order-amt', math.pow(10, -precision['amount']))
+            minAmount = self.safe_number(market, 'min-order-amt')
             maxAmount = self.safe_number(market, 'max-order-amt')
             minCost = self.safe_number(market, 'min-order-value', 0)
             active = None
@@ -1259,6 +1256,9 @@ class huobi(Exchange):
             elif contract:
                 contractStatus = self.safe_integer(market, 'contract_status')
                 active = (contractStatus == 1)
+            leverageRatio = self.safe_string(market, 'leverage-ratio', '1')
+            superLeverageRatio = self.safe_string(market, 'super-margin-leverage-ratio', '1')
+            hasLeverage = Precise.string_gt(leverageRatio, '1') or Precise.string_gt(superLeverageRatio, '1')
             # 0 Delisting
             # 1 Listing
             # 2 Pending Listing
@@ -1279,35 +1279,44 @@ class huobi(Exchange):
                 'quoteId': quoteId,
                 'settleId': settleId,
                 'type': type,
-                'contract': contract,
                 'spot': spot,
-                'future': future,
+                'margin': (spot and hasLeverage),
                 'swap': swap,
+                'future': future,
+                'option': False,
+                'active': active,
+                'contract': contract,
                 'linear': linear,
                 'inverse': inverse,
-                'expiry': expiry,
-                'expiryDatetime': self.iso8601(expiry),
-                'contractSize': contractSize,
-                'active': active,
-                'precision': precision,
                 'taker': taker,
                 'maker': maker,
+                'contractSize': contractSize,
+                'expiry': expiry,
+                'expiryDatetime': self.iso8601(expiry),
+                'strike': None,
+                'optionType': None,
+                'precision': {
+                    'amount': amountPrecision,
+                    'price': pricePrecision,
+                    'cost': costPrecision,
+                },
                 'limits': {
+                    'leverage': {
+                        'min': self.parse_number('1'),
+                        'max': self.parse_number(leverageRatio),
+                        'superMax': self.parse_number(superLeverageRatio),
+                    },
                     'amount': {
                         'min': minAmount,
                         'max': maxAmount,
                     },
                     'price': {
-                        'min': pricePrecision,
+                        'min': None,
                         'max': None,
                     },
                     'cost': {
                         'min': minCost,
                         'max': None,
-                    },
-                    'leverage': {
-                        'max': self.safe_number(market, 'leverage-ratio', 1),
-                        'superMax': self.safe_number(market, 'super-margin-leverage-ratio', 1),
                     },
                 },
                 'info': market,
@@ -4231,6 +4240,43 @@ class huobi(Exchange):
         #
         result = self.safe_value(response, 'data', {})
         return self.parse_funding_rate(result, market)
+
+    async def fetch_funding_rates(self, symbols, params={}):
+        await self.load_markets()
+        options = self.safe_value(self.options, 'fetchFundingRates', {})
+        defaultSubType = self.safe_string(self.options, 'defaultSubType', 'inverse')
+        subType = self.safe_string(options, 'subType', defaultSubType)
+        subType = self.safe_string(params, 'subType', subType)
+        request = {
+            # 'contract_code': market['id'],
+        }
+        method = self.get_supported_mapping(subType, {
+            'linear': 'contractPublicGetLinearSwapApiV1SwapBatchFundingRate',
+            'inverse': 'contractPublicGetSwapApiV1SwapBatchFundingRate',
+        })
+        params = self.omit(params, 'subType')
+        response = await getattr(self, method)(self.extend(request, params))
+        #
+        #     {
+        #         "status": "ok",
+        #         "data": [
+        #             {
+        #                 "estimated_rate": "0.000100000000000000",
+        #                 "funding_rate": "0.000100000000000000",
+        #                 "contract_code": "MANA-USDT",
+        #                 "symbol": "MANA",
+        #                 "fee_asset": "USDT",
+        #                 "funding_time": "1643356800000",
+        #                 "next_funding_time": "1643385600000",
+        #                 "trade_partition":"USDT"
+        #             },
+        #         ],
+        #         "ts": 1643346173103
+        #     }
+        #
+        data = self.safe_value(response, 'data', [])
+        result = self.parse_funding_rates(data)
+        return self.filter_by_array(result, 'symbol', symbols)
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = '/'

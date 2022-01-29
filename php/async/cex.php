@@ -21,8 +21,13 @@ class cex extends Exchange {
             'countries' => array( 'GB', 'EU', 'CY', 'RU' ),
             'rateLimit' => 1500,
             'has' => array(
-                'cancelOrder' => true,
                 'CORS' => null,
+                'spot' => true,
+                'margin' => null,
+                'swap' => null,
+                'future' => null,
+                'option' => null,
+                'cancelOrder' => true,
                 'createOrder' => true,
                 'editOrder' => true,
                 'fetchBalance' => true,
@@ -469,12 +474,12 @@ class cex extends Exchange {
 
     public function parse_ticker($ticker, $market = null) {
         $timestamp = $this->safe_timestamp($ticker, 'timestamp');
-        $volume = $this->safe_number($ticker, 'volume');
-        $high = $this->safe_number($ticker, 'high');
-        $low = $this->safe_number($ticker, 'low');
-        $bid = $this->safe_number($ticker, 'bid');
-        $ask = $this->safe_number($ticker, 'ask');
-        $last = $this->safe_number($ticker, 'last');
+        $volume = $this->safe_string($ticker, 'volume');
+        $high = $this->safe_string($ticker, 'high');
+        $low = $this->safe_string($ticker, 'low');
+        $bid = $this->safe_string($ticker, 'bid');
+        $ask = $this->safe_string($ticker, 'ask');
+        $last = $this->safe_string($ticker, 'last');
         $symbol = $this->safe_symbol(null, $market);
         return $this->safe_ticker(array(
             'symbol' => $symbol,
@@ -497,7 +502,7 @@ class cex extends Exchange {
             'baseVolume' => $volume,
             'quoteVolume' => null,
             'info' => $ticker,
-        ), $market);
+        ), $market, false);
     }
 
     public function fetch_tickers($symbols = null, $params = array ()) {

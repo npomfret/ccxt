@@ -28,6 +28,7 @@ class zonda(Exchange):
             'countries': ['EE'],  # Estonia
             'rateLimit': 1000,
             'has': {
+                'CORS': True,
                 'spot': True,
                 'margin': False,
                 'swap': False,
@@ -35,7 +36,6 @@ class zonda(Exchange):
                 'option': False,
                 'addMargin': False,
                 'cancelOrder': True,
-                'CORS': True,
                 'createOrder': True,
                 'createReduceOnlyOrder': False,
                 'fetchBalance': True,
@@ -508,9 +508,9 @@ class zonda(Exchange):
         #       }
         #
         open = self.safe_string(ticker, 'r24h')
-        high = self.safe_number(ticker, 'h')
-        low = self.safe_number(ticker, 'l')
-        volume = self.safe_number(ticker, 'v')
+        high = self.safe_string(ticker, 'h')
+        low = self.safe_string(ticker, 'l')
+        volume = self.safe_string(ticker, 'v')
         marketId = self.safe_string(ticker, 'm')
         market = self.safe_market(marketId, market, '-')
         symbol = market['symbol']

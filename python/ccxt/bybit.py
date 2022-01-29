@@ -38,12 +38,14 @@ class bybit(Exchange):
             'rateLimit': 100,
             'hostname': 'bybit.com',  # bybit.com, bytick.com
             'has': {
+                'CORS': True,
+                'spot': True,
                 'margin': False,
                 'swap': True,
                 'future': True,
+                'option': None,
                 'cancelAllOrders': True,
                 'cancelOrder': True,
-                'CORS': True,
                 'createOrder': True,
                 'editOrder': True,
                 'fetchBalance': True,
@@ -588,6 +590,7 @@ class bybit(Exchange):
                     '30068': ExchangeError,  # exit value must be positive
                     '30074': InvalidOrder,  # can't create the stop order, because you expect the order will be triggered when the LastPrice(or IndexPrice、 MarkPrice, determined by trigger_by) is raising to stop_px, but the LastPrice(or IndexPrice、 MarkPrice) is already equal to or greater than stop_px, please adjust base_price or stop_px
                     '30075': InvalidOrder,  # can't create the stop order, because you expect the order will be triggered when the LastPrice(or IndexPrice、 MarkPrice, determined by trigger_by) is falling to stop_px, but the LastPrice(or IndexPrice、 MarkPrice) is already equal to or less than stop_px, please adjust base_price or stop_px
+                    # '30084': BadRequest,  # Isolated not modified, see handleErrors below
                     '33004': AuthenticationError,  # apikey already expired
                     '34026': ExchangeError,  # the limit is no change
                 },
@@ -962,25 +965,23 @@ class bybit(Exchange):
         timestamp = None
         marketId = self.safe_string(ticker, 'symbol')
         symbol = self.safe_symbol(marketId, market)
-        last = self.safe_number(ticker, 'last_price')
-        open = self.safe_number(ticker, 'prev_price_24h')
-        percentage = self.safe_number(ticker, 'price_24h_pcnt')
-        if percentage is not None:
-            percentage *= 100
-        baseVolume = self.safe_number(ticker, 'turnover_24h')
-        quoteVolume = self.safe_number(ticker, 'volume_24h')
-        vwap = self.vwap(baseVolume, quoteVolume)
+        last = self.safe_string(ticker, 'last_price')
+        open = self.safe_string(ticker, 'prev_price_24h')
+        percentage = self.safe_string(ticker, 'price_24h_pcnt')
+        percentage = Precise.string_mul(percentage, '100')
+        baseVolume = self.safe_string(ticker, 'turnover_24h')
+        quoteVolume = self.safe_string(ticker, 'volume_24h')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_number(ticker, 'high_price_24h'),
-            'low': self.safe_number(ticker, 'low_price_24h'),
-            'bid': self.safe_number(ticker, 'bid_price'),
+            'high': self.safe_string(ticker, 'high_price_24h'),
+            'low': self.safe_string(ticker, 'low_price_24h'),
+            'bid': self.safe_string(ticker, 'bid_price'),
             'bidVolume': None,
-            'ask': self.safe_number(ticker, 'ask_price'),
+            'ask': self.safe_string(ticker, 'ask_price'),
             'askVolume': None,
-            'vwap': vwap,
+            'vwap': None,
             'open': open,
             'close': last,
             'last': last,
@@ -991,7 +992,7 @@ class bybit(Exchange):
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
-        }, market)
+        }, market, False)
 
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
@@ -2767,7 +2768,21 @@ class bybit(Exchange):
             'buy_leverage': leverage,
             'sell_leverage': leverage,
         }
-        return getattr(self, method)(self.extend(request, params))
+        response = getattr(self, method)(self.extend(request, params))
+        #
+        #     {
+        #         "ret_code": 0,
+        #         "ret_msg": "OK",
+        #         "ext_code": "",
+        #         "ext_info": "",
+        #         "result": null,
+        #         "time_now": "1585881597.006026",
+        #         "rate_limit_status": 74,
+        #         "rate_limit_reset_ms": 1585881597004,
+        #         "rate_limit": 75
+        #     }
+        #
+        return response
 
     def set_leverage(self, leverage, symbol=None, params={}):
         if symbol is None:
@@ -2904,6 +2919,13 @@ class bybit(Exchange):
         #
         errorCode = self.safe_string_2(response, 'ret_code', 'retCode')
         if errorCode != '0':
+            if errorCode == '30084':
+                # not an error
+                # https://github.com/ccxt/ccxt/issues/11268
+                # https://github.com/ccxt/ccxt/pull/11624
+                # POST https://api.bybit.com/v2/private/position/switch-isolated 200 OK
+                # {"ret_code":30084,"ret_msg":"Isolated not modified","ext_code":"","ext_info":"","result":null,"time_now":"1642005219.937988","rate_limit_status":73,"rate_limit_reset_ms":1642005219894,"rate_limit":75}
+                return None
             feedback = self.id + ' ' + body
             self.throw_exactly_matched_exception(self.exceptions['exact'], errorCode, feedback)
             self.throw_broadly_matched_exception(self.exceptions['broad'], body, feedback)

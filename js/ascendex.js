@@ -18,36 +18,50 @@ module.exports = class ascendex extends Exchange {
             'certified': true,
             // new metainfo interface
             'has': {
+                'CORS': undefined,
                 'spot': true,
                 'margin': undefined,
                 'swap': true,
                 'future': false,
                 'option': false,
+                'addMargin': true,
                 'cancelAllOrders': true,
                 'cancelOrder': true,
-                'CORS': undefined,
                 'createOrder': true,
+                'createReduceOnlyOrder': true,
                 'fetchAccounts': true,
                 'fetchBalance': true,
                 'fetchClosedOrders': true,
                 'fetchCurrencies': true,
                 'fetchDepositAddress': true,
                 'fetchDeposits': true,
+                'fetchFundingHistory': false,
+                'fetchFundingRate': false,
+                'fetchFundingRateHistory': false,
                 'fetchFundingRates': true,
+                'fetchIndexOHLCV': false,
+                'fetchIsolatedPositions': false,
+                'fetchLeverage': false,
                 'fetchMarkets': true,
+                'fetchMarkOHLCV': false,
                 'fetchOHLCV': true,
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
                 'fetchOrderBook': true,
                 'fetchOrders': false,
+                'fetchPosition': false,
                 'fetchPositions': true,
+                'fetchPositionsRisk': false,
+                'fetchPremiumIndexOHLCV': false,
                 'fetchTicker': true,
                 'fetchTickers': true,
                 'fetchTrades': true,
                 'fetchTransactions': true,
                 'fetchWithdrawals': true,
+                'reduceMargin': true,
                 'setLeverage': true,
                 'setMarginMode': true,
+                'setPositionMode': false,
             },
             'timeframes': {
                 '1m': '1',
@@ -1147,6 +1161,12 @@ module.exports = class ascendex extends Exchange {
         const account = this.safeValue (this.accounts, 0, {});
         const accountGroup = this.safeValue (account, 'id');
         const clientOrderId = this.safeString2 (params, 'clientOrderId', 'id');
+        const reduceOnly = this.safeValue (params, 'execInst');
+        if (reduceOnly !== undefined) {
+            if ((style !== 'swap')) {
+                throw new InvalidOrder (this.id + ' createOrder() does not support reduceOnly for ' + style + ' orders, reduceOnly orders are supported for perpetuals only');
+            }
+        }
         const request = {
             'account-group': accountGroup,
             'account-category': accountCategory,
@@ -1257,6 +1277,13 @@ module.exports = class ascendex extends Exchange {
         const data = this.safeValue (response, 'data', {});
         const order = this.safeValue2 (data, 'order', 'info', {});
         return this.parseOrder (order, market);
+    }
+
+    async createReduceOnlyOrder (symbol, type, side, amount, price = undefined, params = {}) {
+        const request = {
+            'execInst': 'reduceOnly',
+        };
+        return await this.createOrder (symbol, type, side, amount, price, this.extend (request, params));
     }
 
     async fetchOrder (id, symbol = undefined, params = {}) {
@@ -2132,6 +2159,46 @@ module.exports = class ascendex extends Exchange {
         const contracts = this.safeValue (data, 'contracts', []);
         const result = this.parseFundingRates (contracts);
         return this.filterByArray (result, 'symbol', symbols);
+    }
+
+    async modifyMarginHelper (symbol, amount, type, params = {}) {
+        await this.loadMarkets ();
+        await this.loadAccounts ();
+        const market = this.market (symbol);
+        const account = this.safeValue (this.accounts, 0, {});
+        const accountGroup = this.safeString (account, 'id');
+        amount = this.numberToString (amount);
+        const request = {
+            'account-group': accountGroup,
+            'symbol': market['id'],
+            'amount': amount,
+        };
+        const response = await this.v2PrivateAccountGroupPostFuturesIsolatedPositionMargin (this.extend (request, params));
+        //
+        // Can only change margin for perpetual futures isolated margin positions
+        //
+        //     {
+        //          "code": 0
+        //     }
+        //
+        const errorCode = this.safeString (response, 'code');
+        const status = (errorCode === '0') ? 'ok' : 'failed';
+        return {
+            'info': response,
+            'type': type,
+            'amount': amount,
+            'code': market['quote'],
+            'symbol': market['symbol'],
+            'status': status,
+        };
+    }
+
+    async reduceMargin (symbol, amount, params = {}) {
+        return await this.modifyMarginHelper (symbol, amount, 'reduce', params);
+    }
+
+    async addMargin (symbol, amount, params = {}) {
+        return await this.modifyMarginHelper (symbol, amount, 'add', params);
     }
 
     async setLeverage (leverage, symbol = undefined, params = {}) {

@@ -26,14 +26,16 @@ class okex extends Exchange {
             'pro' => true,
             'certified' => true,
             'has' => array(
+                'CORS' => null,
+                'spot' => true,
                 'margin' => true,
                 'swap' => true,
                 'future' => true,
+                'option' => null,
                 'addMargin' => true,
                 'cancelAllOrders' => null,
                 'cancelOrder' => true,
-                'cancelOrders' => null,
-                'CORS' => null,
+                'cancelOrders' => true,
                 'createDepositAddress' => null,
                 'createOrder' => true,
                 'createReduceOnlyOrder' => null,
@@ -43,6 +45,7 @@ class okex extends Exchange {
                 'fetchBalance' => true,
                 'fetchBidsAsks' => null,
                 'fetchBorrowRate' => true,
+                'fetchBorrowRateHistories' => null,
                 'fetchBorrowRateHistory' => null,
                 'fetchBorrowRates' => true,
                 'fetchBorrowRatesPerSymbol' => false,
@@ -316,7 +319,7 @@ class okex extends Exchange {
                     '50011' => '\\ccxt\\RateLimitExceeded', // Request too frequent
                     '50012' => '\\ccxt\\ExchangeError', // Account status invalid
                     '50013' => '\\ccxt\\ExchangeNotAvailable', // System is busy, please try again later
-                    '50014' => '\\ccxt\\ExchangeError', // Parameter {0} can not be empty
+                    '50014' => '\\ccxt\\BadRequest', // Parameter {0} can not be empty
                     '50015' => '\\ccxt\\ExchangeError', // Either parameter {0} or {1} is required
                     '50016' => '\\ccxt\\ExchangeError', // Parameter {0} does not match parameter {1}
                     '50017' => '\\ccxt\\ExchangeError', // The position is frozen due to ADL. Operation restricted
@@ -326,14 +329,14 @@ class okex extends Exchange {
                     '50021' => '\\ccxt\\ExchangeError', // Currency {0} is frozen due to liquidation. Operation restricted
                     '50022' => '\\ccxt\\ExchangeError', // The account is frozen due to liquidation. Operation restricted
                     '50023' => '\\ccxt\\ExchangeError', // Funding fee frozen. Operation restricted
-                    '50024' => '\\ccxt\\ExchangeError', // Parameter {0} and {1} can not exist at the same time
+                    '50024' => '\\ccxt\\BadRequest', // Parameter {0} and {1} can not exist at the same time
                     '50025' => '\\ccxt\\ExchangeError', // Parameter {0} count exceeds the limit {1}
                     '50026' => '\\ccxt\\ExchangeError', // System error
-                    '50027' => '\\ccxt\\ExchangeError', // The account is restricted from trading
+                    '50027' => '\\ccxt\\PermissionDenied', // The account is restricted from trading
                     '50028' => '\\ccxt\\ExchangeError', // Unable to take the order, please reach out to support center for details
                     // API Class
                     '50100' => '\\ccxt\\ExchangeError', // API frozen, please contact customer service
-                    '50101' => '\\ccxt\\ExchangeError', // Broker id of APIKey does not match current environment
+                    '50101' => '\\ccxt\\AuthenticationError', // Broker id of APIKey does not match current environment
                     '50102' => '\\ccxt\\InvalidNonce', // Timestamp request expired
                     '50103' => '\\ccxt\\AuthenticationError', // Request header "OK_ACCESS_KEY" can not be empty
                     '50104' => '\\ccxt\\AuthenticationError', // Request header "OK_ACCESS_PASSPHRASE" can not be empty
@@ -722,7 +725,7 @@ class okex extends Exchange {
         //         "baseCcy":"BTC",
         //         "category":"1",
         //         "ctMult":"",
-        //         "ctType":"", // $inverse, $linear
+        //         "ctType":"", // inverse, linear
         //         "ctVal":"",
         //         "ctValCcy":"",
         //         "expTime":"",
@@ -774,20 +777,20 @@ class okex extends Exchange {
         $contract = $swap || $futures || $option;
         $baseId = $this->safe_string($market, 'baseCcy');
         $quoteId = $this->safe_string($market, 'quoteCcy');
-        $settleCurrency = $this->safe_string($market, 'settleCcy');
-        $settle = $this->safe_currency_code($settleCurrency);
+        $settleId = $this->safe_string($market, 'settleCcy');
+        $settle = $this->safe_currency_code($settleId);
         $underlying = $this->safe_string($market, 'uly');
         if (($underlying !== null) && !$spot) {
             $parts = explode('-', $underlying);
             $baseId = $this->safe_string($parts, 0);
             $quoteId = $this->safe_string($parts, 1);
         }
-        $inverse = $contract ? ($baseId === $settleCurrency) : null;
-        $linear = $contract ? ($quoteId === $settleCurrency) : null;
         $base = $this->safe_currency_code($baseId);
         $quote = $this->safe_currency_code($quoteId);
         $symbol = $base . '/' . $quote;
         $expiry = null;
+        $strikePrice = null;
+        $optionType = null;
         if ($contract) {
             $symbol = $symbol . ':' . $settle;
             $expiry = $this->safe_integer($market, 'expTime');
@@ -799,66 +802,66 @@ class okex extends Exchange {
                 $strikePrice = $this->safe_string($market, 'stk');
                 $optionType = $this->safe_string($market, 'optType');
                 $symbol = $symbol . '-' . $strikePrice . '-' . $optionType;
+                $optionType = ($optionType === 'P') ? 'put' : 'call';
             }
         }
         $tickSize = $this->safe_string($market, 'tickSz');
-        $precision = array(
-            'amount' => $this->safe_number($market, 'lotSz'),
-            'price' => $this->parse_number($tickSize),
-        );
         $minAmountString = $this->safe_string($market, 'minSz');
         $minAmount = $this->parse_number($minAmountString);
-        $minCost = null;
-        if (($minAmount !== null) && ($tickSize !== null)) {
-            $minCost = $this->parse_number(Precise::string_mul($tickSize, $minAmountString));
-        }
-        $active = true;
         $fees = $this->safe_value_2($this->fees, $type, 'trading', array());
-        $contractSize = null;
-        if ($contract) {
-            $contractSize = $this->safe_number($market, 'ctVal');
+        $precisionPrice = $this->parse_number($tickSize);
+        $maxLeverage = $this->safe_string($market, 'lever', '1');
+        if ($maxLeverage === '') {
+            $maxLeverage = '1';
         }
-        $leverage = $this->safe_number($market, 'lever', 1);
+        $maxLeverage = Precise::string_max($maxLeverage, '1');
         return array_merge($fees, array(
             'id' => $id,
             'symbol' => $symbol,
             'base' => $base,
             'quote' => $quote,
+            'settle' => $settle,
             'baseId' => $baseId,
             'quoteId' => $quoteId,
-            'settleId' => $settleCurrency,
-            'settle' => $settle,
-            'info' => $market,
+            'settleId' => $settleId,
             'type' => $type,
             'spot' => $spot,
-            'futures' => $futures,
+            'margin' => $spot && (Precise::string_gt($maxLeverage, '1')),
             'swap' => $swap,
-            'contract' => $contract,
+            'futures' => $futures,
             'option' => $option,
-            'linear' => $linear,
-            'inverse' => $inverse,
-            'active' => $active,
-            'contractSize' => $contractSize,
-            'precision' => $precision,
+            'active' => true,
+            'contract' => $contract,
+            'linear' => $contract ? ($quoteId === $settleId) : null,
+            'inverse' => $contract ? ($baseId === $settleId) : null,
+            'contractSize' => $contract ? $this->safe_number($market, 'ctVal') : null,
             'expiry' => $expiry,
             'expiryDatetime' => $this->iso8601($expiry),
+            'strike' => $strikePrice,
+            'optionType' => $optionType,
+            'precision' => array(
+                'price' => $precisionPrice,
+                'amount' => $this->safe_number($market, 'lotSz'),
+            ),
             'limits' => array(
+                'leverage' => array(
+                    'min' => $this->parse_number('1'),
+                    'max' => $this->parse_number($maxLeverage),
+                ),
                 'amount' => array(
                     'min' => $minAmount,
                     'max' => null,
                 ),
                 'price' => array(
-                    'min' => $precision['price'],
+                    'min' => $precisionPrice,
                     'max' => null,
                 ),
                 'cost' => array(
-                    'min' => $minCost,
+                    'min' => null,
                     'max' => null,
                 ),
-                'leverage' => array(
-                    'max' => $leverage,
-                ),
             ),
+            'info' => $market,
         ));
     }
 
@@ -1102,22 +1105,21 @@ class okex extends Exchange {
         $marketId = $this->safe_string($ticker, 'instId');
         $market = $this->safe_market($marketId, $market, '-');
         $symbol = $market['symbol'];
-        $last = $this->safe_number($ticker, 'last');
-        $open = $this->safe_number($ticker, 'open24h');
-        $quoteVolume = $this->safe_number($ticker, 'volCcy24h');
-        $baseVolume = $this->safe_number($ticker, 'vol24h');
-        $vwap = $this->vwap($baseVolume, $quoteVolume);
+        $last = $this->safe_string($ticker, 'last');
+        $open = $this->safe_string($ticker, 'open24h');
+        $quoteVolume = $this->safe_string($ticker, 'volCcy24h');
+        $baseVolume = $this->safe_string($ticker, 'vol24h');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_number($ticker, 'high24h'),
-            'low' => $this->safe_number($ticker, 'low24h'),
-            'bid' => $this->safe_number($ticker, 'bidPx'),
-            'bidVolume' => $this->safe_number($ticker, 'bidSz'),
-            'ask' => $this->safe_number($ticker, 'askPx'),
-            'askVolume' => $this->safe_number($ticker, 'askSz'),
-            'vwap' => $vwap,
+            'high' => $this->safe_string($ticker, 'high24h'),
+            'low' => $this->safe_string($ticker, 'low24h'),
+            'bid' => $this->safe_string($ticker, 'bidPx'),
+            'bidVolume' => $this->safe_string($ticker, 'bidSz'),
+            'ask' => $this->safe_string($ticker, 'askPx'),
+            'askVolume' => $this->safe_string($ticker, 'askSz'),
+            'vwap' => null,
             'open' => $open,
             'close' => $last,
             'last' => $last,
@@ -1128,7 +1130,7 @@ class okex extends Exchange {
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
-        ), $market);
+        ), $market, false);
     }
 
     public function fetch_ticker($symbol, $params = array ()) {
@@ -1863,6 +1865,64 @@ class okex extends Exchange {
         $data = $this->safe_value($response, 'data', array());
         $order = $this->safe_value($data, 0);
         return $this->parse_order($order, $market);
+    }
+
+    public function cancel_orders($ids, $symbol = null, $params = array ()) {
+        if ($symbol === null) {
+            throw new ArgumentsRequired($this->id . ' canelOrders() requires a $symbol argument');
+        }
+        yield $this->load_markets();
+        $market = $this->market($symbol);
+        $request = array();
+        $clientOrderId = $this->safe_value_2($params, 'clOrdId', 'clientOrderId');
+        if ($clientOrderId === null) {
+            if (gettype($ids) === 'string') {
+                $orderIds = explode(',', $ids);
+                for ($i = 0; $i < count($orderIds); $i++) {
+                    $request[] = array(
+                        'instId' => $market['id'],
+                        'ordId' => $orderIds[$i],
+                    );
+                }
+            } else {
+                for ($i = 0; $i < count($ids); $i++) {
+                    $request[] = array(
+                        'instId' => $market['id'],
+                        'ordId' => $ids[$i],
+                    );
+                }
+            }
+        } else if (gettype($clientOrderId) === 'array' && count(array_filter(array_keys($clientOrderId), 'is_string')) == 0) {
+            for ($i = 0; $i < count($clientOrderId); $i++) {
+                $request[] = array(
+                    'instId' => $market['id'],
+                    'clOrdId' => $clientOrderId[$i],
+                );
+            }
+        } else if (gettype($clientOrderId) === 'string') {
+            $request[] = array(
+                'instId' => $market['id'],
+                'clOrdId' => $clientOrderId,
+            );
+        }
+        $response = yield $this->privatePostTradeCancelBatchOrders ($request); // dont extend with $params, otherwise ARRAY will be turned into OBJECT
+        //
+        // {
+        //     "code" => "0",
+        //     "data" => array(
+        //         array(
+        //             "clOrdId" => "e123456789ec4dBC1123456ba123b45e",
+        //             "ordId" => "405071912345641543",
+        //             "sCode" => "0",
+        //             "sMsg" => ""
+        //         ),
+        //         ...
+        //     ),
+        //     "msg" => ""
+        // }
+        //
+        $ordersData = $this->safe_value($response, 'data', array());
+        return $this->parse_orders($ordersData, $market, null, null, $params);
     }
 
     public function parse_order_status($status) {
@@ -3762,7 +3822,7 @@ class okex extends Exchange {
 
     public function set_sandbox_mode($enable) {
         if ($enable) {
-            $this->headers['x-simulated-trading'] = 1;
+            $this->headers['x-simulated-trading'] = '1';
         } else if (is_array($this->headers) && array_key_exists('x-simulated-trading', $this->headers)) {
             $this->headers = $this->omit($this->headers, 'x-simulated-trading');
         }
