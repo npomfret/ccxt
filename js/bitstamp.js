@@ -717,7 +717,7 @@ module.exports = class bitstamp extends Exchange {
         const feeCostString = this.safeString (trade, 'fee');
         let feeCurrency = undefined;
         if (market !== undefined) {
-            priceString = this.safeString (trade, market['marketId'], priceString);
+            priceString = this.safeString (trade, market['symbolId'], priceString);
             amountString = this.safeString (trade, market['baseId'], amountString);
             costString = this.safeString (trade, market['quoteId'], costString);
             feeCurrency = market['quote'];
